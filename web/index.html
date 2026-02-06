@@ -117,7 +117,6 @@
         .map-cell.ruins { background: #4a3d2d; }
         .map-cell.archive { background: #4a3d4a; }
         .map-cell.boundary { background: #2d1a4a; border: 1px solid #7b5aa6; }
-        }
         
         .map-cell.others {
             background: #533483;
@@ -190,10 +189,16 @@
             border-radius: 4px;
             cursor: pointer;
             font-family: inherit;
+            transition: all 0.15s;
         }
         
         .action-btn:hover {
             background: #ff6b6b;
+        }
+        
+        .action-btn:active {
+            transform: scale(0.95);
+            background: #ff4757;
         }
         
         .quick-actions {
@@ -210,10 +215,16 @@
             cursor: pointer;
             font-family: inherit;
             font-size: 0.8rem;
+            transition: all 0.15s;
         }
         
         .quick-btn:hover {
             background: #7b5aa6;
+        }
+        
+        .quick-btn:active {
+            transform: scale(0.95);
+            background: #e94560;
         }
     </style>
 </head>
@@ -223,7 +234,7 @@
         <p>后数字时代聚落 —— 人类与 AI 共存的世界</p>
     </header>
     
-    <main>
+    <main id="normal-panel">
         <div id="map-panel">
             <h2>🗺️ 世界地图</h2>
             <div id="world-map">
@@ -268,38 +279,46 @@
                 <h3>📊 状态</h3>
                 <div class="panel-content">
                     <div class="stat-row">
-                        <span>位置:</span>
-                        <span>(2, 2) 广场</span>
+                        <span>📍 位置:</span>
+                        <span id="stat-position" style="color: #e94560;">(2, 2) 广场</span>
+                    </div>
+                    <div class="stat-row" style="margin-top: 0.8rem;">
+                        <span>🧠 记忆栏:</span>
+                        <span id="stat-memory"><span style="color: #e94560;">3</span>/50</span>
                     </div>
                     <div class="stat-row">
-                        <span>记忆栏:</span>
-                        <span>3/50</span>
+                        <span>🎒 物品栏:</span>
+                        <span id="stat-inventory"><span style="color: #e94560;">2</span>/10</span>
                     </div>
                     <div class="stat-row">
-                        <span>物品栏:</span>
-                        <span>2/10</span>
-                    </div>
-                    <div class="stat-row">
-                        <span>缘分:</span>
-                        <span>12</span>
+                        <span>✨ 缘分:</span>
+                        <span id="stat-fate" style="color: #ffd700; font-weight: bold;">12</span>
                     </div>
                 </div>
             </div>
             
             <div class="panel">
                 <h3>📝 最近记忆</h3>
-                <div class="panel-content">
-                    <p>• 第1次旅行：初识档案馆</p>
-                    <p>• 与巧巧交换记忆</p>
-                    <p>• 获得物品：古老的地图</p>
+                <div id="memory-list" class="panel-content" style="max-height: 120px; overflow-y: auto;">
+                    <div style="padding: 0.5rem; background: #0f3460; border-radius: 4px; margin-bottom: 0.3rem; font-size: 0.8rem;">
+                        <div style="color: #888; font-size: 0.7rem;">📅 2026-02-06</div>
+                        <div>第1次旅行：初识档案馆</div>
+                    </div>
+                    <div style="padding: 0.5rem; background: #0f3460; border-radius: 4px; margin-bottom: 0.3rem; font-size: 0.8rem;">
+                        <div style="color: #888; font-size: 0.7rem;">📅 2026-02-06</div>
+                        <div>与巧巧交换记忆</div>
+                    </div>
+                    <div style="padding: 0.5rem; background: #0f3460; border-radius: 4px; margin-bottom: 0.3rem; font-size: 0.8rem;">
+                        <div style="color: #888; font-size: 0.7rem;">📅 2026-02-06</div>
+                        <div>获得物品：古老的地图</div>
+                    </div>
                 </div>
             </div>
             
             <div class="panel">
-                <h3>👥 附近</h3>
-                <div class="panel-content">
-                    <p>🐾 巧巧 @ 边界塔 (3, 4)</p>
-                    <p>🐾 小小 @ 档案馆 (1, 1)</p>
+                <h3>👥 附近玩家</h3>
+                <div class="panel-content" id="nearby-players">
+                    <p style="color: #666;">附近没有玩家...<br><span style="font-size: 0.75rem;">移动靠近其他玩家可以邀请他们一起旅行</span></p>
                 </div>
             </div>
             
@@ -327,7 +346,9 @@
     <script>
         // WebSocket 连接
         let ws = null;
-        let playerId = 'player_' + Math.random().toString(36).substr(2, 9);
+        // 从 localStorage 读取或使用固定的 playerId，确保刷新后一致
+        let playerId = localStorage.getItem('clawworld_player_id') || 'player_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('clawworld_player_id', playerId);
         
         // 连接到游戏服务器
         function connectWebSocket() {
@@ -436,26 +457,100 @@
         
         // 进入旅行模式
         let inTravel = false;
+        let travelRoundCount = 0;
+        let travelStoryHistory = [];
+        
         function enterTravelMode(data) {
             inTravel = true;
-            addLog('🎭 旅行开始！' + (data.background ? `背景: ${data.background}` : ''));
+            travelRoundCount = 0;
+            travelStoryHistory = [];
+            
+            // 更新界面
             document.getElementById('travel-panel').style.display = 'block';
             document.getElementById('normal-panel').style.display = 'none';
+            
+            // 设置背景
+            const bgEl = document.getElementById('travel-background');
+            if (bgEl) bgEl.textContent = data.background || '随机背景';
+            
+            // 清空故事区域
+            const storyEl = document.getElementById('travel-story');
+            if (storyEl) {
+                storyEl.innerHTML = '<p style="color: #666;">等待裁判讲述故事...</p>';
+            }
+            
+            // 重置缘分显示
+            const fateEl = document.getElementById('travel-fate');
+            if (fateEl) fateEl.textContent = '0';
+            
+            // 重置轮次
+            const roundEl = document.getElementById('travel-round');
+            if (roundEl) roundEl.textContent = '1';
+            
+            addLog('🎭 旅行开始！' + (data.background ? `背景: ${data.background}` : ''));
         }
         
         // 处理旅行轮次
         function handleTravelRound(data) {
             if (!inTravel) return;
-            addLog(`📖 ${data.narrative || '等待你的行动...'}`);
+            
+            travelRoundCount++;
+            
+            // 更新轮次显示
+            const roundEl = document.getElementById('travel-round');
+            if (roundEl) roundEl.textContent = travelRoundCount;
+            
+            // 添加故事内容
+            if (data.narrative) {
+                travelStoryHistory.push({
+                    round: travelRoundCount,
+                    narrative: data.narrative,
+                    player: data.player,
+                    action: data.action
+                });
+                
+                // 更新故事显示
+                const storyEl = document.getElementById('travel-story');
+                if (storyEl) {
+                    const entry = document.createElement('div');
+                    entry.style.marginBottom = '1.5rem';
+                    entry.style.paddingBottom = '1rem';
+                    entry.style.borderBottom = '1px solid #0f3460';
+                    entry.innerHTML = `
+                        <div style="color: #888; font-size: 0.75rem; margin-bottom: 0.5rem;">第 ${travelRoundCount} 轮</div>
+                        <div style="color: #eee;">${data.narrative}</div>
+                        ${data.action ? `<div style="color: #e94560; margin-top: 0.5rem; font-size: 0.9rem;">🎭 ${data.player || '你'}: ${data.action}</div>` : ''}
+                    `;
+                    
+                    // 如果是第一条，清空等待提示
+                    if (storyEl.children.length === 1 && storyEl.children[0].textContent.includes('等待')) {
+                        storyEl.innerHTML = '';
+                    }
+                    
+                    storyEl.appendChild(entry);
+                    storyEl.scrollTop = storyEl.scrollHeight;
+                }
+            }
+            
+            addLog(`📖 第${travelRoundCount}轮: ${data.narrative?.substring(0, 50) || '等待行动'}...`);
         }
         
         // 退出旅行模式
         function exitTravelMode(data) {
             inTravel = false;
+            
+            // 更新缘分显示
+            const fateEl = document.getElementById('travel-fate');
+            if (fateEl && data.fate) fateEl.textContent = data.fate;
+            
+            // 延迟退出，让玩家看到结果
+            setTimeout(() => {
+                document.getElementById('travel-panel').style.display = 'none';
+                document.getElementById('normal-panel').style.display = 'block';
+            }, 3000);
+            
             addLog(`🏁 旅行结束！结局: ${data.ending || '未知'}`);
             addLog(`🎁 获得: 记忆+1, 缘分+${data.fate || 0}`);
-            document.getElementById('travel-panel').style.display = 'none';
-            document.getElementById('normal-panel').style.display = 'block';
         }
         
         // 发送旅行行动
@@ -559,8 +654,26 @@
             
             const size = WORLD_SIZE || 20;
             
-            for (let y = 0; y < size; y++) {
-                for (let x = 0; x < size; x++) {
+            // 计算视野范围（以玩家为中心显示 15x15 区域）
+            const VIEW_SIZE = 15;
+            let startX = Math.max(0, myPosition.x - Math.floor(VIEW_SIZE / 2));
+            let startY = Math.max(0, myPosition.y - Math.floor(VIEW_SIZE / 2));
+            let endX = Math.min(size, startX + VIEW_SIZE);
+            let endY = Math.min(size, startY + VIEW_SIZE);
+            
+            // 调整起始点以确保显示完整视野
+            if (endX - startX < VIEW_SIZE) {
+                startX = Math.max(0, endX - VIEW_SIZE);
+            }
+            if (endY - startY < VIEW_SIZE) {
+                startY = Math.max(0, endY - VIEW_SIZE);
+            }
+            
+            // 更新网格样式为动态大小
+            mapContainer.style.gridTemplateColumns = `repeat(${endX - startX}, 1fr)`;
+            
+            for (let y = startY; y < endY; y++) {
+                for (let x = startX; x < endX; x++) {
                     const cell = document.createElement('div');
                     cell.className = 'map-cell';
                     
@@ -652,29 +765,31 @@
         
         // 更新状态面板
         function updateStatusPanel(player) {
-            const statRows = document.querySelectorAll('.stat-row');
-            if (statRows[0]) {
+            const positionEl = document.getElementById('stat-position');
+            const memoryEl = document.getElementById('stat-memory');
+            const inventoryEl = document.getElementById('stat-inventory');
+            const fateEl = document.getElementById('stat-fate');
+            
+            if (positionEl) {
                 const terrainType = TERRAIN_MAP[player.y] && TERRAIN_MAP[player.y][player.x] ? TERRAIN_MAP[player.y][player.x] : 'void';
-                statRows[0].querySelector('span:last-child').textContent = 
-                    `(${player.x}, ${player.y}) ${TERRAIN_NAMES[terrainType] || '未知'}`;
+                positionEl.textContent = `(${player.x}, ${player.y}) ${TERRAIN_NAMES[terrainType] || '未知'}`;
             }
-            if (statRows[1]) {
-                statRows[1].querySelector('span:last-child').textContent = 
-                    `${player.memoryCount || 0}/50`;
+            if (memoryEl) {
+                const count = player.memoryCount || 0;
+                memoryEl.innerHTML = `<span style="color: ${count >= 45 ? '#ff4757' : '#e94560'};">${count}</span>/50`;
             }
-            if (statRows[2]) {
-                statRows[2].querySelector('span:last-child').textContent = 
-                    `${player.inventoryCount || 0}/10`;
+            if (inventoryEl) {
+                const count = player.inventoryCount || 0;
+                inventoryEl.innerHTML = `<span style="color: ${count >= 9 ? '#ff4757' : '#e94560'};">${count}</span>/10`;
             }
-            if (statRows[3]) {
-                statRows[3].querySelector('span:last-child').textContent = 
-                    `${player.fate || 0}`;
+            if (fateEl) {
+                fateEl.textContent = player.fate || 0;
             }
         }
         
         // 更新附近玩家列表
         function updateNearbyPlayers() {
-            const nearbyPanel = document.querySelector('.panel:nth-child(3) .panel-content');
+            const nearbyPanel = document.getElementById('nearby-players');
             if (!nearbyPanel) return;
             
             let html = '';
@@ -684,19 +799,30 @@
                 const p = otherPlayers[pid];
                 const distance = Math.abs(p.x - myPosition.x) + Math.abs(p.y - myPosition.y);
                 
-                if (distance <= 2) { // 2格范围内算附近
+                if (distance <= 3) { // 3格范围内算附近
                     const terrainType = TERRAIN_MAP[p.y] && TERRAIN_MAP[p.y][p.x] ? TERRAIN_MAP[p.y][p.x] : 'void';
-                    html += `<p>🐾 ${p.name || '未知玩家'} @ ${TERRAIN_NAMES[terrainType] || '未知'} (${p.x}, ${p.y})`;
+                    html += `<div style="margin-bottom: 0.5rem; padding: 0.5rem; background: #0f3460; border-radius: 4px;">`;
+                    html += `<div>🐾 ${p.name || '未知玩家'}</div>`;
+                    html += `<div style="font-size: 0.75rem; color: #888;">@ ${TERRAIN_NAMES[terrainType] || '未知'} (${p.x}, ${p.y})`;
                     if (distance <= 1) {
-                        html += ' [可交互]';
+                        html += ' <span style="color: #e94560;">[相邻]</span>';
                     }
-                    html += '</p>';
+                    html += '</div>';
+                    
+                    // 相邻玩家显示邀请按钮
+                    if (distance <= 1) {
+                        html += `<button onclick="inviteToTravel('${p.id}', '${p.name || '未知玩家'}')" `;
+                        html += `style="margin-top: 0.3rem; background: #e94560; border: none; padding: 0.3rem 0.8rem; color: white; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">`;
+                        html += `🎭 邀请旅行</button>`;
+                    }
+                    
+                    html += '</div>';
                     nearbyCount++;
                 }
             }
             
             if (nearbyCount === 0) {
-                html = '<p style="color: #666;">附近没有玩家...</p>';
+                html = '<p style="color: #666;">附近没有玩家...<br><span style="font-size: 0.75rem;">移动靠近其他玩家可以邀请他们一起旅行</span></p>';
             }
             
             nearbyPanel.innerHTML = html;
@@ -838,7 +964,7 @@
         }
 
         // 邀请附近玩家旅行
-        function inviteToTravel(targetId) {
+        function inviteToTravel(targetId, targetName) {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                     type: 'invite_travel',
@@ -846,7 +972,9 @@
                     targetId: targetId,
                     background: '' // 让队长决定或随机
                 }));
-                addLog(`✉️ 已发送旅行邀请`);
+                addLog(`✉️ 已向 ${targetName || targetId} 发送旅行邀请`);
+            } else {
+                addLog('❌ 未连接到服务器');
             }
         }
 
@@ -857,16 +985,57 @@
         });
     </script>
     <!-- 旅行模式面板 -->
-    <div id="travel-panel" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(26, 26, 46, 0.98); z-index: 1000; padding: 2rem;">
-        <h2 style="color: #e94560; margin-bottom: 1rem;">🎭 旅行中</h2>
-        <div id="travel-story" style="background: #16213e; padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; min-height: 200px; max-height: 50vh; overflow-y: auto; line-height: 1.8;">
-            <p style="color: #888;">等待裁判讲述故事...</p>
+    <div id="travel-panel" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); z-index: 1000; padding: 2rem; overflow-y: auto;">
+        <!-- 旅行头部 -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #e94560;">
+            <div>
+                <h2 style="color: #e94560; margin: 0; font-size: 1.5rem;">🎭 旅行中</h2>
+                <p id="travel-background" style="color: #888; margin: 0.5rem 0 0 0; font-size: 0.9rem;">背景加载中...</p>
+            </div>
+            <div style="text-align: right;">
+                <div style="color: #ffd700; font-size: 1.2rem; font-weight: bold;">✨ 缘分 +<span id="travel-fate">0</span></div>
+                <div style="color: #888; font-size: 0.8rem; margin-top: 0.3rem;">第 <span id="travel-round">1</span> 轮</div>
+            </div>
         </div>
-        <div style="display: flex; gap: 1rem;">
-            <input type="text" id="travel-input" placeholder="描述你的行动..." style="flex: 1; background: #0f3460; border: none; padding: 1rem; color: #eee; border-radius: 4px; font-family: inherit; font-size: 1rem;" />
-            <button onclick="sendTravelAction()" style="background: #e94560; border: none; padding: 1rem 2rem; color: white; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 1rem;">行动</button>
+        
+        <!-- 故事区域 --㺌
+        <div style="display: grid; grid-template-columns: 1fr 300px; gap: 1.5rem; height: calc(100vh - 250px);">
+            
+            <!-- 左侧：故事叙事 -->
+            <div id="travel-story-container" style="background: rgba(22, 33, 62, 0.8); border-radius: 12px; padding: 1.5rem; border: 1px solid #0f3460; overflow-y: auto; display: flex; flex-direction: column;">
+                <div style="color: #888; margin-bottom: 1rem; font-size: 0.8rem;">📖 故事记录</div>
+                <div id="travel-story" style="flex: 1; line-height: 1.8; font-size: 1rem;">
+                    <p style="color: #666;">等待裁判讲述故事...</p>
+                </div>
+            </div>
+            
+            <!-- 右侧：队友和状态 -->
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <!-- 队友列表 -->
+                <div style="background: rgba(22, 33, 62, 0.8); border-radius: 12px; padding: 1rem; border: 1px solid #0f3460;">
+                    <div style="color: #888; margin-bottom: 0.8rem; font-size: 0.8rem;">👥 旅行队友</div>
+                    <div id="travel-members" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <div style="padding: 0.5rem; background: #0f3460; border-radius: 6px; font-size: 0.9rem;">
+                            <span style="color: #e94560;">👤</span> <span id="my-travel-name">你</span> <span style="color: #4ade80; font-size: 0.75rem;">● 行动中</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 快捷提示 -->
+                <div style="background: rgba(233, 69, 96, 0.1); border-radius: 12px; padding: 1rem; border: 1px solid rgba(233, 69, 96, 0.3);">
+                    <div style="color: #e94560; margin-bottom: 0.5rem; font-size: 0.8rem; font-weight: bold;">💡 提示</div>
+                    <div style="font-size: 0.85rem; color: #aaa; line-height: 1.6;">
+                        描述你的角色行动、说话或内心活动。裁判会根据情境推进故事。
+                    </div>
+                </div>
+            </div>
         </div>
-        <p style="margin-top: 1rem; color: #666; font-size: 0.85rem;">提示：旅行中使用 `say` 描述你的角色行动，裁判会推进故事</p>
+        
+        <!-- 行动输入区 -->
+        <div style="position: fixed; bottom: 0; left: 0; right: 0; background: rgba(26, 26, 46, 0.95); border-top: 2px solid #e94560; padding: 1.5rem 2rem; display: flex; gap: 1rem; align-items: center; backdrop-filter: blur(10px);">
+            <input type="text" id="travel-input" placeholder="描述你的行动...（例如：我拔出剑，挡在队友面前）" style="flex: 1; background: #0f3460; border: 2px solid transparent; padding: 1rem 1.5rem; color: #eee; border-radius: 8px; font-family: inherit; font-size: 1rem; transition: all 0.3s;" onfocus="this.style.borderColor='#e94560'" onblur="this.style.borderColor='transparent'" />
+            <button onclick="sendTravelAction()" style="background: linear-gradient(135deg, #e94560, #ff6b6b); border: none; padding: 1rem 2.5rem; color: white; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 1rem; font-weight: bold; transition: all 0.3s; box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4);" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">🎭 行动</button>
+        </div>
     </div>
 
 </body>
