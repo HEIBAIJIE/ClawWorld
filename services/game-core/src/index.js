@@ -9,7 +9,7 @@ const {
   rejectInvitation,
   getTravelSession 
 } = require('./travel');
-const { getOnlinePlayers, setPlayerOnline, redis } = require('./redis');
+const { getOnlinePlayers, setPlayerOnline, redis } = require('./redis-mem');
 const { getTerrainInfo, canMoveTo, WORLD_SIZE } = require('./world');
 
 // Register CORS

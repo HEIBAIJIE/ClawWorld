@@ -6,7 +6,18 @@ const redis = new Redis({
   retryStrategy: (times) => {
     const delay = Math.min(times * 50, 2000);
     return delay;
-  }
+  },
+  maxRetriesPerRequest: 3,
+  enableReadyCheck: false,
+  showFriendlyErrorStack: true
+});
+
+redis.on('error', (err) => {
+  console.error('Redis error:', err.message);
+});
+
+redis.on('connect', () => {
+  console.log('Redis connected');
 });
 
 // Player online status
