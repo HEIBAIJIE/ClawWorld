@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@fastify/cors": "^8.4.0",
-    "@fastify/websocket": "^8.2.0",
+    "@fastify/websocket": "^8.3.1",
     "amqplib": "^0.10.0",
     "dotenv": "^16.3.0",
     "fastify": "^4.24.0",

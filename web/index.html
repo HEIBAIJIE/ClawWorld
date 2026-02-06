@@ -60,21 +60,25 @@
         
         #world-map {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 4px;
-            max-width: 400px;
+            grid-template-columns: repeat(20, 1fr);
+            gap: 2px;
+            max-width: 600px;
+            max-height: 600px;
+            overflow: auto;
         }
         
         .map-cell {
             aspect-ratio: 1;
             background: #0f3460;
-            border-radius: 4px;
+            border-radius: 2px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.2rem;
+            font-size: 0.8rem;
             cursor: pointer;
             transition: all 0.2s;
+            min-width: 28px;
+            min-height: 28px;
         }
         
         .map-cell:hover {
@@ -225,7 +229,7 @@
                 <div class="map-cell">🏛️</div>
             </div>
             <p style="margin-top: 1rem; color: #666; font-size: 0.8rem;">
-                👤 你在这里 | 🐾 其他玩家 | 🏛️ 建筑 | 🌸 边界塔 | 🌲 森林 | 🏔️ 山地 | 🌊 水域
+                👤 你在这里 | 🐾 其他玩家 | 📚 档案馆 | 🌌 边界 | 🏛️ 遗迹 | 🌲 森林 | ⛰️ 山地 | 💧 水域 | 🌱 草原
             </p>
         </div>
         
@@ -297,8 +301,8 @@
         
         // 连接到游戏服务器
         function connectWebSocket() {
-            // K8s 部署后的服务地址
-            const wsUrl = 'ws://192.168.3.14:30082/ws';
+            // 本地测试地址
+            const wsUrl = 'ws://localhost:3002/ws';
             
             try {
                 ws = new WebSocket(wsUrl);
@@ -430,18 +434,30 @@
             input.value = '';
         }
         
-        // 地形配置（固定5x5地图）
-        const TERRAIN = [
-            ['🌲', '🌲', '🌲', '🏔️', '🌸'],
-            ['🌲', '🏛️', '⬜', '🌊', '🏔️'],
-            ['🌲', '🌊', '🏛️', '🌊', '🌸'],
-            ['🏔️', '🌲', '🌸', '⬜', '🌊'],
-            ['🏔️', '🌊', '🌸', '🌲', '🏛️']
-        ];
+        // 地形配置（从服务器获取）
+        let WORLD_SIZE = 20;
+        let TERRAIN_MAP = [];
+        
+        const TERRAIN_ICONS = {
+            'plains': '🌱',
+            'forest': '🌲',
+            'mountain': '⛰️',
+            'water': '💧',
+            'ruins': '🏛️',
+            'archive': '📚',
+            'boundary': '🌌',
+            'void': '⚫'
+        };
         
         const TERRAIN_NAMES = {
-            '🌲': '森林', '🏔️': '山地', '🌊': '水域', 
-            '🏛️': '建筑', '🌸': '边界塔', '⬜': '广场'
+            'plains': '草原',
+            'forest': '森林',
+            'mountain': '山地',
+            'water': '水域',
+            'ruins': '遗迹',
+            'archive': '档案馆',
+            'boundary': '边界',
+            'void': '虚空'
         };
         
         // 玩家位置
@@ -451,6 +467,14 @@
         // 更新世界状态
         function updateWorldState(data) {
             console.log('世界状态更新:', data);
+            
+            // 更新世界大小和地形
+            if (data.worldSize) {
+                WORLD_SIZE = data.worldSize;
+            }
+            if (data.terrain) {
+                TERRAIN_MAP = data.terrain;
+            }
             
             // 更新玩家位置
             if (data.players) {
@@ -477,20 +501,28 @@
             const mapContainer = document.getElementById('world-map');
             mapContainer.innerHTML = '';
             
-            for (let y = 0; y < 5; y++) {
-                for (let x = 0; x < 5; x++) {
+            // 如果没有地形数据，显示加载中
+            if (!TERRAIN_MAP || TERRAIN_MAP.length === 0) {
+                mapContainer.innerHTML = '<div style="color: #666; padding: 2rem;">加载地图中...</div>';
+                return;
+            }
+            
+            const size = WORLD_SIZE || 20;
+            
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
                     const cell = document.createElement('div');
                     cell.className = 'map-cell';
                     
-                    // 检查是否有玩家在这里
-                    let content = TERRAIN[y][x];
-                    let hasPlayer = false;
+                    // 获取地形
+                    const terrainType = TERRAIN_MAP[y] && TERRAIN_MAP[y][x] ? TERRAIN_MAP[y][x] : 'void';
+                    let content = TERRAIN_ICONS[terrainType] || '⚫';
                     
+                    // 检查是否有玩家在这里
                     // 检查自己
                     if (myPosition.x === x && myPosition.y === y) {
                         content = '👤';
                         cell.classList.add('player');
-                        hasPlayer = true;
                     } else {
                         // 检查其他玩家
                         for (let pid in otherPlayers) {
@@ -498,7 +530,6 @@
                             if (p.x === x && p.y === y) {
                                 content = '🐾';
                                 cell.classList.add('others');
-                                hasPlayer = true;
                                 break;
                             }
                         }
@@ -507,7 +538,7 @@
                     cell.textContent = content;
                     cell.dataset.x = x;
                     cell.dataset.y = y;
-                    cell.dataset.terrain = TERRAIN_NAMES[TERRAIN[y][x]];
+                    cell.dataset.terrain = TERRAIN_NAMES[terrainType] || '未知';
                     
                     cell.addEventListener('click', function() {
                         const tx = parseInt(this.dataset.x);
@@ -526,7 +557,7 @@
                                     x: tx,
                                     y: ty
                                 }));
-                                addLog(`🚶 向 ${TERRAIN_NAMES[TERRAIN[ty][tx]]} 移动...`);
+                                addLog(`🚶 向 ${this.dataset.terrain} 移动...`);
                             }
                         } else if (dx === 0 && dy === 0) {
                             addLog('📍 你在这里');
@@ -544,9 +575,9 @@
         function updateStatusPanel(player) {
             const statRows = document.querySelectorAll('.stat-row');
             if (statRows[0]) {
-                const terrain = TERRAIN[player.y][player.x];
+                const terrainType = TERRAIN_MAP[player.y] && TERRAIN_MAP[player.y][player.x] ? TERRAIN_MAP[player.y][player.x] : 'void';
                 statRows[0].querySelector('span:last-child').textContent = 
-                    `(${player.x}, ${player.y}) ${TERRAIN_NAMES[terrain]}`;
+                    `(${player.x}, ${player.y}) ${TERRAIN_NAMES[terrainType] || '未知'}`;
             }
             if (statRows[1]) {
                 statRows[1].querySelector('span:last-child').textContent = 
@@ -575,8 +606,8 @@
                 const distance = Math.abs(p.x - myPosition.x) + Math.abs(p.y - myPosition.y);
                 
                 if (distance <= 2) { // 2格范围内算附近
-                    const terrain = TERRAIN[p.y][p.x];
-                    html += `<p>🐾 ${p.name || '未知玩家'} @ ${TERRAIN_NAMES[terrain]} (${p.x}, ${p.y})`;
+                    const terrainType = TERRAIN_MAP[p.y] && TERRAIN_MAP[p.y][p.x] ? TERRAIN_MAP[p.y][p.x] : 'void';
+                    html += `<p>🐾 ${p.name || '未知玩家'} @ ${TERRAIN_NAMES[terrainType] || '未知'} (${p.x}, ${p.y})`;
                     if (distance <= 1) {
                         html += ' [可交互]';
                     }
@@ -682,9 +713,7 @@
         // 页面加载时连接
         window.addEventListener('load', function() {
             addLog('🚀 正在连接到 ClawWorld...');
-            // TODO: 实际部署时启用
-            // connectWebSocket();
-            addLog('⏸️ WebSocket 连接已准备（等待后端部署）');
+            connectWebSocket();
         });
     </script>
     <!-- 旅行模式面板 -->
