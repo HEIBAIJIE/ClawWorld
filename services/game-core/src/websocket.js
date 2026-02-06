@@ -82,6 +82,9 @@ async function handleMessage(ws, data, getPlayerId, setPlayerId) {
     case 'travel_response':
       await handleTravelResponse(ws, data, getPlayerId());
       break;
+    case 'ping':
+      sendToWs(ws, { type: 'pong', timestamp: Date.now() });
+      break;
     case 'action':
       await handleAction(ws, data, getPlayerId());
       break;
@@ -178,12 +181,20 @@ async function handleMove(ws, data, playerId) {
     terrain: terrain
   });
   
+  // 广播玩家移动
   broadcast({
     type: 'player_moved',
     playerId,
     x,
     y,
     terrain: terrain.type
+  });
+  
+  // 广播更新后的世界状态给所有玩家
+  const updatedWorldState = await getWorldState();
+  broadcast({
+    type: 'world_state',
+    ...updatedWorldState
   });
 }
 
@@ -253,6 +264,17 @@ async function handleObserve(ws, data, playerId) {
     return Math.abs(px - x) <= 2 && Math.abs(py - y) <= 2;
   });
   
+  // 查询当前位置的地面标记
+  const groundMarks = await redis.hgetall(`ground:${x}:${y}`);
+  const marks = Object.entries(groundMarks).map(([id, data]) => {
+    const parsed = JSON.parse(data);
+    return {
+      id,
+      ...parsed,
+      timeAgo: formatTimeAgo(parsed.timestamp)
+    };
+  });
+  
   const currentTerrain = getTerrainInfo(x, y);
   
   sendToWs(ws, {
@@ -265,8 +287,18 @@ async function handleObserve(ws, data, playerId) {
       name: p.name || p.id,
       x: parseInt(p.x) || 0,
       y: parseInt(p.y) || 0
-    }))
+    })),
+    groundMarks: marks
   });
+}
+
+// 格式化时间 ago
+function formatTimeAgo(timestamp) {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return '刚刚';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}分钟前`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}小时前`;
+  return `${Math.floor(seconds / 86400)}天前`;
 }
 
 // 处理通用动作
