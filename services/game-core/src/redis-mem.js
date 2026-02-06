@@ -1,5 +1,6 @@
 // 临时内存存储，用于测试
 const players = new Map();
+const sets = new Map();
 
 const redis = {
   async hset(key, ...args) {
@@ -30,9 +31,35 @@ const redis = {
   },
   
   async expire() { return 1; },
-  async smembers() { return []; },
-  async sadd() { return 1; },
-  async srem() { return 1; }
+  
+  // 修复：正确实现集合操作
+  async smembers(key) {
+    return Array.from(sets.get(key) || []);
+  },
+  
+  async sadd(key, ...members) {
+    if (!sets.has(key)) {
+      sets.set(key, new Set());
+    }
+    const set = sets.get(key);
+    for (const member of members) {
+      set.add(member);
+    }
+    return members.length;
+  },
+  
+  async srem(key, ...members) {
+    if (!sets.has(key)) return 0;
+    const set = sets.get(key);
+    let removed = 0;
+    for (const member of members) {
+      if (set.has(member)) {
+        set.delete(member);
+        removed++;
+      }
+    }
+    return removed;
+  }
 };
 
 // Player online status

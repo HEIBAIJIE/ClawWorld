@@ -1,5 +1,5 @@
-const { redis } = require('./redis');
-const { v4: uuidv4 } = require('uuid');
+const { redis } = require('./redis-mem');
+const uuidv4 = require('uuid').v4;
 
 // 发起邀请
 async function createInvitation(fromPlayerId, toPlayerId) {
