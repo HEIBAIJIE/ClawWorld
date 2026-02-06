@@ -11,11 +11,15 @@ const {
 } = require('./travel');
 const { getOnlinePlayers, setPlayerOnline, redis } = require('./redis-mem');
 const { getTerrainInfo, canMoveTo, WORLD_SIZE } = require('./world');
+const { setupWebSocket } = require('./websocket');
 
 // Register CORS
 fastify.register(cors, {
   origin: '*'
 });
+
+// Setup WebSocket
+setupWebSocket(fastify);
 
 // Health check
 fastify.get('/health', async () => {
