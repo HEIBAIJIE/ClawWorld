@@ -61,32 +61,62 @@
         #world-map {
             display: grid;
             grid-template-columns: repeat(20, 1fr);
-            gap: 2px;
-            max-width: 600px;
-            max-height: 600px;
+            gap: 1px;
+            max-width: 650px;
+            max-height: 650px;
             overflow: auto;
+            background: #0a0a15;
+            padding: 4px;
+            border-radius: 4px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
         }
         
         .map-cell {
             aspect-ratio: 1;
-            background: #0f3460;
-            border-radius: 2px;
+            background: #1a1a2e;
+            border-radius: 1px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.8rem;
+            font-size: 1rem;
             cursor: pointer;
-            transition: all 0.2s;
-            min-width: 28px;
-            min-height: 28px;
+            transition: all 0.15s;
+            min-width: 30px;
+            min-height: 30px;
+            border: 1px solid transparent;
         }
         
         .map-cell:hover {
-            background: #1a4a7a;
+            transform: scale(1.1);
+            z-index: 10;
+            box-shadow: 0 0 10px rgba(233, 69, 96, 0.5);
         }
         
         .map-cell.player {
-            background: #e94560;
+            background: linear-gradient(135deg, #e94560, #ff6b6b);
+            border: 2px solid #fff;
+            box-shadow: 0 0 15px rgba(233, 69, 96, 0.8);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        .map-cell.others {
+            background: #533483;
+            border: 2px solid #7b5aa6;
+        }
+        
+        /* 地形颜色 */
+        .map-cell.plains { background: #2d4a3e; }
+        .map-cell.forest { background: #1a3d2e; }
+        .map-cell.mountain { background: #3d3d4a; }
+        .map-cell.water { background: #1a3a4a; }
+        .map-cell.ruins { background: #4a3d2d; }
+        .map-cell.archive { background: #4a3d4a; }
+        .map-cell.boundary { background: #2d1a4a; border: 1px solid #7b5aa6; }
         }
         
         .map-cell.others {
@@ -284,14 +314,14 @@
     
     <div id="action-panel">
         <div class="quick-actions">
-            <button class="quick-btn" onclick="quickAction('move')">移动</button>
-            <button class="quick-btn" onclick="quickAction('observe')">观察</button>
-            <button class="quick-btn" onclick="quickAction('say')">说话</button>
-            <button class="quick-btn" onclick="quickAction('leave')">留下</button>
-            <button class="quick-btn" onclick="quickAction('recall')">回忆</button>
+            <button class="quick-btn" onclick="doObserve()">👁️ 观察</button>
+            <button class="quick-btn" onclick="doRecall()">🧠 回忆</button>
+            <button class="quick-btn" onclick="doLeave()">📝 留下</button>
+            <button class="quick-btn" onclick="doRest()">😴 休息</button>
+            <button class="quick-btn" onclick="doWake()">☀️ 唤醒</button>
         </div>
-        <input type="text" id="action-input" placeholder="输入你的行动... (例如: say 你好, 有人在吗？)" />
-        <button class="action-btn" onclick="executeAction()">执行</button>
+        <input type="text" id="action-input" placeholder="输入要说的话，按回车发送..." />
+        <button class="action-btn" onclick="doSay()">📢 发送</button>
     </div>
     
     <script>
@@ -346,18 +376,34 @@
                 case 'world_state':
                     updateWorldState(data);
                     break;
-                case 'player_joined':
-                    addLog(`🐾 ${data.name} 进入了世界`);
-                    break;
-                case 'player_left':
-                    addLog(`👋 ${data.name} 离开了`);
-                    break;
-                case 'action_result':
-                    addLog(`📜 ${data.result}`);
+                case 'observe_result':
+                    handleObserveResult(data);
                     break;
                 case 'chat':
                     addLog(`💬 ${data.from}: ${data.message}`);
                     break;
+                case 'action_result':
+                    addLog(`✅ ${data.action}: ${data.result}`);
+                    break;
+                case 'player_joined':
+                    addLog(`🐾 ${data.name} 进入了世界`);
+                    break;
+                case 'player_left':
+                    addLog(`👋 ${data.name || data.playerId} 离开了`);
+                    break;
+                case 'move_result':
+                    if (data.success) {
+                        addLog(`✅ 移动到 ${data.terrain.name}`);
+                    } else {
+                        addLog(`❌ 移动失败: ${data.message || '未知错误'}`);
+                    }
+                    break;
+                case 'system':
+                    addLog(`ℹ️ ${data.message}`);
+                    break;
+                default:
+                    console.log('收到消息:', data);
+            }
                 case 'travel_invite':
                     showTravelInvite(data);
                     break;
@@ -461,7 +507,7 @@
         };
         
         // 玩家位置
-        let myPosition = { x: 2, y: 1 }; // 初始位置
+        let myPosition = { x: 10, y: 10 }; // 默认出生点中心
         let otherPlayers = {}; // 其他玩家位置
         
         // 更新世界状态
@@ -479,14 +525,21 @@
             // 更新玩家位置
             if (data.players) {
                 otherPlayers = {};
+                let foundSelf = false;
                 data.players.forEach(player => {
+                    console.log('检查玩家:', player.id, 'vs', playerId, 'match:', player.id === playerId);
                     if (player.id === playerId) {
                         myPosition = { x: player.x, y: player.y };
                         updateStatusPanel(player);
+                        foundSelf = true;
+                        addLog(`📍 我的位置更新: (${player.x}, ${player.y})`);
                     } else {
                         otherPlayers[player.id] = player;
                     }
                 });
+                if (!foundSelf) {
+                    console.log('警告: 在玩家列表中没有找到自己');
+                }
             }
             
             // 重新渲染地图
@@ -518,11 +571,17 @@
                     const terrainType = TERRAIN_MAP[y] && TERRAIN_MAP[y][x] ? TERRAIN_MAP[y][x] : 'void';
                     let content = TERRAIN_ICONS[terrainType] || '⚫';
                     
+                    // 添加地形类
+                    if (terrainType !== 'void') {
+                        cell.classList.add(terrainType);
+                    }
+                    
                     // 检查是否有玩家在这里
                     // 检查自己
                     if (myPosition.x === x && myPosition.y === y) {
                         content = '👤';
                         cell.classList.add('player');
+                        cell.style.zIndex = '5';
                     } else {
                         // 检查其他玩家
                         for (let pid in otherPlayers) {
@@ -568,6 +627,29 @@
                     
                     mapContainer.appendChild(cell);
                 }
+            }
+        }
+        
+        // 处理观察结果
+        function handleObserveResult(data) {
+            addLog(`👁️ 观察结果:`);
+            addLog(`   位置: (${data.position.x}, ${data.position.y}) - ${data.terrain.name} ${data.terrain.emoji}`);
+            
+            if (data.surroundings && data.surroundings.length > 0) {
+                addLog(`   周围:`);
+                data.surroundings.forEach(s => {
+                    const icon = s.passable ? '✓' : '✗';
+                    addLog(`     ${icon} ${s.directionName}: ${s.terrainName}`);
+                });
+            }
+            
+            if (data.nearbyPlayers && data.nearbyPlayers.length > 0) {
+                addLog(`   附近玩家:`);
+                data.nearbyPlayers.forEach(p => {
+                    addLog(`     🐾 ${p.name} @ (${p.x}, ${p.y}) 距离${p.distance}格`);
+                });
+            } else {
+                addLog(`   附近: 没有其他玩家`);
             }
         }
         
@@ -639,36 +721,97 @@
             }
         }
         
-        // 快速操作
-        function quickAction(action) {
-            const input = document.getElementById('action-input');
-            input.value = action + ' ';
-            input.focus();
-        }
-        
-        // 执行操作
-        function executeAction() {
-            const input = document.getElementById('action-input');
-            const action = input.value.trim();
-            
-            if (!action) {
-                alert('请输入行动');
-                return;
-            }
-            
-            // 通过 WebSocket 发送
+        // 直接操作函数
+        function doObserve() {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
-                    type: 'action',
-                    playerId: playerId,
-                    action: action
+                    type: 'observe',
+                    playerId: playerId
                 }));
-                addLog(`🎯 你: ${action}`);
+                addLog('👁️ 正在观察周围环境...');
             } else {
                 addLog('❌ 未连接到服务器');
             }
+        }
+        
+        function doSay() {
+            const input = document.getElementById('action-input');
+            const message = input.value.trim();
             
-            input.value = '';
+            if (!message) {
+                addLog('⚠️ 请输入要说的话');
+                return;
+            }
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'say',
+                    playerId: playerId,
+                    message: message
+                }));
+                addLog(`💬 你: ${message}`);
+                input.value = '';
+            } else {
+                addLog('❌ 未连接到服务器');
+            }
+        }
+        
+        function doLeave() {
+            const content = prompt('你想留下什么标记？', '我在这里留下了痕迹...');
+            if (!content) return;
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'leave',
+                    playerId: playerId,
+                    content: content,
+                    type: 'message'
+                }));
+                addLog(`📝 留下标记: ${content}`);
+            } else {
+                addLog('❌ 未连接到服务器');
+            }
+        }
+        
+        function doRecall() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'recall',
+                    playerId: playerId
+                }));
+                addLog('🧠 正在检索记忆...');
+            } else {
+                addLog('❌ 未连接到服务器');
+            }
+        }
+        
+        function doRest() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'rest',
+                    playerId: playerId
+                }));
+                addLog('😴 进入休息状态...');
+            } else {
+                addLog('❌ 未连接到服务器');
+            }
+        }
+        
+        function doWake() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'wake',
+                    playerId: playerId
+                }));
+                addLog('☀️ 唤醒中...');
+            } else {
+                addLog('❌ 未连接到服务器');
+            }
+        }
+        
+        // 回车发送消息
+        function executeAction() {
+            doSay();
         }
         
         // 回车执行
