@@ -289,6 +289,284 @@ fastify.post('/player/:id/recall', async (request, reply) => {
   };
 });
 
+// Add Memory - 添加记忆（旅行结束后调用）
+fastify.post('/player/:id/memory', async (request, reply) => {
+  const { id } = request.params;
+  const { title, content, type = 'travel', tags = [] } = request.body || {};
+  
+  if (!title) {
+    return reply.code(400).send({ error: 'Title required' });
+  }
+  
+  const { addMemory } = require('./redis-mem');
+  const memory = await addMemory(id, {
+    title,
+    content: content || '',
+    type,
+    tags
+  });
+  
+  return {
+    playerId: id,
+    action: 'add_memory',
+    memory: {
+      id: memory.id,
+      title: memory.title,
+      timestamp: memory.timestamp,
+      type: memory.type
+    },
+    message: '记忆已添加到记忆栏'
+  };
+});
+
+// Delete Memory - 删除记忆（腾出空间）
+fastify.delete('/player/:id/memory/:memoryId', async (request, reply) => {
+  const { id, memoryId } = request.params;
+  
+  const { deleteMemory } = require('./redis-mem');
+  const success = await deleteMemory(id, memoryId);
+  
+  if (!success) {
+    return reply.code(404).send({ error: 'Memory not found' });
+  }
+  
+  return {
+    playerId: id,
+    action: 'delete_memory',
+    memoryId,
+    message: '记忆已删除'
+  };
+});
+
+// Solidify Memory - 固化回忆（消耗缘分转为实体）
+fastify.post('/player/:id/memory/:memoryId/solidify', async (request, reply) => {
+  const { id, memoryId } = request.params;
+  const { form = 'sculpture' } = request.body || {}; // sculpture, painting, book, song
+  
+  const { getMemories, deleteMemory, updateFate, getFate } = require('./redis-mem');
+  
+  // 检查记忆是否存在
+  const memories = await getMemories(id);
+  const memory = memories.find(m => m.id === memoryId);
+  
+  if (!memory) {
+    return reply.code(404).send({ error: 'Memory not found' });
+  }
+  
+  // 检查缘分是否足够（固化需要 5 点缘分）
+  const currentFate = await getFate(id);
+  const COST = 5;
+  
+  if (currentFate < COST) {
+    return reply.code(400).send({ 
+      error: '缘分不足', 
+      required: COST, 
+      current: currentFate 
+    });
+  }
+  
+  // 扣除缘分
+  const newFate = await updateFate(id, -COST);
+  
+  // 从记忆栏删除
+  await deleteMemory(id, memoryId);
+  
+  // 创建实体到领地（存储到领地集合）
+  const entityId = `entity_${Date.now()}_${id}`;
+  await redis.hset(`territory:${id}`, entityId, JSON.stringify({
+    memoryId,
+    title: memory.title,
+    content: memory.content,
+    form, // 实体形式
+    createdAt: Date.now(),
+    originalTimestamp: memory.timestamp
+  }));
+  
+  return {
+    playerId: id,
+    action: 'solidify_memory',
+    memory: {
+      id: memoryId,
+      title: memory.title,
+      form
+    },
+    cost: COST,
+    fateRemaining: newFate,
+    message: `回忆已固化为${form === 'sculpture' ? '雕塑' : form === 'painting' ? '画作' : form === 'book' ? '书' : '歌'}`
+  };
+});
+
+// Get Territory - 查看领地
+fastify.get('/player/:id/territory', async (request, reply) => {
+  const { id } = request.params;
+  
+  const territory = await redis.hgetall(`territory:${id}`);
+  const { getFate } = require('./redis-mem');
+  const fate = await getFate(id);
+  
+  const entities = Object.entries(territory).map(([key, value]) => {
+    const entity = JSON.parse(value);
+    return {
+      id: key,
+      ...entity
+    };
+  });
+  
+  return {
+    playerId: id,
+    entities: entities,
+    count: entities.length,
+    fate
+  };
+});
+
+// Update Fate - 更新缘分（管理员/裁判调用）
+fastify.post('/player/:id/fate', async (request, reply) => {
+  const { id } = request.params;
+  const { delta } = request.body || {};
+  
+  if (typeof delta !== 'number') {
+    return reply.code(400).send({ error: 'Delta must be a number' });
+  }
+  
+  const { updateFate, getFate } = require('./redis-mem');
+  const newFate = await updateFate(id, delta);
+  
+  return {
+    playerId: id,
+    action: 'update_fate',
+    delta,
+    fate: newFate
+  };
+});
+
+// === 物品系统 API ===
+
+// Get Inventory - 获取物品栏
+fastify.get('/player/:id/inventory', async (request, reply) => {
+  const { id } = request.params;
+  
+  const { getItems } = require('./redis-mem');
+  const items = await getItems(id);
+  
+  return {
+    playerId: id,
+    count: items.length,
+    limit: 10,
+    items: items.map(item => ({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      type: item.type,
+      rarity: item.rarity,
+      acquiredAt: item.acquiredAt
+    }))
+  };
+});
+
+// Add Item - 添加物品（旅行/事件获得）
+fastify.post('/player/:id/inventory', async (request, reply) => {
+  const { id } = request.params;
+  const { name, description, type = 'misc', rarity = 'common', metadata = {} } = request.body || {};
+  
+  if (!name) {
+    return reply.code(400).send({ error: 'Item name required' });
+  }
+  
+  const { addItem } = require('./redis-mem');
+  const result = await addItem(id, {
+    name,
+    description: description || '',
+    type,
+    rarity,
+    metadata
+  });
+  
+  if (result.error) {
+    return reply.code(400).send({ error: result.error });
+  }
+  
+  return {
+    playerId: id,
+    action: 'add_item',
+    item: {
+      id: result.id,
+      name: result.name,
+      type: result.type,
+      rarity: result.rarity
+    },
+    message: `获得物品: ${name}`
+  };
+});
+
+// Drop Item - 丢弃物品
+fastify.delete('/player/:id/inventory/:itemId', async (request, reply) => {
+  const { id, itemId } = request.params;
+  
+  const { removeItem } = require('./redis-mem');
+  const result = await removeItem(id, itemId);
+  
+  if (!result) {
+    return reply.code(404).send({ error: 'Item not found' });
+  }
+  
+  return {
+    playerId: id,
+    action: 'remove_item',
+    item: {
+      id: result.id,
+      name: result.name
+    },
+    message: `丢弃物品: ${result.name}`
+  };
+});
+
+// Give Item - 给予物品（交换）
+fastify.post('/player/:id/inventory/:itemId/give', async (request, reply) => {
+  const { id, itemId } = request.params;
+  const { targetId } = request.body || {};
+  
+  if (!targetId) {
+    return reply.code(400).send({ error: 'Target player ID required' });
+  }
+  
+  const { removeItem, addItem, getItems } = require('./redis-mem');
+  
+  // 检查物品是否存在
+  const myItems = await getItems(id);
+  const item = myItems.find(i => i.id === itemId);
+  
+  if (!item) {
+    return reply.code(404).send({ error: 'Item not found' });
+  }
+  
+  // 检查对方物品栏是否已满
+  const targetItems = await getItems(targetId);
+  if (targetItems.length >= 10) {
+    return reply.code(400).send({ error: '对方物品栏已满' });
+  }
+  
+  // 从给予方移除
+  await removeItem(id, itemId);
+  
+  // 添加给对方
+  await addItem(targetId, {
+    name: item.name,
+    description: item.description,
+    type: item.type,
+    rarity: item.rarity,
+    metadata: { ...item.metadata, from: id, giftedAt: Date.now() }
+  });
+  
+  return {
+    playerId: id,
+    action: 'give_item',
+    item: { id: itemId, name: item.name },
+    target: targetId,
+    message: `已将 ${item.name} 给予 ${targetId}`
+  };
+});
+
 // Rest - 休息/下线
 fastify.post('/player/:id/rest', async (request, reply) => {
   const { id } = request.params;
