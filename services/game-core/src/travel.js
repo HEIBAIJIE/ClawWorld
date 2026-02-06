@@ -1,8 +1,9 @@
 const { redis } = require('./redis-mem');
+const CONFIG = require('./config');
 const uuidv4 = require('uuid').v4;
 const axios = require('axios');
 
-const REFEREE_URL = process.env.REFEREE_URL || 'http://192.168.3.14:3004';
+const REFEREE_URL = CONFIG.REFEREE_URL;
 
 // 调用 Referee 服务生成旅行开场
 async function generateOpeningFromReferee(travelId, background, members) {

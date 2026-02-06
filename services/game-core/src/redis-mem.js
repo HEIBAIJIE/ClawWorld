@@ -1,12 +1,65 @@
-// 临时内存存储，用于测试
+// 内存存储，带自动清理机制
 const players = new Map();
 const sets = new Map();
 const memories = new Map(); // playerId -> []
 const items = new Map();    // playerId -> []
 const fate = new Map();     // playerId -> number
 
+// ========== 配置 ==========
+const CONFIG = {
+  // 数据清理配置
+  CLEANUP_INTERVAL_MS: 5 * 60 * 1000,  // 每5分钟清理一次
+  OFFLINE_TTL_MS: 30 * 60 * 1000,      // 离线30分钟后清理数据
+  
+  // 系统限制
+  MEMORY_LIMIT: 50,
+  ITEM_LIMIT: 10,
+  DEFAULT_TERRITORY_SIZE: 5,
+  MAX_MESSAGES_PER_TERRITORY: 20
+};
+
+// 最后访问时间记录（用于清理）
+const lastAccessTime = new Map();
+
+// 更新访问时间
+function updateAccessTime(key) {
+  lastAccessTime.set(key, Date.now());
+}
+
+// 清理过期数据
+function cleanupExpiredData() {
+  const now = Date.now();
+  let cleanedCount = 0;
+  
+  // 清理离线玩家数据
+  for (const [key, lastAccess] of lastAccessTime.entries()) {
+    if (now - lastAccess > CONFIG.OFFLINE_TTL_MS) {
+      // 检查玩家是否离线
+      const playerData = players.get(key);
+      if (playerData && playerData.online === 'false') {
+        // 清理该玩家的所有数据
+        players.delete(key);
+        memories.delete(key.replace('player:', ''));
+        items.delete(key.replace('player:', ''));
+        fate.delete(key.replace('player:', ''));
+        lastAccessTime.delete(key);
+        cleanedCount++;
+      }
+    }
+  }
+  
+  if (cleanedCount > 0) {
+    console.log(`[Cleanup] 清理了 ${cleanedCount} 个离线玩家数据`);
+  }
+}
+
+// 启动定期清理
+setInterval(cleanupExpiredData, CONFIG.CLEANUP_INTERVAL_MS);
+console.log('[Redis-Mem] 内存清理机制已启动，间隔:', CONFIG.CLEANUP_INTERVAL_MS, 'ms');
+
 const redis = {
   async hset(key, ...args) {
+    updateAccessTime(key);
     const data = players.get(key) || {};
     
     if (args.length === 1 && typeof args[0] === 'object' && !Array.isArray(args[0])) {
@@ -24,10 +77,12 @@ const redis = {
   },
   
   async hgetall(key) {
+    updateAccessTime(key);
     return players.get(key) || {};
   },
   
   async hget(key, field) {
+    updateAccessTime(key);
     const data = players.get(key) || {};
     return data[field] || null;
   },
@@ -76,6 +131,7 @@ const redis = {
 
 // Player online status
 async function setPlayerOnline(playerId, data) {
+  updateAccessTime(`player:${playerId}`);
   await redis.hset(`player:${playerId}`, {
     ...data,
     online: 'true',
@@ -107,9 +163,9 @@ async function getOnlinePlayers() {
 }
 
 // ========== 记忆栏系统 ==========
-const MEMORY_LIMIT = 50;
 
 async function addMemory(playerId, memory) {
+  updateAccessTime(`player:${playerId}`);
   if (!memories.has(playerId)) {
     memories.set(playerId, []);
   }
@@ -128,7 +184,7 @@ async function addMemory(playerId, memory) {
   playerMemories.unshift(newMemory);
   
   // 超过上限时自动覆盖最旧的
-  if (playerMemories.length > MEMORY_LIMIT) {
+  if (playerMemories.length > CONFIG.MEMORY_LIMIT) {
     playerMemories.pop();
   }
   
@@ -136,10 +192,12 @@ async function addMemory(playerId, memory) {
 }
 
 async function getMemories(playerId, limit = 50) {
+  updateAccessTime(`player:${playerId}`);
   return memories.get(playerId) || [];
 }
 
 async function deleteMemory(playerId, memoryId) {
+  updateAccessTime(`player:${playerId}`);
   if (!memories.has(playerId)) return false;
   
   const playerMemories = memories.get(playerId);
@@ -153,16 +211,16 @@ async function deleteMemory(playerId, memoryId) {
 }
 
 // ========== 物品栏系统 ==========
-const ITEM_LIMIT = 10;
 
 async function addItem(playerId, item) {
+  updateAccessTime(`player:${playerId}`);
   if (!items.has(playerId)) {
     items.set(playerId, []);
   }
   
   const playerItems = items.get(playerId);
   
-  if (playerItems.length >= ITEM_LIMIT) {
+  if (playerItems.length >= CONFIG.ITEM_LIMIT) {
     return { error: '物品栏已满，无法添加' };
   }
   
@@ -181,6 +239,7 @@ async function addItem(playerId, item) {
 }
 
 async function removeItem(playerId, itemId) {
+  updateAccessTime(`player:${playerId}`);
   if (!items.has(playerId)) return false;
   
   const playerItems = items.get(playerId);
@@ -194,19 +253,20 @@ async function removeItem(playerId, itemId) {
 }
 
 async function getItems(playerId) {
+  updateAccessTime(`player:${playerId}`);
   return items.get(playerId) || [];
 }
 
 // ========== 领地系统 ==========
 const territorySize = new Map(); // playerId -> size
-const DEFAULT_TERRITORY_SIZE = 5;
 
 async function getTerritorySize(playerId) {
-  return territorySize.get(playerId) || DEFAULT_TERRITORY_SIZE;
+  return territorySize.get(playerId) || CONFIG.DEFAULT_TERRITORY_SIZE;
 }
 
 async function expandTerritory(playerId) {
-  const current = territorySize.get(playerId) || DEFAULT_TERRITORY_SIZE;
+  updateAccessTime(`player:${playerId}`);
+  const current = territorySize.get(playerId) || CONFIG.DEFAULT_TERRITORY_SIZE;
   const newSize = current + 3; // 每次扩大增加3个容量
   territorySize.set(playerId, newSize);
   return newSize;
@@ -225,6 +285,7 @@ async function getTerritoryEntity(playerId, entityId) {
 // ========== 缘分系统 ==========
 
 async function updateFate(playerId, delta) {
+  updateAccessTime(`player:${playerId}`);
   const current = fate.get(playerId) || 0;
   const newValue = Math.max(0, current + delta);
   fate.set(playerId, newValue);
@@ -242,6 +303,8 @@ async function addFate(playerId, amount) {
 // ========== 交换系统 ==========
 
 async function exchangeMemory(fromPlayerId, toPlayerId, memoryId) {
+  updateAccessTime(`player:${fromPlayerId}`);
+  updateAccessTime(`player:${toPlayerId}`);
   const fromMemories = memories.get(fromPlayerId) || [];
   const memory = fromMemories.find(m => m.id === memoryId);
   
@@ -260,6 +323,8 @@ async function exchangeMemory(fromPlayerId, toPlayerId, memoryId) {
 }
 
 async function exchangeItem(fromPlayerId, toPlayerId, itemId) {
+  updateAccessTime(`player:${fromPlayerId}`);
+  updateAccessTime(`player:${toPlayerId}`);
   const fromItems = items.get(fromPlayerId) || [];
   const itemIndex = fromItems.findIndex(i => i.id === itemId);
   
@@ -271,7 +336,7 @@ async function exchangeItem(fromPlayerId, toPlayerId, itemId) {
   
   // 检查对方物品栏是否已满
   const toItems = items.get(toPlayerId) || [];
-  if (toItems.length >= ITEM_LIMIT) {
+  if (toItems.length >= CONFIG.ITEM_LIMIT) {
     return { error: '对方物品栏已满' };
   }
   
@@ -290,9 +355,9 @@ async function exchangeItem(fromPlayerId, toPlayerId, itemId) {
 
 // ========== 领地留言系统 ==========
 const territoryMessages = new Map(); // playerId -> []
-const MAX_MESSAGES_PER_TERRITORY = 20;
 
 async function addTerritoryMessage(territoryOwnerId, visitorId, message) {
+  updateAccessTime(`territory:${territoryOwnerId}`);
   if (!territoryMessages.has(territoryOwnerId)) {
     territoryMessages.set(territoryOwnerId, []);
   }
@@ -309,7 +374,7 @@ async function addTerritoryMessage(territoryOwnerId, visitorId, message) {
   messages.unshift(newMessage);
   
   // 超过上限时删除最旧的
-  if (messages.length > MAX_MESSAGES_PER_TERRITORY) {
+  if (messages.length > CONFIG.MAX_MESSAGES_PER_TERRITORY) {
     messages.pop();
   }
   
@@ -317,10 +382,12 @@ async function addTerritoryMessage(territoryOwnerId, visitorId, message) {
 }
 
 async function getTerritoryMessages(territoryOwnerId) {
+  updateAccessTime(`territory:${territoryOwnerId}`);
   return territoryMessages.get(territoryOwnerId) || [];
 }
 
 async function deleteTerritoryMessage(territoryOwnerId, messageId) {
+  updateAccessTime(`territory:${territoryOwnerId}`);
   if (!territoryMessages.has(territoryOwnerId)) return false;
   
   const messages = territoryMessages.get(territoryOwnerId);
@@ -362,5 +429,7 @@ module.exports = {
   deleteTerritoryMessage,
   // 交换系统
   exchangeMemory,
-  exchangeItem
+  exchangeItem,
+  // 配置（导出供其他模块使用）
+  CONFIG
 };
