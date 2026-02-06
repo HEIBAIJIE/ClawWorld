@@ -559,6 +559,19 @@
                     <div style="color: #666;">欢迎来到 ClawWorld...</div>
                 </div>
             </div>
+            
+            <!-- 私信面板 -->
+            <div class="panel" id="private-chat-panel" style="display: none; flex: 1; overflow: hidden; flex-direction: column;">
+                <h3>💌 私信 <span id="private-chat-target" style="color: #e94560; font-size: 0.8rem;"></span></h3>
+                <div id="private-chat-content" class="panel-content" style="flex: 1; overflow-y: auto; font-size: 0.75rem; background: #0f3460; border-radius: 4px; padding: 0.5rem;">
+                    <div style="color: #888; text-align: center; padding: 1rem;">点击附近玩家头像开始私聊</div>
+                </div>
+                <div style="display: flex; gap: 0.3rem; margin-top: 0.5rem;">
+                    <input type="text" id="private-chat-input" placeholder="输入私信..." style="flex: 1; background: #1a1a2e; border: 1px solid #0f3460; padding: 0.4rem; color: #eee; border-radius: 4px; font-family: inherit; font-size: 0.8rem;" />
+                    <button onclick="sendPrivateMessage()" style="background: #e94560; border: none; padding: 0.4rem 0.8rem; color: white; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">发送</button>
+                </div>
+                <button onclick="closePrivateChat()" style="margin-top: 0.3rem; background: transparent; border: 1px solid #666; padding: 0.3rem; color: #666; border-radius: 4px; cursor: pointer; font-size: 0.7rem; width: 100%;">关闭私信</button>
+            </div>
         </div>
     </main>
     
@@ -780,10 +793,15 @@
                     break;
                 case 'chat':
                     addLog(`💬 ${data.from}: ${data.message}`);
+                    AudioSys.chat();
+                    break;
+                case 'private_message':
+                    handlePrivateMessage(data);
                     break;
                 case 'action_result':
                     addLog(`✅ ${data.action}: ${data.result || data.message}`);
                     AudioSys.success(); // 🎵 成功音效
+                    break;
                     break;
                 case 'player_joined':
                     addLog(`🐾 ${data.name} 进入了世界`);
@@ -1294,6 +1312,8 @@
         }
         
         // 更新附近玩家列表
+        let privateChatTarget = null; // 当前私信对象
+        
         function updateNearbyPlayers() {
             const nearbyPanel = document.getElementById('nearby-players');
             if (!nearbyPanel) return;
@@ -1307,18 +1327,23 @@
                 
                 if (distance <= 3) { // 3格范围内算附近
                     const terrainType = TERRAIN_MAP[p.y] && TERRAIN_MAP[p.y][p.x] ? TERRAIN_MAP[p.y][p.x] : 'void';
-                    html += `<div style="margin-bottom: 0.5rem; padding: 0.5rem; background: #0f3460; border-radius: 4px;">`;
-                    html += `<div>🐾 ${p.name || '未知玩家'}</div>`;
+                    html += `<div style="margin-bottom: 0.5rem; padding: 0.5rem; background: #0f3460; border-radius: 4px; cursor: pointer; transition: all 0.2s;" onclick="openPrivateChat('${p.id}', '${p.name || '未知玩家'}')" onmouseover="this.style.background='#1a3a5c'" onmouseout="this.style.background='#0f3460'">`;
+                    html += `<div style="display: flex; align-items: center; gap: 0.5rem;">`;
+                    html += `<span style="font-size: 1.2rem;">🐾</span>`;
+                    html += `<div style="flex: 1;">`;
+                    html += `<div style="font-weight: bold;">${p.name || '未知玩家'}</div>`;
                     html += `<div style="font-size: 0.75rem; color: #888;">@ ${TERRAIN_NAMES[terrainType] || '未知'} (${p.x}, ${p.y})`;
                     if (distance <= 1) {
                         html += ' <span style="color: #e94560;">[相邻]</span>';
                     }
+                    html += '</div></div>';
+                    html += `<span style="font-size: 0.7rem; color: #666;">💬 点击私聊</span>`;
                     html += '</div>';
                     
                     // 相邻玩家显示邀请按钮
                     if (distance <= 1) {
-                        html += `<button onclick="inviteToTravel('${p.id}', '${p.name || '未知玩家'}')" `;
-                        html += `style="margin-top: 0.3rem; background: #e94560; border: none; padding: 0.3rem 0.8rem; color: white; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">`;
+                        html += `<button onclick="event.stopPropagation(); inviteToTravel('${p.id}', '${p.name || '未知玩家'}')" `;
+                        html += `style="margin-top: 0.3rem; background: #e94560; border: none; padding: 0.3rem 0.8rem; color: white; border-radius: 4px; cursor: pointer; font-size: 0.75rem; width: 100%;">`;
                         html += `🎭 邀请旅行</button>`;
                     }
                     
@@ -1332,6 +1357,153 @@
             }
             
             nearbyPanel.innerHTML = html;
+        }
+        
+        // 💌 打开私信面板
+        function openPrivateChat(targetId, targetName) {
+            privateChatTarget = { id: targetId, name: targetName };
+            
+            const logPanel = document.getElementById('log-content').parentElement;
+            const privatePanel = document.getElementById('private-chat-panel');
+            const targetSpan = document.getElementById('private-chat-target');
+            
+            if (logPanel) logPanel.style.display = 'none';
+            if (privatePanel) {
+                privatePanel.style.display = 'flex';
+                privatePanel.style.flex = '1';
+            }
+            if (targetSpan) targetSpan.textContent = `- ${targetName}`;
+            
+            addLog(`💌 打开与 ${targetName} 的私信`);
+            
+            // 加载历史私信（如果有）
+            loadPrivateChatHistory(targetId);
+        }
+        
+        // 💌 关闭私信面板
+        function closePrivateChat() {
+            privateChatTarget = null;
+            
+            const logPanel = document.getElementById('log-content').parentElement;
+            const privatePanel = document.getElementById('private-chat-panel');
+            
+            if (logPanel) logPanel.style.display = 'flex';
+            if (privatePanel) privatePanel.style.display = 'none';
+        }
+        
+        // 💌 加载私信历史
+        function loadPrivateChatHistory(targetId) {
+            const contentEl = document.getElementById('private-chat-content');
+            if (!contentEl) return;
+            
+            // 从 localStorage 加载历史
+            const history = JSON.parse(localStorage.getItem(`chat_${playerId}_${targetId}`) || '[]');
+            
+            if (history.length === 0) {
+                contentEl.innerHTML = '<div style="color: #888; text-align: center; padding: 2rem;">💬 开始你们的对话吧</div>';
+            } else {
+                contentEl.innerHTML = '';
+                history.forEach(msg => {
+                    appendPrivateMessage(msg.from, msg.content, msg.timestamp, msg.from === playerId);
+                });
+            }
+        }
+        
+        // 💌 追加私信消息到界面
+        function appendPrivateMessage(fromId, content, timestamp, isSelf) {
+            const contentEl = document.getElementById('private-chat-content');
+            if (!contentEl) return;
+            
+            const entry = document.createElement('div');
+            entry.style.cssText = `margin-bottom: 0.5rem; padding: 0.5rem; border-radius: 4px; max-width: 85%; ${isSelf ? 'background: #e94560; margin-left: auto;' : 'background: #0f3460;'}`;
+            
+            const time = new Date(timestamp).toLocaleTimeString();
+            entry.innerHTML = `
+                <div style="font-size: 0.7rem; color: ${isSelf ? '#ffcccb' : '#888'}; margin-bottom: 0.2rem;">${isSelf ? '你' : privateChatTarget?.name || fromId} · ${time}</div>
+                <div style="font-size: 0.85rem;">${content}</div>
+            `;
+            
+            // 如果是第一条消息，清空提示
+            if (contentEl.children.length === 1 && contentEl.children[0].textContent.includes('开始')) {
+                contentEl.innerHTML = '';
+            }
+            
+            contentEl.appendChild(entry);
+            contentEl.scrollTop = contentEl.scrollHeight;
+        }
+        
+        // 💌 发送私信
+        function sendPrivateMessage() {
+            const input = document.getElementById('private-chat-input');
+            const content = input.value.trim();
+            
+            if (!content || !privateChatTarget) return;
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'private_message',
+                    playerId: playerId,
+                    targetId: privateChatTarget.id,
+                    message: content
+                }));
+                
+                // 保存到历史
+                const history = JSON.parse(localStorage.getItem(`chat_${playerId}_${privateChatTarget.id}`) || '[]');
+                history.push({
+                    from: playerId,
+                    content: content,
+                    timestamp: Date.now()
+                });
+                localStorage.setItem(`chat_${playerId}_${privateChatTarget.id}`, JSON.stringify(history));
+                
+                // 显示在界面
+                appendPrivateMessage(playerId, content, Date.now(), true);
+                
+                input.value = '';
+                AudioSys.chat();
+            } else {
+                addLog('❌ 未连接到服务器');
+                AudioSys.error();
+            }
+        }
+        
+        // 💌 接收私信
+        function handlePrivateMessage(data) {
+            const { from, fromName, message } = data;
+            
+            // 如果正在和该玩家聊天，显示消息
+            if (privateChatTarget && privateChatTarget.id === from) {
+                appendPrivateMessage(from, message, Date.now(), false);
+                
+                // 保存到历史
+                const history = JSON.parse(localStorage.getItem(`chat_${playerId}_${from}`) || '[]');
+                history.push({
+                    from: from,
+                    content: message,
+                    timestamp: Date.now()
+                });
+                localStorage.setItem(`chat_${playerId}_${from}`, JSON.stringify(history));
+            } else {
+                // 否则在日志中提示
+                addLog(`💌 收到 ${fromName || from} 的私信: ${message.substring(0, 30)}${message.length > 30 ? '...' : ''}`);
+                
+                // 显示通知
+                showNotification(`💌 ${fromName || from}`, message);
+            }
+            
+            AudioSys.chat();
+        }
+        
+        // 🔔 显示桌面通知
+        function showNotification(title, body) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(title, { body, icon: '🐾' });
+            }
+        }
+        
+        // 请求通知权限
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
         }
         
         // 页面加载时连接

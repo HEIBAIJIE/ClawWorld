@@ -88,6 +88,12 @@ async function handleMessage(ws, data, getPlayerId, setPlayerId) {
     case 'travel_end':
       await handleTravelEnd(ws, data, getPlayerId());
       break;
+    case 'travel_say':
+      await handleTravelSay(ws, data, getPlayerId());
+      break;
+    case 'private_message':
+      await handlePrivateMessage(ws, data, getPlayerId());
+      break;
     case 'ping':
       sendToWs(ws, { type: 'pong', timestamp: Date.now() });
       break;
@@ -695,6 +701,51 @@ async function getServerStats() {
     memory: process.memoryUsage(),
     timestamp: Date.now()
   };
+}
+
+// 💌 处理私信
+async function handlePrivateMessage(ws, data, playerId) {
+  if (!playerId) {
+    sendToWs(ws, { type: 'error', message: 'Not logged in' });
+    return;
+  }
+  
+  const { targetId, message } = data;
+  
+  if (!targetId || !message) {
+    sendToWs(ws, { type: 'error', message: 'Target and message required' });
+    return;
+  }
+  
+  const player = await redis.hgetall(`player:${playerId}`);
+  const name = player.name || playerId;
+  
+  console.log(`💌 私信: ${name} -> ${targetId}: ${message.substring(0, 30)}...`);
+  
+  // 发送给目标玩家
+  const targetWs = connections.get(targetId);
+  if (targetWs && targetWs.readyState === WebSocket.OPEN) {
+    sendToWs(targetWs, {
+      type: 'private_message',
+      from: playerId,
+      fromName: name,
+      message: message,
+      timestamp: Date.now()
+    });
+    
+    // 确认发送成功
+    sendToWs(ws, {
+      type: 'action_result',
+      action: 'private_message',
+      success: true,
+      message: `私信已发送给 ${targetId}`
+    });
+  } else {
+    sendToWs(ws, {
+      type: 'error',
+      message: 'Target player is offline'
+    });
+  }
 }
 
 // 处理结束旅行
