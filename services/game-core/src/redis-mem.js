@@ -27,6 +27,11 @@ const redis = {
     return players.get(key) || {};
   },
   
+  async hget(key, field) {
+    const data = players.get(key) || {};
+    return data[field] || null;
+  },
+  
   async keys(pattern) {
     const keys = [];
     const regex = new RegExp(pattern.replace(/\*/g, '.*'));
@@ -208,13 +213,11 @@ async function expandTerritory(playerId) {
 }
 
 async function getTerritoryEntityCount(playerId) {
-  const { redis } = require('./redis-mem');
   const territory = await redis.hgetall(`territory:${playerId}`);
   return Object.keys(territory).length;
 }
 
 async function getTerritoryEntity(playerId, entityId) {
-  const { redis } = require('./redis-mem');
   const entity = await redis.hget(`territory:${playerId}`, entityId);
   return entity ? JSON.parse(entity) : null;
 }
