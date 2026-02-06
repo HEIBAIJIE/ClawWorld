@@ -1,7 +1,8 @@
 // WebSocket 管理模块 - 使用原生 ws
 const WebSocket = require('ws');
-const { getOnlinePlayers, setPlayerOnline, setPlayerOffline, redis } = require('./redis-mem');
+const { getOnlinePlayers, setPlayerOnline, setPlayerOffline, redis, addMemory, getMemories } = require('./redis-mem');
 const { getTerrainInfo, canMoveTo, WORLD_SIZE, TERRAIN_MAP } = require('./world');
+const { createInvitation, acceptInvitation, rejectInvitation, getTravelSession } = require('./travel');
 
 // 存储所有 WebSocket 连接
 const connections = new Map();
@@ -69,11 +70,23 @@ async function handleMessage(ws, data, getPlayerId, setPlayerId) {
     case 'observe':
       await handleObserve(ws, data, getPlayerId());
       break;
+    case 'leave':
+      await handleLeave(ws, data, getPlayerId());
+      break;
+    case 'recall':
+      await handleRecall(ws, data, getPlayerId());
+      break;
+    case 'invite_travel':
+      await handleInviteTravel(ws, data, getPlayerId());
+      break;
+    case 'travel_response':
+      await handleTravelResponse(ws, data, getPlayerId());
+      break;
     case 'action':
       await handleAction(ws, data, getPlayerId());
       break;
     default:
-      sendToWs(ws, { type: 'error', message: 'Unknown action type' });
+      sendToWs(ws, { type: 'error', message: 'Unknown action type: ' + data.type });
   }
 }
 
@@ -271,6 +284,185 @@ async function handleAction(ws, data, playerId) {
     action,
     result: `执行了: ${action}`
   });
+}
+
+// 处理 leave - 留下标记
+async function handleLeave(ws, data, playerId) {
+  if (!playerId) {
+    sendToWs(ws, { type: 'error', message: 'Not logged in' });
+    return;
+  }
+  
+  const { content, type = 'message' } = data;
+  const player = await redis.hgetall(`player:${playerId}`);
+  const x = parseInt(player.x) || 10;
+  const y = parseInt(player.y) || 10;
+  const name = player.name || playerId;
+  
+  // 存储到地面
+  const leaveId = `leave_${Date.now()}_${playerId}`;
+  await redis.hset(`ground:${x}:${y}`, leaveId, JSON.stringify({
+    type,
+    content: content || '',
+    from: playerId,
+    fromName: name,
+    timestamp: Date.now()
+  }));
+  
+  console.log(`📝 玩家留下标记: ${playerId} @ (${x}, ${y})`);
+  
+  sendToWs(ws, {
+    type: 'action_result',
+    action: 'leave',
+    success: true,
+    message: `你在 ${getTerrainInfo(x, y).name} 留下了标记`,
+    position: { x, y }
+  });
+}
+
+// 处理 recall - 回忆
+async function handleRecall(ws, data, playerId) {
+  if (!playerId) {
+    sendToWs(ws, { type: 'error', message: 'Not logged in' });
+    return;
+  }
+  
+  const { keyword } = data;
+  const memories = await getMemories(playerId);
+  
+  let result = memories;
+  if (keyword) {
+    result = memories.filter(m => 
+      (m.title && m.title.includes(keyword)) || 
+      (m.content && m.content.includes(keyword))
+    );
+  }
+  
+  console.log(`🧠 玩家回忆: ${playerId}, 找到 ${result.length} 条记忆`);
+  
+  sendToWs(ws, {
+    type: 'recall_result',
+    keyword: keyword || null,
+    count: result.length,
+    memories: result.slice(0, 10).map(m => ({
+      id: m.id,
+      title: m.title,
+      timestamp: m.timestamp,
+      type: m.type
+    }))
+  });
+}
+
+// 处理旅行邀请
+async function handleInviteTravel(ws, data, playerId) {
+  if (!playerId) {
+    sendToWs(ws, { type: 'error', message: 'Not logged in' });
+    return;
+  }
+  
+  const { targetId, background } = data;
+  
+  if (!targetId) {
+    sendToWs(ws, { type: 'error', message: 'Target player required' });
+    return;
+  }
+  
+  // 检查目标玩家是否在线
+  const targetWs = connections.get(targetId);
+  if (!targetWs || targetWs.readyState !== WebSocket.OPEN) {
+    sendToWs(ws, { type: 'error', message: 'Target player is offline' });
+    return;
+  }
+  
+  // 创建邀请
+  const invitationId = await createInvitation(playerId, targetId);
+  
+  const player = await redis.hgetall(`player:${playerId}`);
+  const name = player.name || playerId;
+  
+  console.log(`✉️ 旅行邀请: ${name} -> ${targetId}`);
+  
+  // 发送给邀请者确认
+  sendToWs(ws, {
+    type: 'action_result',
+    action: 'invite_travel',
+    success: true,
+    invitationId,
+    targetId,
+    message: `已向 ${targetId} 发送旅行邀请`
+  });
+  
+  // 实时推送给目标玩家
+  sendToWs(targetWs, {
+    type: 'travel_invite',
+    from: name,
+    fromId: playerId,
+    invitationId,
+    background: background || '随机'
+  });
+}
+
+// 处理旅行邀请响应
+async function handleTravelResponse(ws, data, playerId) {
+  if (!playerId) {
+    sendToWs(ws, { type: 'error', message: 'Not logged in' });
+    return;
+  }
+  
+  const { invitationId, accept } = data;
+  
+  if (accept) {
+    const result = await acceptInvitation(invitationId, playerId);
+    if (result.error) {
+      sendToWs(ws, { type: 'error', message: result.error });
+      return;
+    }
+    
+    // 通知双方旅行开始
+    const player = await redis.hgetall(`player:${playerId}`);
+    const name = player.name || playerId;
+    
+    console.log(`🎭 旅行开始: ${result.travelId}, 成员: ${result.members.join(', ')}`);
+    
+    // 通知所有成员
+    for (const memberId of result.members) {
+      const memberWs = connections.get(memberId);
+      if (memberWs) {
+        sendToWs(memberWs, {
+          type: 'travel_started',
+          travelId: result.travelId,
+          members: result.members,
+          message: '旅行开始！'
+        });
+      }
+    }
+    
+    // 自动添加一条记忆记录
+    for (const memberId of result.members) {
+      await addMemory(memberId, {
+        title: `与 ${result.members.filter(m => m !== memberId).join('、')} 的旅行`,
+        content: '一次新的冒险开始了...',
+        type: 'travel'
+      });
+    }
+  } else {
+    await rejectInvitation(invitationId, playerId);
+    sendToWs(ws, {
+      type: 'action_result',
+      action: 'travel_response',
+      success: true,
+      accepted: false,
+      message: '已拒绝旅行邀请'
+    });
+  }
+}
+
+// 发送给特定玩家
+function sendToPlayer(playerId, data) {
+  const ws = connections.get(playerId);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(data));
+  }
 }
 
 // 获取世界状态

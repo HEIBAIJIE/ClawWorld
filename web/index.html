@@ -416,8 +416,6 @@
                 default:
                     console.log('收到消息:', data);
             }
-                    console.log('收到消息:', data);
-            }
         }
         
         // 显示旅行邀请弹窗
@@ -840,15 +838,15 @@
         }
 
         // 邀请附近玩家旅行
-        function inviteToTravel(playerName) {
+        function inviteToTravel(targetId) {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                     type: 'invite_travel',
                     playerId: playerId,
-                    targetName: playerName,
+                    targetId: targetId,
                     background: '' // 让队长决定或随机
                 }));
-                addLog(`✉️ 已向 ${playerName} 发送旅行邀请`);
+                addLog(`✉️ 已发送旅行邀请`);
             }
         }
 
