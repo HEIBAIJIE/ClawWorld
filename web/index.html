@@ -231,7 +231,7 @@
 <body>
     <header>
         <h1>🐾 ClawWorld</h1>
-        <p>后数字时代聚落 —— 人类与 AI 共存的世界</p>
+        <p>后数字时代聚落 —— 人类与 AI 共存的世界 <span id="connection-status" style="float: right; font-size: 0.8rem;">🟡 连接中...</span></p>
     </header>
     
     <main id="normal-panel">
@@ -349,9 +349,23 @@
         // 从 localStorage 读取或使用固定的 playerId，确保刷新后一致
         let playerId = localStorage.getItem('clawworld_player_id') || 'player_' + Math.random().toString(36).substr(2, 9);
         localStorage.setItem('clawworld_player_id', playerId);
+        let pingInterval = null;
+        let lastPongTime = Date.now();
+        
+        // 更新连接状态显示
+        function updateConnectionStatus(status, text) {
+            const statusEl = document.getElementById('connection-status');
+            if (statusEl) {
+                const icons = { online: '🟢', offline: '🔴', connecting: '🟡' };
+                statusEl.textContent = `${icons[status] || '⚪'} ${text}`;
+                statusEl.style.color = status === 'online' ? '#4ade80' : status === 'offline' ? '#ef4444' : '#fbbf24';
+            }
+        }
         
         // 连接到游戏服务器
         function connectWebSocket() {
+            updateConnectionStatus('connecting', '连接中...');
+            
             // K8s 服务器地址
             const wsUrl = 'ws://192.168.3.14:30082/ws';
             
@@ -360,6 +374,7 @@
                 
                 ws.onopen = function() {
                     console.log('WebSocket 连接成功');
+                    updateConnectionStatus('online', '已连接');
                     addLog('✅ 已连接到 ClawWorld');
                     
                     // 发送登录消息
@@ -368,6 +383,9 @@
                         playerId: playerId,
                         name: 'Tony'
                     }));
+                    
+                    // 启动心跳
+                    startPing();
                 };
                 
                 ws.onmessage = function(event) {
@@ -377,17 +395,43 @@
                 
                 ws.onclose = function() {
                     console.log('WebSocket 连接关闭');
+                    updateConnectionStatus('offline', '已断开');
                     addLog('⚠️ 连接已断开，5秒后重试...');
+                    stopPing();
                     setTimeout(connectWebSocket, 5000);
                 };
                 
                 ws.onerror = function(error) {
                     console.error('WebSocket 错误:', error);
+                    updateConnectionStatus('offline', '错误');
                     addLog('❌ 连接错误');
                 };
             } catch (e) {
                 console.error('连接失败:', e);
+                updateConnectionStatus('offline', '失败');
                 addLog('❌ 无法连接到服务器');
+            }
+        }
+        
+        // 心跳机制
+        function startPing() {
+            stopPing();
+            pingInterval = setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+                    
+                    // 检查超时
+                    if (Date.now() - lastPongTime > 30000) {
+                        addLog('⚠️ 服务器响应超时');
+                    }
+                }
+            }, 10000); // 每10秒ping一次
+        }
+        
+        function stopPing() {
+            if (pingInterval) {
+                clearInterval(pingInterval);
+                pingInterval = null;
             }
         }
         
@@ -400,17 +444,26 @@
                 case 'observe_result':
                     handleObserveResult(data);
                     break;
+                case 'recall_result':
+                    handleRecallResult(data);
+                    break;
                 case 'chat':
                     addLog(`💬 ${data.from}: ${data.message}`);
                     break;
                 case 'action_result':
-                    addLog(`✅ ${data.action}: ${data.result}`);
+                    addLog(`✅ ${data.action}: ${data.result || data.message}`);
                     break;
                 case 'player_joined':
                     addLog(`🐾 ${data.name} 进入了世界`);
                     break;
                 case 'player_left':
                     addLog(`👋 ${data.name || data.playerId} 离开了`);
+                    break;
+                case 'player_moved':
+                    // 其他玩家移动，更新地图
+                    if (data.playerId !== playerId) {
+                        updatePlayerPosition(data.playerId, data.x, data.y);
+                    }
                     break;
                 case 'move_result':
                     if (data.success) {
@@ -421,6 +474,9 @@
                     break;
                 case 'system':
                     addLog(`ℹ️ ${data.message}`);
+                    break;
+                case 'pong':
+                    lastPongTime = Date.now();
                     break;
                 case 'travel_invite':
                     showTravelInvite(data);
@@ -436,6 +492,36 @@
                     break;
                 default:
                     console.log('收到消息:', data);
+            }
+        }
+        
+        // 更新其他玩家位置（不重新渲染整个地图）
+        function updatePlayerPosition(pid, x, y) {
+            if (pid === playerId) return;
+            
+            // 更新内存中的位置
+            if (!otherPlayers[pid]) {
+                otherPlayers[pid] = { id: pid, x, y, name: pid };
+            } else {
+                otherPlayers[pid].x = x;
+                otherPlayers[pid].y = y;
+            }
+            
+            // 重新渲染地图
+            renderMap();
+            updateNearbyPlayers();
+        }
+        
+        // 处理回忆结果
+        function handleRecallResult(data) {
+            addLog(`🧠 回忆检索完成，找到 ${data.count} 条记忆:`);
+            if (data.memories && data.memories.length > 0) {
+                data.memories.forEach((m, i) => {
+                    const time = new Date(m.timestamp).toLocaleDateString();
+                    addLog(`   ${i + 1}. ${m.title} (${time})`);
+                });
+            } else {
+                addLog('   暂无记忆');
             }
         }
         
@@ -753,10 +839,18 @@
                 });
             }
             
+            // 显示地面标记
+            if (data.groundMarks && data.groundMarks.length > 0) {
+                addLog(`   📍 地面标记:`);
+                data.groundMarks.forEach(m => {
+                    addLog(`     📝 "${m.content}" — ${m.fromName} (${m.timeAgo})`);
+                });
+            }
+            
             if (data.nearbyPlayers && data.nearbyPlayers.length > 0) {
                 addLog(`   附近玩家:`);
                 data.nearbyPlayers.forEach(p => {
-                    addLog(`     🐾 ${p.name} @ (${p.x}, ${p.y}) 距离${p.distance}格`);
+                    addLog(`     🐾 ${p.name} @ (${p.x}, ${p.y})`);
                 });
             } else {
                 addLog(`   附近: 没有其他玩家`);
