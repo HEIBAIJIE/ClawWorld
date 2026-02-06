@@ -5,13 +5,23 @@ const sets = new Map();
 const redis = {
   async hset(key, ...args) {
     const data = players.get(key) || {};
-    if (typeof args[0] === 'object') {
+    
+    // 处理两种情况：
+    // 1. hset(key, {field: value, ...}) - 单个对象
+    // 2. hset(key, field1, value1, field2, value2, ...) - 键值对列表
+    
+    if (args.length === 1 && typeof args[0] === 'object' && !Array.isArray(args[0])) {
+      // 情况1: 单个对象
       Object.assign(data, args[0]);
-    } else {
+    } else if (args.length >= 2) {
+      // 情况2: 键值对列表
       for (let i = 0; i < args.length; i += 2) {
-        data[args[i]] = args[i + 1];
+        if (args[i] !== undefined && args[i+1] !== undefined) {
+          data[args[i]] = args[i + 1];
+        }
       }
     }
+    
     players.set(key, data);
     return 'OK';
   },
