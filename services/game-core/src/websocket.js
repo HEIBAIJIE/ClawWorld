@@ -819,14 +819,39 @@ async function broadcastToTravel(travelId, data) {
 // 广播给所有连接的玩家（用于世界事件）
 function broadcastToAll(data) {
   if (!wss) return;
-  
+
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       sendToWs(client, data);
     }
   });
-  
+
   console.log(`[Broadcast] 广播消息: ${data.type}, 连接数: ${wss.clients.size}`);
+}
+
+// 广播给附近的玩家（基于位置）
+async function broadcastToNearby(x, y, data, range = 2) {
+  if (!wss) return;
+
+  const { getOnlinePlayers } = require('./redis-mem');
+  const onlinePlayers = await getOnlinePlayers();
+
+  let broadcastCount = 0;
+  for (const player of onlinePlayers) {
+    const px = parseInt(player.x) || 0;
+    const py = parseInt(player.y) || 0;
+    const distance = Math.abs(px - x) + Math.abs(py - y);
+
+    if (distance <= range) {
+      const ws = connections.get(player.id);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        sendToWs(ws, data);
+        broadcastCount++;
+      }
+    }
+  }
+
+  console.log(`[Broadcast] 附近广播: ${data.type}, 位置(${x},${y}), 范围${range}, 接收者${broadcastCount}`);
 }
 
 // 设置全局广播函数供 world-events 模块使用
@@ -838,5 +863,6 @@ module.exports = {
   broadcastToAll,
   getConnectionCount,
   getServerStats,
-  broadcastToTravel
+  broadcastToTravel,
+  broadcastToNearby
 };
