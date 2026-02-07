@@ -599,14 +599,12 @@
             <button class="quick-btn" onclick="requestTerritory()">🏰 领地</button>
             <button class="quick-btn" onclick="doRest()">😴 休息</button>
         </div>
-            <button class="quick-btn" onclick="doRest()">😴 休息</button>
-        </div>
         <input type="text" id="action-input" placeholder="输入要说的话，按回车发送..." />
         <button class="action-btn" onclick="doSay()">📢 发送</button>
     </div>
     
     <script>
-        // 🌐 API 配置
+        // 🌐 API 配置 - 修复重复定义问题
         const API_BASE = window.location.hostname === 'localhost' 
             ? 'http://localhost:3002' 
             : 'http://192.168.3.14:30082';
@@ -665,9 +663,6 @@
             }
         };
 
-        // API 基础地址
-        const API_BASE = 'http://192.168.3.14:30082';
-        
         // WebSocket 连接
         let ws = null;
         // 从 localStorage 读取或使用固定的 playerId，确保刷新后一致
@@ -825,7 +820,6 @@
                 case 'action_result':
                     addLog(`✅ ${data.action}: ${data.result || data.message}`);
                     AudioSys.success(); // 🎵 成功音效
-                    break;
                     break;
                 case 'player_joined':
                     addLog(`🐾 ${data.name} 进入了世界`);
@@ -2258,7 +2252,7 @@
             </div>
         </div>
         
-        <!-- 故事区域 --㺌
+        <!-- 故事区域 -->
         <div style="display: grid; grid-template-columns: 1fr 300px; gap: 1.5rem; height: calc(100vh - 250px);">
             
             <!-- 左侧：故事叙事 -->
