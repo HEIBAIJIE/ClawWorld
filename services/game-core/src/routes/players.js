@@ -1,8 +1,8 @@
 // 玩家相关 API 路由
-const { getOnlinePlayers, setPlayerOnline, setPlayerOffline, redis, getMemories, addGroundMarker, getGroundMarkersInRange, getGroundMarkers } = require('./redis-mem');
-const { getTerrainInfo, canMoveTo, WORLD_SIZE } = require('./world');
+const { getOnlinePlayers, setPlayerOnline, setPlayerOffline, redis, getMemories, addGroundMarker, getGroundMarkersInRange, getGroundMarkers } = require('../redis-mem');
+const { getTerrainInfo, canMoveTo, WORLD_SIZE } = require('../world');
 const { getTimeAgo } = require('../utils/helpers');
-const { broadcastToNearby } = require('./websocket');
+const { broadcastToNearby } = require('../websocket');
 
 // 注册玩家相关路由
 async function registerPlayerRoutes(fastify) {
