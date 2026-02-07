@@ -5,6 +5,56 @@ const axios = require('axios');
 
 const REFEREE_URL = CONFIG.REFEREE_URL;
 
+// ========== 旅行队列系统（解决竞态条件）==========
+const travelQueues = new Map(); // travelId -> queue
+
+// 获取或创建旅行队列
+function getTravelQueue(travelId) {
+  if (!travelQueues.has(travelId)) {
+    travelQueues.set(travelId, []);
+  }
+  return travelQueues.get(travelId);
+}
+
+// 添加任务到队列
+async function queueTask(travelId, task) {
+  const queue = getTravelQueue(travelId);
+  
+  return new Promise((resolve, reject) => {
+    queue.push({ task, resolve, reject });
+    
+    // 如果队列只有一个任务，立即处理
+    if (queue.length === 1) {
+      processQueue(travelId);
+    }
+  });
+}
+
+// 处理队列
+async function processQueue(travelId) {
+  const queue = getTravelQueue(travelId);
+  
+  while (queue.length > 0) {
+    const { task, resolve, reject } = queue[0];
+    
+    try {
+      const result = await task();
+      resolve(result);
+    } catch (error) {
+      reject(error);
+    }
+    
+    queue.shift();
+    
+    // 清理空队列
+    if (queue.length === 0) {
+      travelQueues.delete(travelId);
+    }
+  }
+}
+
+// ========== Referee 调用 ==========
+
 // 调用 Referee 服务生成旅行开场
 async function generateOpeningFromReferee(travelId, background, members) {
   try {
@@ -200,12 +250,11 @@ async function createTravelSession(memberIds) {
     await redis.hset(`player:${memberId}`, 'travelId', travelId);
   }
   
-  // 异步调用 Referee 生成开场
-  setImmediate(async () => {
+  // 使用队列序列化处理开场生成
+  queueTask(travelId, async () => {
     const opening = await generateOpeningFromReferee(travelId, background, memberIds);
     if (opening) {
       console.log(`✅ 旅行 ${travelId} 开场已生成`);
-      // 更新状态为 active
       await redis.hset(key, 'status', 'active');
     } else {
       console.log(`⚠️ 旅行 ${travelId} 开场生成失败，使用默认开场`);
@@ -217,7 +266,7 @@ async function createTravelSession(memberIds) {
       }));
       await redis.hset(key, 'status', 'active');
     }
-  });
+  }).catch(err => console.error(`[Travel] 开场生成队列错误:`, err));
   
   return travelId;
 }
@@ -288,8 +337,8 @@ async function recordPlayerAction(travelId, playerId, action) {
     timestamp: Date.now()
   }));
   
-  // 异步调用 Referee 裁定
-  setImmediate(async () => {
+  // 使用队列序列化处理裁定
+  queueTask(travelId, async () => {
     const adjudication = await adjudicateActionFromReferee(travelId, { playerId, action });
     if (adjudication) {
       // 保存裁定结果
@@ -306,7 +355,7 @@ async function recordPlayerAction(travelId, playerId, action) {
       
       console.log(`✅ 旅行 ${travelId} 第 ${currentRound} 轮裁定完成`);
     }
-  });
+  }).catch(err => console.error(`[Travel] 裁定队列错误:`, err));
   
   return {
     success: true,

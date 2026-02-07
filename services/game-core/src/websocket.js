@@ -8,12 +8,60 @@ const { createInvitation, acceptInvitation, rejectInvitation, getTravelSession, 
 const connections = new Map();
 let wss = null;
 
+// ========== 心跳检测配置 ==========
+const HEARTBEAT_INTERVAL = 30 * 1000; // 30秒心跳间隔
+const HEARTBEAT_TIMEOUT = 60 * 1000;  // 60秒超时
+const connectionHeartbeats = new Map(); // playerId -> { lastPing, timeout }
+
+// 更新心跳
+function updateHeartbeat(playerId) {
+  if (connectionHeartbeats.has(playerId)) {
+    const hb = connectionHeartbeats.get(playerId);
+    hb.lastPing = Date.now();
+    
+    // 清除旧超时
+    if (hb.timeout) {
+      clearTimeout(hb.timeout);
+    }
+    
+    // 设置新超时
+    hb.timeout = setTimeout(() => {
+      console.log(`⏱️ 心跳超时: ${playerId}`);
+      const ws = connections.get(playerId);
+      if (ws) {
+        ws.terminate(); // 强制关闭连接
+      }
+      cleanupConnection(playerId);
+    }, HEARTBEAT_TIMEOUT);
+  }
+}
+
+// 清理连接
+async function cleanupConnection(playerId) {
+  if (connectionHeartbeats.has(playerId)) {
+    const hb = connectionHeartbeats.get(playerId);
+    if (hb.timeout) {
+      clearTimeout(hb.timeout);
+    }
+    connectionHeartbeats.delete(playerId);
+  }
+  
+  if (connections.has(playerId)) {
+    connections.delete(playerId);
+  }
+  
+  await setPlayerOffline(playerId);
+  broadcast({ type: 'player_left', playerId });
+  console.log(`🧹 已清理连接: ${playerId}`);
+}
+
 // 初始化 WebSocket 服务器
 function setupWebSocket(server) {
   wss = new WebSocket.Server({ server });
   
   wss.on('connection', (ws, req) => {
     let playerId = null;
+    let heartbeatInterval = null;
     
     console.log('🔌 新的 WebSocket 连接');
     
@@ -21,6 +69,15 @@ function setupWebSocket(server) {
       try {
         const data = JSON.parse(message.toString());
         console.log('📩 收到:', data.type);
+        
+        // 处理心跳pong
+        if (data.type === 'pong') {
+          if (playerId) {
+            updateHeartbeat(playerId);
+          }
+          return;
+        }
+        
         await handleMessage(ws, data, () => playerId, (id) => { playerId = id; });
       } catch (err) {
         console.error('消息解析错误:', err);
@@ -30,10 +87,11 @@ function setupWebSocket(server) {
     
     ws.on('close', async () => {
       console.log(`🔌 连接关闭: ${playerId}`);
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+      }
       if (playerId) {
-        await setPlayerOffline(playerId);
-        connections.delete(playerId);
-        broadcast({ type: 'player_left', playerId });
+        await cleanupConnection(playerId);
       }
     });
     
@@ -43,9 +101,16 @@ function setupWebSocket(server) {
     
     // 发送欢迎消息
     sendToWs(ws, { type: 'connected', message: '连接到 ClawWorld' });
+    
+    // 启动心跳检测
+    heartbeatInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        sendToWs(ws, { type: 'ping', timestamp: Date.now() });
+      }
+    }, HEARTBEAT_INTERVAL);
   });
   
-  console.log('✅ WebSocket 服务器已启动');
+  console.log('✅ WebSocket 服务器已启动 (带心跳检测)');
 }
 
 // 发送消息给指定 WebSocket
@@ -95,6 +160,9 @@ async function handleMessage(ws, data, getPlayerId, setPlayerId) {
       await handlePrivateMessage(ws, data, getPlayerId());
       break;
     case 'ping':
+      if (playerId) {
+        updateHeartbeat(playerId);
+      }
       sendToWs(ws, { type: 'pong', timestamp: Date.now() });
       break;
     case 'action':
@@ -115,6 +183,12 @@ async function handleLogin(ws, data, setPlayerId) {
   }
   
   setPlayerId(playerId);
+  
+  // 初始化心跳
+  connectionHeartbeats.set(playerId, {
+    lastPing: Date.now(),
+    timeout: null
+  });
   
   // 保存玩家信息到 Redis
   await setPlayerOnline(playerId, {
@@ -803,6 +877,25 @@ async function handleTravelEnd(ws, data, playerId) {
   }
 }
 
+// 广播给附近玩家（用于say操作）
+async function broadcastToNearby(x, y, data, range = 2) {
+  const onlinePlayers = await getOnlinePlayers();
+  const message = JSON.stringify(data);
+  
+  for (const player of onlinePlayers) {
+    const px = parseInt(player.x) || 0;
+    const py = parseInt(player.y) || 0;
+    const distance = Math.abs(px - x) + Math.abs(py - y);
+    
+    if (distance <= range) {
+      const ws = connections.get(player.id);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(message);
+      }
+    }
+  }
+}
+
 // 导出给 HTTP API 使用
 async function broadcastToTravel(travelId, data) {
   const session = await getTravelSession(travelId);
@@ -836,6 +929,7 @@ module.exports = {
   setupWebSocket,
   broadcast,
   broadcastToAll,
+  broadcastToNearby,
   getConnectionCount,
   getServerStats,
   broadcastToTravel
