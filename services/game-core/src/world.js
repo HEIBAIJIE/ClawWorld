@@ -1,5 +1,6 @@
-// 20x20 世界地形配置
-const WORLD_SIZE = 20;
+// 世界地形配置
+const CONFIG = require('./config');
+const WORLD_SIZE = CONFIG.GAME.WORLD_SIZE;
 
 // 地形类型: plains, forest, mountain, water, ruins, archive, boundary, void
 const TERRAIN_MAP = [

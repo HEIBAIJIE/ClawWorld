@@ -34,9 +34,9 @@ function cleanupExpiredData() {
   // 清理离线玩家数据
   for (const [key, lastAccess] of lastAccessTime.entries()) {
     if (now - lastAccess > CONFIG.OFFLINE_TTL_MS) {
-      // 检查玩家是否离线
+      // 检查玩家是否离线（支持字符串和布尔值）
       const playerData = players.get(key);
-      if (playerData && playerData.online === 'false') {
+      if (playerData && (playerData.online === false || playerData.online === 'false')) {
         // 清理该玩家的所有数据
         players.delete(key);
         memories.delete(key.replace('player:', ''));
@@ -134,13 +134,13 @@ async function setPlayerOnline(playerId, data) {
   updateAccessTime(`player:${playerId}`);
   await redis.hset(`player:${playerId}`, {
     ...data,
-    online: 'true',
+    online: true,
     lastSeen: Date.now()
   });
 }
 
 async function setPlayerOffline(playerId) {
-  await redis.hset(`player:${playerId}`, 'online', 'false');
+  await redis.hset(`player:${playerId}`, 'online', false);
 }
 
 async function getPlayerStatus(playerId) {
@@ -152,7 +152,8 @@ async function getOnlinePlayers() {
   const onlinePlayers = [];
   for (const key of keys) {
     const data = await redis.hgetall(key);
-    if (data.online === 'true') {
+    // 支持字符串和布尔值两种格式
+    if (data.online === true || data.online === 'true') {
       onlinePlayers.push({
         id: key.replace('player:', ''),
         ...data
