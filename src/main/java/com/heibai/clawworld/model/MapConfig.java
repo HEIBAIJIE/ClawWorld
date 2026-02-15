@@ -19,7 +19,6 @@ public class MapConfig {
     private Integer recommendedLevel;
     private List<TerrainCell> terrain;
     private List<EntityPlacement> entities;
-    private List<String> connectedMaps;
 
     @Data
     public static class TerrainCell {
@@ -34,5 +33,6 @@ public class MapConfig {
         private int y;
         private String entityType;
         private String entityId;
+        private String targetMapId;
     }
 }

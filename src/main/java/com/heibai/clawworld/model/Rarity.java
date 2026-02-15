@@ -1,0 +1,10 @@
+package com.heibai.clawworld.model;
+
+public enum Rarity {
+    COMMON,      // 普通
+    EXCELLENT,   // 优秀
+    RARE,        // 稀有
+    EPIC,        // 史诗
+    LEGENDARY,   // 传说
+    MYTHIC       // 神话
+}

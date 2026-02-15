@@ -13,7 +13,6 @@ public class EquipmentConfig {
     private String description;
     private EquipmentSlot slot;
     private Rarity rarity;
-    private int requiredLevel;
     private int strength;
     private int agility;
     private int intelligence;
@@ -25,12 +24,10 @@ public class EquipmentConfig {
     private int speed;
     private double critRate;
     private double critDamage;
+    private double hitRate;
+    private double dodgeRate;
 
     public enum EquipmentSlot {
         HEAD, CHEST, LEGS, FEET, LEFT_HAND, RIGHT_HAND, ACCESSORY1, ACCESSORY2
-    }
-
-    public enum Rarity {
-        COMMON, EXCELLENT, RARE, EPIC, LEGENDARY, MYTHIC
     }
 }

@@ -19,11 +19,11 @@ public class NpcConfig {
     private List<ShopItem> shopItems;
     private int shopGold;
     private int shopRefreshSeconds;
+    private double priceMultiplier;
 
     @Data
     public static class ShopItem {
         private String itemId;
         private int quantity;
-        private int price;
     }
 }

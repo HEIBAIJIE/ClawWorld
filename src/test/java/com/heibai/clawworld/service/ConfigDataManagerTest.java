@@ -26,17 +26,19 @@ class ConfigDataManagerTest {
         log.info("敌人数量: {}", configDataManager.getAllEnemies().size());
         log.info("NPC数量: {}", configDataManager.getAllNpcs().size());
         log.info("地图数量: {}", configDataManager.getAllMaps().size());
+        log.info("职业数量: {}", configDataManager.getAllRoles().size());
 
-        assertTrue(configDataManager.getAllItems().size() > 0, "应该加载了物品数据");
-        assertTrue(configDataManager.getAllEquipment().size() > 0, "应该加载了装备数据");
-        assertTrue(configDataManager.getAllSkills().size() > 0, "应该加载了技能数据");
-        assertTrue(configDataManager.getAllEnemies().size() > 0, "应该加载了敌人数据");
-        assertTrue(configDataManager.getAllNpcs().size() > 0, "应该加载了NPC数据");
-        assertTrue(configDataManager.getAllMaps().size() > 0, "应该加载了地图数据");
+        assertFalse(configDataManager.getAllItems().isEmpty(), "应该加载了物品数据");
+        assertFalse(configDataManager.getAllEquipment().isEmpty(), "应该加载了装备数据");
+        assertFalse(configDataManager.getAllSkills().isEmpty(), "应该加载了技能数据");
+        assertFalse(configDataManager.getAllEnemies().isEmpty(), "应该加载了敌人数据");
+        assertFalse(configDataManager.getAllNpcs().isEmpty(), "应该加载了NPC数据");
+        assertFalse(configDataManager.getAllMaps().isEmpty(), "应该加载了地图数据");
+        assertFalse(configDataManager.getAllRoles().isEmpty(), "应该加载了职业数据");
 
         log.info("\n=== 示例数据 ===");
         configDataManager.getAllItems().stream().limit(3).forEach(item ->
-            log.info("物品: {} - {}", item.getName(), item.getDescription())
+            log.info("物品: {} - {} (基础价格: {})", item.getName(), item.getDescription(), item.getBasePrice())
         );
 
         configDataManager.getAllSkills().stream().limit(3).forEach(skill ->
@@ -44,8 +46,16 @@ class ConfigDataManagerTest {
         );
 
         configDataManager.getAllEnemies().stream().limit(3).forEach(enemy ->
-            log.info("敌人: {} Lv.{} - {} (生命: {}, 攻击: {})",
-                enemy.getName(), enemy.getLevel(), enemy.getTier(), enemy.getHealth(), enemy.getPhysicalAttack())
+            log.info("敌人: {} Lv.{} - {} (生命: {}, 攻击: {}, 命中: {}, 闪避: {})",
+                enemy.getName(), enemy.getLevel(), enemy.getTier(), enemy.getHealth(),
+                enemy.getPhysicalAttack(), enemy.getHitRate(), enemy.getDodgeRate())
+        );
+
+        configDataManager.getAllRoles().forEach(role ->
+            log.info("职业: {} - 基础属性 HP:{} MP:{} STR:{} AGI:{} INT:{} VIT:{} (技能数: {})",
+                role.getName(), role.getBaseHealth(), role.getBaseMana(),
+                role.getBaseStrength(), role.getBaseAgility(), role.getBaseIntelligence(),
+                role.getBaseVitality(), role.getSkillLearns().size())
         );
 
         log.info("=== 配置加载完成 ===");

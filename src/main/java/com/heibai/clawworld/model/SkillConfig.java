@@ -4,8 +4,6 @@ import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.util.List;
-
 @Data
 @Document(collection = "skill_configs")
 public class SkillConfig {
@@ -18,8 +16,6 @@ public class SkillConfig {
     private int manaCost;
     private int cooldown;
     private double damageMultiplier;
-    private List<String> allowedRoles;
-    private Integer learnLevel;
 
     public enum SkillTarget {
         SELF, ALLY_SINGLE, ALLY_ALL, ENEMY_SINGLE, ENEMY_ALL

@@ -31,6 +31,7 @@ public class ConfigDataManager {
     private final Map<String, EnemyConfig> enemyConfigs = new ConcurrentHashMap<>();
     private final Map<String, NpcConfig> npcConfigs = new ConcurrentHashMap<>();
     private final Map<String, MapConfig> mapConfigs = new ConcurrentHashMap<>();
+    private final Map<String, RoleConfig> roleConfigs = new ConcurrentHashMap<>();
 
     private final Map<String, String> fileChecksums = new ConcurrentHashMap<>();
 
@@ -49,7 +50,9 @@ public class ConfigDataManager {
                 hasFileChanged("classpath:data/skills.csv") ||
                 hasFileChanged("classpath:data/enemies.csv") ||
                 hasFileChanged("classpath:data/npcs.csv") ||
-                hasFileChanged("classpath:data/maps.csv")) {
+                hasFileChanged("classpath:data/maps.csv") ||
+                hasFileChanged("classpath:data/roles.csv") ||
+                hasFileChanged("classpath:data/role_skills.csv")) {
 
                 log.info("CSV files changed, reloading...");
                 loadAllConfigs();
@@ -97,6 +100,8 @@ public class ConfigDataManager {
         loadEnemies();
         loadNpcs();
         loadMaps();
+        loadRoles();
+        loadRoleSkills();
         log.info("All configs loaded successfully");
     }
 
@@ -115,8 +120,7 @@ public class ConfigDataManager {
                 item.setDescription(csvReader.getString(record, "description"));
                 item.setType(ItemConfig.ItemType.valueOf(csvReader.getString(record, "type")));
                 item.setMaxStack(csvReader.getInt(record, "maxStack"));
-                item.setBuyPrice(csvReader.getInt(record, "buyPrice"));
-                item.setSellPrice(csvReader.getInt(record, "sellPrice"));
+                item.setBasePrice(csvReader.getInt(record, "basePrice"));
                 item.setEffect(csvReader.getString(record, "effect"));
                 item.setEffectValue(csvReader.getIntOrNull(record, "effectValue"));
                 return item;
@@ -144,8 +148,7 @@ public class ConfigDataManager {
                 eq.setName(csvReader.getString(record, "name"));
                 eq.setDescription(csvReader.getString(record, "description"));
                 eq.setSlot(EquipmentConfig.EquipmentSlot.valueOf(csvReader.getString(record, "slot")));
-                eq.setRarity(EquipmentConfig.Rarity.valueOf(csvReader.getString(record, "rarity")));
-                eq.setRequiredLevel(csvReader.getInt(record, "requiredLevel"));
+                eq.setRarity(Rarity.valueOf(csvReader.getString(record, "rarity")));
                 eq.setStrength(csvReader.getInt(record, "strength"));
                 eq.setAgility(csvReader.getInt(record, "agility"));
                 eq.setIntelligence(csvReader.getInt(record, "intelligence"));
@@ -157,6 +160,8 @@ public class ConfigDataManager {
                 eq.setSpeed(csvReader.getInt(record, "speed"));
                 eq.setCritRate(csvReader.getDouble(record, "critRate"));
                 eq.setCritDamage(csvReader.getDouble(record, "critDamage"));
+                eq.setHitRate(csvReader.getDouble(record, "hitRate"));
+                eq.setDodgeRate(csvReader.getDouble(record, "dodgeRate"));
                 return eq;
             });
 
@@ -186,10 +191,6 @@ public class ConfigDataManager {
                 skill.setManaCost(csvReader.getInt(record, "manaCost"));
                 skill.setCooldown(csvReader.getInt(record, "cooldown"));
                 skill.setDamageMultiplier(csvReader.getDouble(record, "damageMultiplier"));
-
-                String roles = csvReader.getString(record, "allowedRoles");
-                skill.setAllowedRoles(roles.isEmpty() ? List.of() : Arrays.asList(roles.split(";")));
-                skill.setLearnLevel(csvReader.getIntOrNull(record, "learnLevel"));
                 return skill;
             });
 
@@ -225,6 +226,8 @@ public class ConfigDataManager {
                 enemy.setSpeed(csvReader.getInt(record, "speed"));
                 enemy.setCritRate(csvReader.getDouble(record, "critRate"));
                 enemy.setCritDamage(csvReader.getDouble(record, "critDamage"));
+                enemy.setHitRate(csvReader.getDouble(record, "hitRate"));
+                enemy.setDodgeRate(csvReader.getDouble(record, "dodgeRate"));
 
                 String skills = csvReader.getString(record, "skills");
                 enemy.setSkills(skills.isEmpty() ? List.of() : Arrays.asList(skills.split(";")));
@@ -268,6 +271,7 @@ public class ConfigDataManager {
                 npc.setShopItems(new ArrayList<>());
                 npc.setShopGold(csvReader.getInt(record, "shopGold"));
                 npc.setShopRefreshSeconds(csvReader.getInt(record, "shopRefreshSeconds"));
+                npc.setPriceMultiplier(csvReader.getDouble(record, "priceMultiplier"));
                 return npc;
             });
 
@@ -296,10 +300,6 @@ public class ConfigDataManager {
                 map.setHeight(csvReader.getInt(record, "height"));
                 map.setSafe(csvReader.getBoolean(record, "isSafe"));
                 map.setRecommendedLevel(csvReader.getIntOrNull(record, "recommendedLevel"));
-
-                String connected = csvReader.getString(record, "connectedMaps");
-                map.setConnectedMaps(connected.isEmpty() ? List.of() : Arrays.asList(connected.split(";")));
-
                 map.setTerrain(new ArrayList<>());
                 map.setEntities(new ArrayList<>());
                 return map;
@@ -310,6 +310,72 @@ public class ConfigDataManager {
             log.info("Loaded {} maps", maps.size());
         } catch (IOException e) {
             log.error("Error loading maps.csv", e);
+        }
+    }
+
+    private void loadRoles() {
+        try {
+            Resource resource = resourceLoader.getResource("classpath:data/roles.csv");
+            if (!resource.exists()) {
+                log.warn("roles.csv not found, skipping");
+                return;
+            }
+
+            List<RoleConfig> roles = csvReader.readCsv(resource.getInputStream(), record -> {
+                RoleConfig role = new RoleConfig();
+                role.setId(csvReader.getString(record, "id"));
+                role.setName(csvReader.getString(record, "name"));
+                role.setDescription(csvReader.getString(record, "description"));
+                role.setBaseHealth(csvReader.getInt(record, "baseHealth"));
+                role.setBaseMana(csvReader.getInt(record, "baseMana"));
+                role.setBaseStrength(csvReader.getInt(record, "baseStrength"));
+                role.setBaseAgility(csvReader.getInt(record, "baseAgility"));
+                role.setBaseIntelligence(csvReader.getInt(record, "baseIntelligence"));
+                role.setBaseVitality(csvReader.getInt(record, "baseVitality"));
+                role.setHealthPerLevel(csvReader.getDouble(record, "healthPerLevel"));
+                role.setManaPerLevel(csvReader.getDouble(record, "manaPerLevel"));
+                role.setStrengthPerLevel(csvReader.getDouble(record, "strengthPerLevel"));
+                role.setAgilityPerLevel(csvReader.getDouble(record, "agilityPerLevel"));
+                role.setIntelligencePerLevel(csvReader.getDouble(record, "intelligencePerLevel"));
+                role.setVitalityPerLevel(csvReader.getDouble(record, "vitalityPerLevel"));
+                role.setSkillLearns(new ArrayList<>());
+                return role;
+            });
+
+            roleConfigs.clear();
+            roles.forEach(role -> roleConfigs.put(role.getId(), role));
+            log.info("Loaded {} roles", roles.size());
+        } catch (IOException e) {
+            log.error("Error loading roles.csv", e);
+        }
+    }
+
+    private void loadRoleSkills() {
+        try {
+            Resource resource = resourceLoader.getResource("classpath:data/role_skills.csv");
+            if (!resource.exists()) {
+                log.warn("role_skills.csv not found, skipping");
+                return;
+            }
+
+            csvReader.readCsv(resource.getInputStream(), record -> {
+                String roleId = csvReader.getString(record, "roleId");
+                String skillId = csvReader.getString(record, "skillId");
+                int learnLevel = csvReader.getInt(record, "learnLevel");
+
+                RoleConfig role = roleConfigs.get(roleId);
+                if (role != null) {
+                    RoleConfig.SkillLearn skillLearn = new RoleConfig.SkillLearn();
+                    skillLearn.setSkillId(skillId);
+                    skillLearn.setLearnLevel(learnLevel);
+                    role.getSkillLearns().add(skillLearn);
+                }
+                return null;
+            });
+
+            log.info("Loaded role skills mappings");
+        } catch (IOException e) {
+            log.error("Error loading role_skills.csv", e);
         }
     }
 
@@ -337,6 +403,10 @@ public class ConfigDataManager {
         return mapConfigs.get(id);
     }
 
+    public RoleConfig getRole(String id) {
+        return roleConfigs.get(id);
+    }
+
     public Collection<ItemConfig> getAllItems() {
         return itemConfigs.values();
     }
@@ -359,5 +429,9 @@ public class ConfigDataManager {
 
     public Collection<MapConfig> getAllMaps() {
         return mapConfigs.values();
+    }
+
+    public Collection<RoleConfig> getAllRoles() {
+        return roleConfigs.values();
     }
 }

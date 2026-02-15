@@ -24,6 +24,8 @@ public class EnemyConfig {
     private int speed;
     private double critRate;
     private double critDamage;
+    private double hitRate;
+    private double dodgeRate;
     private List<String> skills;
     private int expMin;
     private int expMax;
@@ -39,6 +41,7 @@ public class EnemyConfig {
     @Data
     public static class LootDrop {
         private String itemId;
+        private Rarity rarity;
         private double dropRate;
         private int minQuantity;
         private int maxQuantity;

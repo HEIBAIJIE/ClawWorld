@@ -13,8 +13,7 @@ public class ItemConfig {
     private String description;
     private ItemType type;
     private int maxStack;
-    private int buyPrice;
-    private int sellPrice;
+    private int basePrice;
     private String effect;
     private Integer effectValue;
 

@@ -1,0 +1,14 @@
+roleId,skillId,learnLevel
+WARRIOR,power_strike,3
+WARRIOR,shield_bash,5
+WARRIOR,whirlwind,8
+RANGER,quick_shot,3
+RANGER,aimed_shot,5
+RANGER,multi_shot,7
+MAGE,fireball,3
+MAGE,lightning_bolt,5
+MAGE,ice_storm,8
+PRIEST,heal,3
+PRIEST,divine_shield,5
+PRIEST,group_heal,7
+PRIEST,resurrection,10
