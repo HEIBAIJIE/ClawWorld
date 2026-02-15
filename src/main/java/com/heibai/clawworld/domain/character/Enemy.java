@@ -45,7 +45,5 @@ public class Enemy extends Character {
         private String itemId;
         private Rarity rarity;
         private double dropRate;
-        private int minQuantity;
-        private int maxQuantity;
     }
 }

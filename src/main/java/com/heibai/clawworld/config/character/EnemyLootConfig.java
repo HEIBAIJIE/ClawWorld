@@ -11,6 +11,4 @@ public class EnemyLootConfig {
     private String itemId;
     private String rarity;
     private double dropRate;
-    private int minQuantity;
-    private int maxQuantity;
 }

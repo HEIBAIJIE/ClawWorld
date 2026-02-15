@@ -156,8 +156,6 @@ public class CharacterConfigLoader {
                 loot.setItemId(csvReader.getString(record, "itemId"));
                 loot.setRarity(csvReader.getString(record, "rarity"));
                 loot.setDropRate(csvReader.getDouble(record, "dropRate"));
-                loot.setMinQuantity(csvReader.getInt(record, "minQuantity"));
-                loot.setMaxQuantity(csvReader.getInt(record, "maxQuantity"));
                 return loot;
             });
 
