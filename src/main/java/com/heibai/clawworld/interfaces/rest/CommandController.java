@@ -96,6 +96,13 @@ public class CommandController {
                         windowId,
                         result.getMessage()
                 );
+            } else if (windowType == CommandContext.WindowType.SHOP) {
+                // 商店窗口：包含指令结果 + 商店状态
+                responseText = stateService.generateShopState(
+                        accountEntity.getPlayerId(),
+                        windowId,
+                        result.getMessage()
+                );
             } else {
                 // 其他窗口（如注册窗口）：只返回指令结果
                 StringBuilder sb = new StringBuilder();

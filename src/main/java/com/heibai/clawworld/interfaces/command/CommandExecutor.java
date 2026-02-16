@@ -19,6 +19,7 @@ public class CommandExecutor {
     private final CombatService combatService;
     private final TradeService tradeService;
     private final ChatService chatService;
+    private final ShopService shopService;
 
     /**
      * 执行指令
@@ -59,12 +60,30 @@ public class CommandExecutor {
                     return executeEquip((EquipCommand) command, context);
                 case ATTRIBUTE_ADD:
                     return executeAttributeAdd((AttributeAddCommand) command, context);
+                case PARTY_INVITE:
+                    return executePartyInvite((PartyInviteCommand) command, context);
+                case PARTY_ACCEPT_INVITE:
+                    return executePartyAcceptInvite((PartyAcceptInviteCommand) command, context);
+                case PARTY_REJECT_INVITE:
+                    return executePartyRejectInvite((PartyRejectInviteCommand) command, context);
+                case PARTY_REQUEST_JOIN:
+                    return executePartyRequestJoin((PartyRequestJoinCommand) command, context);
+                case PARTY_ACCEPT_REQUEST:
+                    return executePartyAcceptRequest((PartyAcceptRequestCommand) command, context);
+                case PARTY_REJECT_REQUEST:
+                    return executePartyRejectRequest((PartyRejectRequestCommand) command, context);
                 case PARTY_KICK:
                     return executePartyKick((PartyKickCommand) command, context);
                 case PARTY_END:
                     return executePartyEnd(context);
                 case PARTY_LEAVE:
                     return executePartyLeave(context);
+                case TRADE_REQUEST:
+                    return executeTradeRequest((TradeRequestCommand) command, context);
+                case TRADE_ACCEPT_REQUEST:
+                    return executeTradeAcceptRequest((TradeAcceptRequestCommand) command, context);
+                case TRADE_REJECT_REQUEST:
+                    return executeTradeRejectRequest((TradeRejectRequestCommand) command, context);
                 case WAIT:
                     return executeWait((WaitCommand) command, context);
                 case LEAVE:
@@ -97,6 +116,14 @@ public class CommandExecutor {
                     return executeTradeConfirm(context);
                 case TRADE_END:
                     return executeTradeEnd(context);
+
+                // 商店窗口指令
+                case SHOP_BUY:
+                    return executeShopBuy((ShopBuyCommand) command, context);
+                case SHOP_SELL:
+                    return executeShopSell((ShopSellCommand) command, context);
+                case SHOP_LEAVE:
+                    return executeShopLeave(context);
 
                 default:
                     return CommandResult.error("未知的指令类型: " + command.getType());
@@ -242,6 +269,124 @@ public class CommandExecutor {
                 context.getPlayerId(),
                 command.getAttributeType(),
                 command.getAmount()
+        );
+
+        return result.isSuccess() ?
+                CommandResult.success(result.getMessage()) :
+                CommandResult.error(result.getMessage());
+    }
+
+    private CommandResult executePartyInvite(PartyInviteCommand command, CommandContext context) {
+        // 需要先通过玩家名称查找玩家ID
+        // 这里简化处理，假设playerName就是playerId
+        // 实际应该通过PlayerRepository查找
+        PartyService.PartyResult result = partyService.invitePlayer(
+                context.getPlayerId(),
+                command.getPlayerName()
+        );
+
+        return result.isSuccess() ?
+                CommandResult.success(result.getMessage()) :
+                CommandResult.error(result.getMessage());
+    }
+
+    private CommandResult executePartyAcceptInvite(PartyAcceptInviteCommand command, CommandContext context) {
+        PartyService.PartyResult result = partyService.acceptInvite(
+                context.getPlayerId(),
+                command.getInviterName()
+        );
+
+        return result.isSuccess() ?
+                CommandResult.success(result.getMessage()) :
+                CommandResult.error(result.getMessage());
+    }
+
+    private CommandResult executePartyRejectInvite(PartyRejectInviteCommand command, CommandContext context) {
+        PartyService.PartyResult result = partyService.rejectInvite(
+                context.getPlayerId(),
+                command.getInviterName()
+        );
+
+        return result.isSuccess() ?
+                CommandResult.success(result.getMessage()) :
+                CommandResult.error(result.getMessage());
+    }
+
+    private CommandResult executePartyRequestJoin(PartyRequestJoinCommand command, CommandContext context) {
+        PartyService.PartyResult result = partyService.requestJoin(
+                context.getPlayerId(),
+                command.getPlayerName()
+        );
+
+        return result.isSuccess() ?
+                CommandResult.success(result.getMessage()) :
+                CommandResult.error(result.getMessage());
+    }
+
+    private CommandResult executePartyAcceptRequest(PartyAcceptRequestCommand command, CommandContext context) {
+        PartyService.PartyResult result = partyService.acceptJoinRequest(
+                context.getPlayerId(),
+                command.getRequesterName()
+        );
+
+        return result.isSuccess() ?
+                CommandResult.success(result.getMessage()) :
+                CommandResult.error(result.getMessage());
+    }
+
+    private CommandResult executePartyRejectRequest(PartyRejectRequestCommand command, CommandContext context) {
+        PartyService.PartyResult result = partyService.rejectJoinRequest(
+                context.getPlayerId(),
+                command.getRequesterName()
+        );
+
+        return result.isSuccess() ?
+                CommandResult.success(result.getMessage()) :
+                CommandResult.error(result.getMessage());
+    }
+
+    private CommandResult executeTradeRequest(TradeRequestCommand command, CommandContext context) {
+        TradeService.TradeResult result = tradeService.requestTrade(
+                context.getPlayerId(),
+                command.getPlayerName()
+        );
+
+        if (result.isSuccess() && result.getWindowId() != null) {
+            return CommandResult.successWithWindowChange(
+                    result.getMessage(),
+                    CommandContext.WindowType.TRADE,
+                    result.getWindowId()
+            );
+        }
+
+        return result.isSuccess() ?
+                CommandResult.success(result.getMessage()) :
+                CommandResult.error(result.getMessage());
+    }
+
+    private CommandResult executeTradeAcceptRequest(TradeAcceptRequestCommand command, CommandContext context) {
+        TradeService.TradeResult result = tradeService.acceptTradeRequest(
+                context.getPlayerId(),
+                command.getRequesterName()
+        );
+
+        if (result.isSuccess() && result.getWindowId() != null) {
+            return CommandResult.successWithWindowChange(
+                    result.getMessage(),
+                    CommandContext.WindowType.TRADE,
+                    result.getWindowId()
+            );
+        }
+
+        return result.isSuccess() ?
+                CommandResult.success(result.getMessage()) :
+                CommandResult.error(result.getMessage());
+    }
+
+    private CommandResult executeTradeRejectRequest(TradeRejectRequestCommand command, CommandContext context) {
+        TradeService.OperationResult result = tradeService.rejectTradeRequest(
+                context.getPlayerId(),
+                command.getRequesterName()
         );
 
         return result.isSuccess() ?
@@ -479,5 +624,44 @@ public class CommandExecutor {
         } else {
             return CommandResult.error(result.getMessage());
         }
+    }
+
+    // ==================== 商店窗口指令 ====================
+
+    private CommandResult executeShopBuy(ShopBuyCommand command, CommandContext context) {
+        String shopId = context.getWindowId().replace("shop_", "");
+        ShopService.OperationResult result = shopService.buyItem(
+                context.getPlayerId(),
+                shopId,
+                command.getItemName(),
+                command.getQuantity()
+        );
+
+        return result.isSuccess() ?
+                CommandResult.success(result.getMessage()) :
+                CommandResult.error(result.getMessage());
+    }
+
+    private CommandResult executeShopSell(ShopSellCommand command, CommandContext context) {
+        String shopId = context.getWindowId().replace("shop_", "");
+        ShopService.OperationResult result = shopService.sellItem(
+                context.getPlayerId(),
+                shopId,
+                command.getItemName(),
+                command.getQuantity()
+        );
+
+        return result.isSuccess() ?
+                CommandResult.success(result.getMessage()) :
+                CommandResult.error(result.getMessage());
+    }
+
+    private CommandResult executeShopLeave(CommandContext context) {
+        // 离开商店，返回地图窗口
+        return CommandResult.successWithWindowChange(
+                "离开商店",
+                CommandContext.WindowType.MAP,
+                "已离开商店"
+        );
     }
 }

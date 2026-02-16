@@ -107,7 +107,7 @@ public class BackgroundPromptService {
     private String generateGameplayTips() {
         return """
                 === 游玩建议 ===
-                - 建议在说话后等待3-5秒，如果有人回复，会在等待结束后的状态更新中显示
+                - 建议在说话、发起交易、发起组队等玩家交互后等待3-5秒，如果有人回复/响应，会在等待结束后的状态更新中显示
                 """;
     }
 

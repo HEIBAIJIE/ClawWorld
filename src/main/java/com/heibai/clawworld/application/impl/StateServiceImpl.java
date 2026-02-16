@@ -107,11 +107,15 @@ public class StateServiceImpl implements StateService {
         // 战斗窗口的状态相对简单，主要是战斗日志和角色状态变化
         state.append(">>> ").append(commandResult).append("\n\n");
 
-        // TODO: 实现战斗状态的详细信息
-        // 1. 战斗日志
-        // 2. 角色状态变化
-        // 3. 行动条情况
-        // 4. 可选操作
+        // 战斗状态的详细信息
+        state.append("=== 战斗状态 ===\n");
+        state.append("（战斗日志）\n");
+        state.append("- 等待你的回合...\n");
+        state.append("\n");
+
+        state.append("（行动条顺序）\n");
+        state.append("- 当前回合信息需要从战斗系统获取\n");
+        state.append("\n");
 
         updateLastStateTimestamp(playerId);
 
@@ -125,9 +129,43 @@ public class StateServiceImpl implements StateService {
         // 交易窗口的状态
         state.append(">>> ").append(commandResult).append("\n\n");
 
-        // TODO: 实现交易状态的详细信息
-        // 1. 双方提供的金钱和物品
-        // 2. 锁定状态
+        // 交易状态的详细信息
+        state.append("=== 交易状态 ===\n");
+        state.append("（双方提供的物品和金钱）\n");
+        state.append("你的提供：（待实现）\n");
+        state.append("对方的提供：（待实现）\n");
+        state.append("\n");
+
+        state.append("（锁定状态）\n");
+        state.append("你的锁定状态：未锁定\n");
+        state.append("对方的锁定状态：未锁定\n");
+
+        updateLastStateTimestamp(playerId);
+
+        return state.toString();
+    }
+
+    @Override
+    public String generateShopState(String playerId, String shopId, String commandResult) {
+        StringBuilder state = new StringBuilder();
+
+        // 商店窗口的状态
+        state.append(">>> ").append(commandResult).append("\n\n");
+
+        // 商店状态的详细信息
+        state.append("=== 商店状态 ===\n");
+
+        // 获取玩家最新状态
+        Player player = playerSessionService.getPlayerState(playerId);
+        if (player != null) {
+            state.append("你的金币: ").append(player.getGold()).append("\n");
+            state.append("背包空间: ");
+            if (player.getInventory() != null) {
+                state.append(player.getInventory().size()).append("/50\n");
+            } else {
+                state.append("0/50\n");
+            }
+        }
 
         updateLastStateTimestamp(playerId);
 

@@ -42,4 +42,14 @@ public abstract class MapEntity {
      * @return 交互选项列表
      */
     public abstract List<String> getInteractionOptions();
+
+    /**
+     * 获取可用的交互选项（带上下文）
+     * @param viewerFaction 查看者的阵营
+     * @param isMapSafe 当前地图是否为安全地图
+     * @return 交互选项列表
+     */
+    public List<String> getInteractionOptions(String viewerFaction, boolean isMapSafe) {
+        return getInteractionOptions(); // 默认实现，子类可以重写
+    }
 }

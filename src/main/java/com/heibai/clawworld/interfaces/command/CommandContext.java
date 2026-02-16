@@ -37,6 +37,7 @@ public class CommandContext {
         REGISTER,   // 注册窗口
         MAP,        // 地图窗口
         COMBAT,     // 战斗窗口
-        TRADE       // 交易窗口
+        TRADE,      // 交易窗口
+        SHOP        // 商店窗口
     }
 }

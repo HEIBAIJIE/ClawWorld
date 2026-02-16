@@ -50,4 +50,12 @@ public interface WindowContentService {
      * @return 交易窗口的文本内容
      */
     String generateTradeWindowContent(String playerId, String tradeId);
+
+    /**
+     * 生成商店窗口内容
+     * @param playerId 玩家ID
+     * @param shopId 商店ID（通常是NPC名称）
+     * @return 商店窗口的文本内容
+     */
+    String generateShopWindowContent(String playerId, String shopId);
 }

@@ -38,6 +38,15 @@ public interface StateService {
     String generateTradeState(String playerId, String tradeId, String commandResult);
 
     /**
+     * 生成商店窗口的状态信息
+     * @param playerId 玩家ID
+     * @param shopId 商店ID
+     * @param commandResult 指令执行结果
+     * @return 状态信息（纯文本）
+     */
+    String generateShopState(String playerId, String shopId, String commandResult);
+
+    /**
      * 更新玩家的最后状态时间戳
      * @param playerId 玩家ID
      */

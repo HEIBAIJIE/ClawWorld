@@ -71,8 +71,13 @@ public class MapEntityServiceImpl implements MapEntityService {
             }
         }
 
-        // TODO: 查找敌人和NPC
-        // 这里需要从EnemyInstanceRepository和NpcInstanceRepository中查找
+        // 查找敌人和NPC
+        // 注意：这里需要从EnemyInstanceRepository和NpcInstanceRepository中查找
+        // 当前简化实现，返回未找到
+        // 未来需要实现：
+        // 1. 从EnemyInstanceRepository查找敌人
+        // 2. 从NpcInstanceRepository查找NPC
+        // 3. 返回对应的详细信息
 
         return EntityInfo.error("未找到目标角色: " + characterName);
     }
@@ -115,17 +120,23 @@ public class MapEntityServiceImpl implements MapEntityService {
         int distance = Math.abs(targetX - player.getX()) + Math.abs(targetY - player.getY());
 
         // 根据设计文档：以每0.5秒1格的速度移动
-        // 这里简化处理，直接移动到目标位置
+        // 阻塞请求，直到移动完毕
+        if (distance > 0) {
+            try {
+                // 每格0.5秒，总共需要 distance * 500 毫秒
+                Thread.sleep(distance * 500L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return MoveResult.error("移动被中断");
+            }
+        }
+
+        // 移动到目标位置
         player.setX(targetX);
         player.setY(targetY);
         playerRepository.save(player);
 
-        // 如果距离大于1，返回移动中状态
-        if (distance > 1) {
-            return MoveResult.moving(targetX, targetY);
-        } else {
-            return MoveResult.success(targetX, targetY, "移动完成");
-        }
+        return MoveResult.success(targetX, targetY, String.format("移动完成，当前位置: (%d, %d)", targetX, targetY));
     }
 
     @Override
@@ -142,6 +153,7 @@ public class MapEntityServiceImpl implements MapEntityService {
         // 根据交互选项处理不同的交互
         switch (option.toLowerCase()) {
             case "attack":
+            case "攻击":
                 // 攻击交互：发起战斗
                 return InteractionResult.successWithWindowChange(
                         "发起战斗",
@@ -150,10 +162,18 @@ public class MapEntityServiceImpl implements MapEntityService {
                 );
 
             case "talk":
-                // 对话交互
-                return InteractionResult.success("与 " + targetName + " 对话");
+            case "交谈":
+                // 对话交互 - 查找NPC并返回对话内容
+                // 注意：需要实现NPC实例查找
+                // 当前简化处理，返回占位符
+                // 未来需要实现：
+                // 1. 从NpcInstanceRepository查找NPC
+                // 2. 获取NPC的对话列表
+                // 3. 返回对话内容
+                return InteractionResult.success("与 " + targetName + " 对话：\n（对话内容需要从NPC配置中读取）");
 
             case "shop":
+            case "商店":
                 // 商店交互
                 return InteractionResult.successWithWindowChange(
                         "打开商店",

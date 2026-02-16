@@ -48,9 +48,18 @@ public abstract class Command {
         USE_ITEM,
         EQUIP,
         ATTRIBUTE_ADD,
+        PARTY_INVITE,
+        PARTY_ACCEPT_INVITE,
+        PARTY_REJECT_INVITE,
+        PARTY_REQUEST_JOIN,
+        PARTY_ACCEPT_REQUEST,
+        PARTY_REJECT_REQUEST,
         PARTY_KICK,
         PARTY_END,
         PARTY_LEAVE,
+        TRADE_REQUEST,
+        TRADE_ACCEPT_REQUEST,
+        TRADE_REJECT_REQUEST,
         WAIT,
         LEAVE,
 
@@ -68,7 +77,12 @@ public abstract class Command {
         TRADE_LOCK,
         TRADE_UNLOCK,
         TRADE_CONFIRM,
-        TRADE_END
+        TRADE_END,
+
+        // 商店窗口
+        SHOP_BUY,
+        SHOP_SELL,
+        SHOP_LEAVE
     }
 
     /**

@@ -41,6 +41,8 @@ public class CommandParser {
                     return parseCombatCommand(commandName, parts, trimmed);
                 case TRADE:
                     return parseTradeCommand(commandName, parts, trimmed);
+                case SHOP:
+                    return parseShopCommand(commandName, parts, trimmed);
                 default:
                     throw new CommandParseException("未知的窗口类型: " + windowType);
             }
@@ -181,6 +183,54 @@ public class CommandParser {
                 }
                 String subCommand = parts[1];
                 switch (subCommand) {
+                    case "invite":
+                        if (parts.length < 3) {
+                            throw new CommandParseException("party invite 指令需要1个参数: party invite [player_name]");
+                        }
+                        return PartyInviteCommand.builder()
+                                .playerName(parts[2])
+                                .rawCommand(rawCommand)
+                                .build();
+                    case "accept":
+                        if (parts.length < 3) {
+                            throw new CommandParseException("party accept 指令需要1个参数: party accept [player_name]");
+                        }
+                        return PartyAcceptInviteCommand.builder()
+                                .inviterName(parts[2])
+                                .rawCommand(rawCommand)
+                                .build();
+                    case "reject":
+                        if (parts.length < 3) {
+                            throw new CommandParseException("party reject 指令需要1个参数: party reject [player_name]");
+                        }
+                        return PartyRejectInviteCommand.builder()
+                                .inviterName(parts[2])
+                                .rawCommand(rawCommand)
+                                .build();
+                    case "request":
+                        if (parts.length < 3) {
+                            throw new CommandParseException("party request 指令需要1个参数: party request [player_name]");
+                        }
+                        return PartyRequestJoinCommand.builder()
+                                .playerName(parts[2])
+                                .rawCommand(rawCommand)
+                                .build();
+                    case "acceptrequest":
+                        if (parts.length < 3) {
+                            throw new CommandParseException("party acceptrequest 指令需要1个参数: party acceptrequest [player_name]");
+                        }
+                        return PartyAcceptRequestCommand.builder()
+                                .requesterName(parts[2])
+                                .rawCommand(rawCommand)
+                                .build();
+                    case "rejectrequest":
+                        if (parts.length < 3) {
+                            throw new CommandParseException("party rejectrequest 指令需要1个参数: party rejectrequest [player_name]");
+                        }
+                        return PartyRejectRequestCommand.builder()
+                                .requesterName(parts[2])
+                                .rawCommand(rawCommand)
+                                .build();
                     case "kick":
                         if (parts.length < 3) {
                             throw new CommandParseException("party kick 指令需要1个参数: party kick [player_name]");
@@ -199,6 +249,40 @@ public class CommandParser {
                                 .build();
                     default:
                         throw new CommandParseException("未知的 party 子命令: " + subCommand);
+                }
+
+            case "trade":
+                if (parts.length < 2) {
+                    throw new CommandParseException("trade 指令需要子命令");
+                }
+                String tradeSubCommand = parts[1];
+                switch (tradeSubCommand) {
+                    case "request":
+                        if (parts.length < 3) {
+                            throw new CommandParseException("trade request 指令需要1个参数: trade request [player_name]");
+                        }
+                        return TradeRequestCommand.builder()
+                                .playerName(parts[2])
+                                .rawCommand(rawCommand)
+                                .build();
+                    case "accept":
+                        if (parts.length < 3) {
+                            throw new CommandParseException("trade accept 指令需要1个参数: trade accept [player_name]");
+                        }
+                        return TradeAcceptRequestCommand.builder()
+                                .requesterName(parts[2])
+                                .rawCommand(rawCommand)
+                                .build();
+                    case "reject":
+                        if (parts.length < 3) {
+                            throw new CommandParseException("trade reject 指令需要1个参数: trade reject [player_name]");
+                        }
+                        return TradeRejectRequestCommand.builder()
+                                .requesterName(parts[2])
+                                .rawCommand(rawCommand)
+                                .build();
+                    default:
+                        throw new CommandParseException("未知的 trade 子命令: " + tradeSubCommand);
                 }
 
             case "wait":
@@ -344,6 +428,62 @@ public class CommandParser {
 
             default:
                 throw new CommandParseException("未知的 trade 子命令: " + subCommand);
+        }
+    }
+
+    /**
+     * 解析商店窗口指令
+     */
+    private Command parseShopCommand(String commandName, String[] parts, String rawCommand) throws CommandParseException {
+        if (!"shop".equals(commandName)) {
+            throw new CommandParseException("商店窗口只支持 shop 指令");
+        }
+
+        if (parts.length < 2) {
+            throw new CommandParseException("shop 指令需要子命令");
+        }
+
+        String subCommand = parts[1];
+        switch (subCommand) {
+            case "buy":
+                if (parts.length < 4) {
+                    throw new CommandParseException("shop buy 指令需要2个参数: shop buy [item_name] [quantity]");
+                }
+                try {
+                    String itemName = parts[2];
+                    int quantity = Integer.parseInt(parts[3]);
+                    return ShopBuyCommand.builder()
+                            .itemName(itemName)
+                            .quantity(quantity)
+                            .rawCommand(rawCommand)
+                            .build();
+                } catch (NumberFormatException e) {
+                    throw new CommandParseException("shop buy 指令的数量必须是整数");
+                }
+
+            case "sell":
+                if (parts.length < 4) {
+                    throw new CommandParseException("shop sell 指令需要2个参数: shop sell [item_name] [quantity]");
+                }
+                try {
+                    String itemName = parts[2];
+                    int quantity = Integer.parseInt(parts[3]);
+                    return ShopSellCommand.builder()
+                            .itemName(itemName)
+                            .quantity(quantity)
+                            .rawCommand(rawCommand)
+                            .build();
+                } catch (NumberFormatException e) {
+                    throw new CommandParseException("shop sell 指令的数量必须是整数");
+                }
+
+            case "leave":
+                return ShopLeaveCommand.builder()
+                        .rawCommand(rawCommand)
+                        .build();
+
+            default:
+                throw new CommandParseException("未知的 shop 子命令: " + subCommand);
         }
     }
 
