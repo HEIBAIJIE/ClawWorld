@@ -1,9 +1,27 @@
 package com.heibai.clawworld.service.game.impl;
 
+import com.heibai.clawworld.config.character.RoleConfig;
+import com.heibai.clawworld.config.item.EquipmentConfig;
+import com.heibai.clawworld.config.item.ItemConfig;
 import com.heibai.clawworld.domain.character.Player;
+import com.heibai.clawworld.domain.character.Role;
+import com.heibai.clawworld.domain.item.Equipment;
+import com.heibai.clawworld.domain.item.Item;
+import com.heibai.clawworld.domain.item.Rarity;
+import com.heibai.clawworld.persistence.entity.AccountEntity;
+import com.heibai.clawworld.persistence.entity.PartyEntity;
+import com.heibai.clawworld.persistence.entity.PlayerEntity;
+import com.heibai.clawworld.persistence.mapper.PlayerMapper;
+import com.heibai.clawworld.persistence.repository.AccountRepository;
+import com.heibai.clawworld.persistence.repository.PartyRepository;
+import com.heibai.clawworld.persistence.repository.PlayerRepository;
+import com.heibai.clawworld.service.ConfigDataManager;
 import com.heibai.clawworld.service.game.PlayerSessionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
 
 /**
  * 玩家会话管理服务实现
@@ -12,45 +30,463 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class PlayerSessionServiceImpl implements PlayerSessionService {
 
+    private final AccountRepository accountRepository;
+    private final PlayerRepository playerRepository;
+    private final PartyRepository partyRepository;
+    private final PlayerMapper playerMapper;
+    private final ConfigDataManager configDataManager;
+
     @Override
+    @Transactional
     public SessionResult registerPlayer(String sessionId, String roleName, String playerName) {
-        // TODO: 实现注册逻辑
-        return SessionResult.success("player-id", "window-id", "注册成功");
+        // 验证会话
+        Optional<AccountEntity> accountOpt = accountRepository.findBySessionId(sessionId);
+        if (!accountOpt.isPresent()) {
+            return SessionResult.error("会话不存在或已过期");
+        }
+
+        AccountEntity account = accountOpt.get();
+
+        // 检查是否已注册
+        if (account.getPlayerId() != null) {
+            return SessionResult.error("该账号已注册角色");
+        }
+
+        // 检查昵称是否已被使用
+        if (accountRepository.existsByNickname(playerName)) {
+            return SessionResult.error("昵称已被使用");
+        }
+
+        // 查找职业配置
+        RoleConfig roleConfig = null;
+        for (RoleConfig config : configDataManager.getAllRoles()) {
+            if (config.getName().equals(roleName)) {
+                roleConfig = config;
+                break;
+            }
+        }
+
+        if (roleConfig == null) {
+            return SessionResult.error("职业不存在");
+        }
+
+        // 创建玩家
+        Player player = new Player();
+        player.setId(UUID.randomUUID().toString());
+        player.setRoleId(roleConfig.getId());
+        player.setLevel(1);
+        player.setExperience(0);
+        player.setFaction("PLAYER_" + player.getId());
+
+        // 初始化四维属性
+        player.setStrength(0);
+        player.setAgility(0);
+        player.setIntelligence(0);
+        player.setVitality(0);
+        player.setFreeAttributePoints(0);
+
+        // 初始化金钱
+        player.setGold(100);
+
+        // 应用职业基础属性
+        Role role = convertRoleConfigToRole(roleConfig);
+        player.applyRoleStats(role);
+
+        // 初始化当前生命和法力
+        player.setCurrentHealth(player.getMaxHealth());
+        player.setCurrentMana(player.getMaxMana());
+
+        // 初始化装备栏和背包
+        player.setEquipment(new HashMap<>());
+        player.setInventory(new ArrayList<>());
+
+        // 初始化技能（普通攻击）
+        player.setSkills(new ArrayList<>());
+        player.getSkills().add("basic_attack");
+
+        // 设置初始位置（假设有一个新手村地图）
+        player.setMapId("starter_village");
+        player.setX(5);
+        player.setY(5);
+
+        // 战斗状态
+        player.setInCombat(false);
+
+        // 保存玩家
+        PlayerEntity playerEntity = playerMapper.toEntity(player);
+        playerRepository.save(playerEntity);
+
+        // 创建单人队伍
+        PartyEntity party = new PartyEntity();
+        party.setId(UUID.randomUUID().toString());
+        party.setLeaderId(player.getId());
+        party.setMemberIds(new ArrayList<>());
+        party.getMemberIds().add(player.getId());
+        party.setFaction(player.getFaction());
+        party.setCreatedTime(System.currentTimeMillis());
+        party.setPendingInvitations(new ArrayList<>());
+        party.setPendingRequests(new ArrayList<>());
+        partyRepository.save(party);
+
+        // 更新玩家的队伍信息
+        playerEntity.setPartyId(party.getId());
+        playerEntity.setPartyLeader(true);
+        playerRepository.save(playerEntity);
+
+        // 更新账号信息
+        account.setNickname(playerName);
+        account.setPlayerId(player.getId());
+        accountRepository.save(account);
+
+        return SessionResult.success(player.getId(), "map_window_" + player.getId(), "注册成功");
     }
 
     @Override
     public Player getPlayerState(String playerId) {
-        // TODO: 实现获取玩家状态逻辑
-        return null;
+        Optional<PlayerEntity> playerOpt = playerRepository.findById(playerId);
+        if (!playerOpt.isPresent()) {
+            return null;
+        }
+
+        Player player = playerMapper.toDomain(playerOpt.get());
+
+        // 重建装备和物品对象
+        PlayerEntity entity = playerOpt.get();
+
+        // 重建装备栏
+        Map<Equipment.EquipmentSlot, Equipment> equipment = new HashMap<>();
+        if (entity.getEquipment() != null) {
+            for (Map.Entry<String, PlayerEntity.EquipmentSlotData> entry : entity.getEquipment().entrySet()) {
+                Equipment.EquipmentSlot slot = Equipment.EquipmentSlot.valueOf(entry.getKey());
+                EquipmentConfig config = configDataManager.getEquipment(entry.getValue().getEquipmentId());
+                if (config != null) {
+                    Equipment eq = convertEquipmentConfigToEquipment(config);
+                    eq.setInstanceNumber(entry.getValue().getInstanceNumber());
+                    equipment.put(slot, eq);
+                }
+            }
+        }
+        player.setEquipment(equipment);
+
+        // 重建背包
+        List<Player.InventorySlot> inventory = new ArrayList<>();
+        if (entity.getInventory() != null) {
+            for (PlayerEntity.InventorySlotData slotData : entity.getInventory()) {
+                if ("ITEM".equals(slotData.getType())) {
+                    ItemConfig itemConfig = configDataManager.getItem(slotData.getItemId());
+                    if (itemConfig != null) {
+                        Item item = convertItemConfigToItem(itemConfig);
+                        inventory.add(Player.InventorySlot.forItem(item, slotData.getQuantity()));
+                    }
+                } else if ("EQUIPMENT".equals(slotData.getType())) {
+                    EquipmentConfig eqConfig = configDataManager.getEquipment(slotData.getItemId());
+                    if (eqConfig != null) {
+                        Equipment eq = convertEquipmentConfigToEquipment(eqConfig);
+                        eq.setInstanceNumber(slotData.getEquipmentInstanceNumber());
+                        inventory.add(Player.InventorySlot.forEquipment(eq));
+                    }
+                }
+            }
+        }
+        player.setInventory(inventory);
+
+        return player;
     }
 
     @Override
+    @Transactional
     public OperationResult useItem(String playerId, String itemName) {
-        // TODO: 实现使用物品逻辑
-        return OperationResult.success("使用物品: " + itemName);
+        Player player = getPlayerState(playerId);
+        if (player == null) {
+            return OperationResult.error("玩家不存在");
+        }
+
+        // 查找物品
+        Player.InventorySlot targetSlot = null;
+        for (Player.InventorySlot slot : player.getInventory()) {
+            if (slot.isItem() && slot.getItem().getName().equals(itemName)) {
+                targetSlot = slot;
+                break;
+            }
+        }
+
+        if (targetSlot == null) {
+            return OperationResult.error("物品不存在");
+        }
+
+        Item item = targetSlot.getItem();
+
+        // 根据物品效果处理
+        if (item.getEffect() == null) {
+            return OperationResult.error("该物品无法使用");
+        }
+
+        switch (item.getEffect()) {
+            case "restore_health":
+                int healthRestore = item.getEffectValue() != null ? item.getEffectValue() : 0;
+                player.setCurrentHealth(Math.min(player.getCurrentHealth() + healthRestore, player.getMaxHealth()));
+                break;
+            case "restore_mana":
+                int manaRestore = item.getEffectValue() != null ? item.getEffectValue() : 0;
+                player.setCurrentMana(Math.min(player.getCurrentMana() + manaRestore, player.getMaxMana()));
+                break;
+            case "learn_skill":
+                // 学习技能书
+                if (item.getType() == Item.ItemType.SKILL_BOOK) {
+                    String skillId = item.getId().replace("skill_book_", "");
+                    if (player.getSkills().contains(skillId)) {
+                        return OperationResult.error("已经学会该技能");
+                    }
+                    if (player.getSkills().size() >= 10) {
+                        return OperationResult.error("技能栏已满");
+                    }
+                    player.getSkills().add(skillId);
+                }
+                break;
+            case "reset_attributes":
+                // 洗点
+                int totalPoints = player.getStrength() + player.getAgility() +
+                                 player.getIntelligence() + player.getVitality();
+                player.setStrength(0);
+                player.setAgility(0);
+                player.setIntelligence(0);
+                player.setVitality(0);
+                player.setFreeAttributePoints(player.getFreeAttributePoints() + totalPoints);
+
+                // 重新计算属性
+                RoleConfig roleConfig = configDataManager.getRole(player.getRoleId());
+                if (roleConfig != null) {
+                    Role role = convertRoleConfigToRole(roleConfig);
+                    player.applyRoleStats(role);
+                }
+                break;
+            default:
+                return OperationResult.error("未知的物品效果");
+        }
+
+        // 减少物品数量
+        targetSlot.setQuantity(targetSlot.getQuantity() - 1);
+        if (targetSlot.getQuantity() <= 0) {
+            player.getInventory().remove(targetSlot);
+        }
+
+        // 保存玩家状态
+        PlayerEntity entity = playerMapper.toEntity(player);
+        playerRepository.save(entity);
+
+        return OperationResult.success("使用物品成功: " + itemName);
     }
 
     @Override
+    @Transactional
     public OperationResult equipItem(String playerId, String itemName) {
-        // TODO: 实现装备物品逻辑
-        return OperationResult.success("装备物品: " + itemName);
+        Player player = getPlayerState(playerId);
+        if (player == null) {
+            return OperationResult.error("玩家不存在");
+        }
+
+        // 查找装备
+        Player.InventorySlot targetSlot = null;
+        for (Player.InventorySlot slot : player.getInventory()) {
+            if (slot.isEquipment() && slot.getEquipment().getDisplayName().equals(itemName)) {
+                targetSlot = slot;
+                break;
+            }
+        }
+
+        if (targetSlot == null) {
+            return OperationResult.error("装备不存在");
+        }
+
+        Equipment equipment = targetSlot.getEquipment();
+        Equipment.EquipmentSlot slot = equipment.getSlot();
+
+        // 如果该槽位已有装备，卸下并放回背包
+        if (player.getEquipment().containsKey(slot)) {
+            Equipment oldEquipment = player.getEquipment().get(slot);
+            player.getInventory().add(Player.InventorySlot.forEquipment(oldEquipment));
+        }
+
+        // 装备新装备
+        player.getEquipment().put(slot, equipment);
+        player.getInventory().remove(targetSlot);
+
+        // 重新计算属性
+        RoleConfig roleConfig = configDataManager.getRole(player.getRoleId());
+        if (roleConfig != null) {
+            Role role = convertRoleConfigToRole(roleConfig);
+            player.applyRoleStats(role);
+        }
+
+        // 保存玩家状态
+        PlayerEntity entity = playerMapper.toEntity(player);
+        playerRepository.save(entity);
+
+        return OperationResult.success("装备成功: " + itemName);
     }
 
     @Override
+    @Transactional
     public OperationResult addAttribute(String playerId, String attributeType, int amount) {
-        // TODO: 实现添加属性点逻辑
-        return OperationResult.success("添加属性点: " + attributeType + " +" + amount);
+        Player player = getPlayerState(playerId);
+        if (player == null) {
+            return OperationResult.error("玩家不存在");
+        }
+
+        if (amount <= 0) {
+            return OperationResult.error("数量必须大于0");
+        }
+
+        if (player.getFreeAttributePoints() < amount) {
+            return OperationResult.error("可用属性点不足");
+        }
+
+        // 添加属性点
+        switch (attributeType.toLowerCase()) {
+            case "str":
+            case "strength":
+                player.setStrength(player.getStrength() + amount);
+                break;
+            case "agi":
+            case "agility":
+                player.setAgility(player.getAgility() + amount);
+                break;
+            case "int":
+            case "intelligence":
+                player.setIntelligence(player.getIntelligence() + amount);
+                break;
+            case "vit":
+            case "vitality":
+                player.setVitality(player.getVitality() + amount);
+                break;
+            default:
+                return OperationResult.error("未知的属性类型");
+        }
+
+        player.setFreeAttributePoints(player.getFreeAttributePoints() - amount);
+
+        // 重新计算属性
+        RoleConfig roleConfig = configDataManager.getRole(player.getRoleId());
+        if (roleConfig != null) {
+            Role role = convertRoleConfigToRole(roleConfig);
+            player.applyRoleStats(role);
+        }
+
+        // 保存玩家状态
+        PlayerEntity entity = playerMapper.toEntity(player);
+        playerRepository.save(entity);
+
+        return OperationResult.success("添加属性点成功: " + attributeType + " +" + amount);
     }
 
     @Override
+    @Transactional
     public OperationResult logout(String sessionId) {
-        // TODO: 实现下线逻辑
+        Optional<AccountEntity> accountOpt = accountRepository.findBySessionId(sessionId);
+        if (!accountOpt.isPresent()) {
+            return OperationResult.error("会话不存在");
+        }
+
+        AccountEntity account = accountOpt.get();
+        account.setOnline(false);
+        account.setLastLogoutTime(System.currentTimeMillis());
+        account.setSessionId(null);
+        accountRepository.save(account);
+
         return OperationResult.success("下线成功");
     }
 
     @Override
     public OperationResult wait(String playerId, int seconds) {
-        // TODO: 实现等待逻辑
-        return OperationResult.success("等待 " + seconds + " 秒");
+        if (seconds <= 0 || seconds > 60) {
+            return OperationResult.error("等待时间必须在1-60秒之间");
+        }
+
+        try {
+            Thread.sleep(seconds * 1000L);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return OperationResult.error("等待被中断");
+        }
+
+        return OperationResult.success("等待 " + seconds + " 秒完成");
+    }
+
+    /**
+     * 转换RoleConfig到Role领域对象
+     */
+    private Role convertRoleConfigToRole(RoleConfig config) {
+        Role role = new Role();
+        role.setId(config.getId());
+        role.setName(config.getName());
+        role.setDescription(config.getDescription());
+        role.setBaseHealth(config.getBaseHealth());
+        role.setBaseMana(config.getBaseMana());
+        role.setBasePhysicalAttack(config.getBasePhysicalAttack());
+        role.setBasePhysicalDefense(config.getBasePhysicalDefense());
+        role.setBaseMagicAttack(config.getBaseMagicAttack());
+        role.setBaseMagicDefense(config.getBaseMagicDefense());
+        role.setBaseSpeed(config.getBaseSpeed());
+        role.setBaseCritRate(config.getBaseCritRate());
+        role.setBaseCritDamage(config.getBaseCritDamage());
+        role.setBaseHitRate(config.getBaseHitRate());
+        role.setBaseDodgeRate(config.getBaseDodgeRate());
+        role.setHealthPerLevel(config.getHealthPerLevel());
+        role.setManaPerLevel(config.getManaPerLevel());
+        role.setPhysicalAttackPerLevel(config.getPhysicalAttackPerLevel());
+        role.setPhysicalDefensePerLevel(config.getPhysicalDefensePerLevel());
+        role.setMagicAttackPerLevel(config.getMagicAttackPerLevel());
+        role.setMagicDefensePerLevel(config.getMagicDefensePerLevel());
+        role.setSpeedPerLevel(config.getSpeedPerLevel());
+        role.setCritRatePerLevel(config.getCritRatePerLevel());
+        role.setCritDamagePerLevel(config.getCritDamagePerLevel());
+        role.setHitRatePerLevel(config.getHitRatePerLevel());
+        role.setDodgeRatePerLevel(config.getDodgeRatePerLevel());
+        return role;
+    }
+
+    /**
+     * 转换ItemConfig到Item领域对象
+     */
+    private Item convertItemConfigToItem(ItemConfig config) {
+        Item item = new Item();
+        item.setId(config.getId());
+        item.setName(config.getName());
+        item.setDescription(config.getDescription());
+        item.setType(Item.ItemType.valueOf(config.getType()));
+        item.setMaxStack(config.getMaxStack());
+        item.setBasePrice(config.getBasePrice());
+        item.setEffect(config.getEffect());
+        item.setEffectValue(config.getEffectValue());
+        return item;
+    }
+
+    /**
+     * 转换EquipmentConfig到Equipment领域对象
+     */
+    private Equipment convertEquipmentConfigToEquipment(EquipmentConfig config) {
+        Equipment equipment = new Equipment();
+        equipment.setId(config.getId());
+        equipment.setName(config.getName());
+        equipment.setDescription(config.getDescription());
+        equipment.setType(Item.ItemType.EQUIPMENT);
+        equipment.setMaxStack(1);
+        equipment.setBasePrice(config.getBasePrice());
+        equipment.setSlot(Equipment.EquipmentSlot.valueOf(config.getSlot()));
+        equipment.setRarity(Rarity.valueOf(config.getRarity()));
+        equipment.setStrength(config.getStrength());
+        equipment.setAgility(config.getAgility());
+        equipment.setIntelligence(config.getIntelligence());
+        equipment.setVitality(config.getVitality());
+        equipment.setPhysicalAttack(config.getPhysicalAttack());
+        equipment.setPhysicalDefense(config.getPhysicalDefense());
+        equipment.setMagicAttack(config.getMagicAttack());
+        equipment.setMagicDefense(config.getMagicDefense());
+        equipment.setSpeed(config.getSpeed());
+        equipment.setCritRate(config.getCritRate());
+        equipment.setCritDamage(config.getCritDamage());
+        equipment.setHitRate(config.getHitRate());
+        equipment.setDodgeRate(config.getDodgeRate());
+        return equipment;
     }
 }

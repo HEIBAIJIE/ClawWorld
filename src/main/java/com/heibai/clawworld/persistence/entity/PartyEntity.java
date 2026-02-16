@@ -50,6 +50,34 @@ public class PartyEntity {
     private List<PartyRequestData> pendingRequests = new ArrayList<>();
 
     /**
+     * 检查队伍是否已满
+     */
+    public boolean isFull() {
+        return memberIds.size() >= 4;
+    }
+
+    /**
+     * 检查是否为单人队伍
+     */
+    public boolean isSolo() {
+        return memberIds.size() == 1;
+    }
+
+    /**
+     * 检查玩家是否为队长
+     */
+    public boolean isLeader(String playerId) {
+        return leaderId != null && leaderId.equals(playerId);
+    }
+
+    /**
+     * 检查玩家是否在队伍中
+     */
+    public boolean hasMember(String playerId) {
+        return memberIds.contains(playerId);
+    }
+
+    /**
      * 组队邀请数据
      */
     @Data
