@@ -43,8 +43,15 @@
       </div>
 
       <!-- 游戏文本框 -->
-      <div class="game-content">
-        <pre class="game-text">{{ gameText }}</pre>
+      <div class="game-content-wrapper">
+        <div class="game-content">
+          <pre class="game-text">{{ gameText }}</pre>
+        </div>
+        <div class="token-counter">
+          <span class="token-label">约</span>
+          <span class="token-count">{{ formattedTokenCount }}</span>
+          <span class="token-label">tokens</span>
+        </div>
       </div>
 
       <!-- 指令输入 -->
@@ -72,8 +79,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { gameApi } from './api/game'
+import { estimateTokenCount, formatTokenCount } from './utils/tokenCounter'
 
 // 登录状态
 const isLoggedIn = ref(false)
@@ -187,5 +195,15 @@ onMounted(() => {
     isLoggedIn.value = true
     gameText.value = '会话已恢复，请重新登录以获取完整背景信息。'
   }
+})
+
+// 计算token数量
+const tokenCount = computed(() => {
+  return estimateTokenCount(gameText.value)
+})
+
+// 格式化token数量显示
+const formattedTokenCount = computed(() => {
+  return formatTokenCount(tokenCount.value)
 })
 </script>

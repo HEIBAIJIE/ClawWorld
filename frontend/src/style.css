@@ -47,14 +47,23 @@ body {
   font-size: 12px;
 }
 
+.game-content-wrapper {
+  flex: 1;
+  position: relative;
+  margin-bottom: 15px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .game-content {
   flex: 1;
   background-color: #2a2a2a;
   border: 1px solid #444;
   border-radius: 4px;
   padding: 15px;
-  margin-bottom: 15px;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .game-text {
@@ -189,4 +198,32 @@ body {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
+}
+
+.token-counter {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background-color: rgba(42, 42, 42, 0.9);
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: #b0b0b0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.token-count {
+  color: #4CAF50;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.token-label {
+  color: #888;
 }
