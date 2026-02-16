@@ -11,8 +11,12 @@ public abstract class MapEntity {
     private String id;
     private String name;
     private String description;
+
+    // 位置信息（统一在MapEntity中管理）
+    private String mapId; // 所在地图ID
     private int x;
     private int y;
+
     private int displayPriority; // 显示优先级
 
     /**

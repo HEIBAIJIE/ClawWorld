@@ -19,13 +19,26 @@ public abstract class Character extends MapEntity {
     private int experience;
     private String faction; // 阵营
 
-    // 生命和法力
+    // 职业基础属性（来自职业配置，用于重新计算最终属性）
+    private int baseMaxHealth;
+    private int baseMaxMana;
+    private int basePhysicalAttack;
+    private int basePhysicalDefense;
+    private int baseMagicAttack;
+    private int baseMagicDefense;
+    private int baseSpeed;
+    private double baseCritRate;
+    private double baseCritDamage;
+    private double baseHitRate;
+    private double baseDodgeRate;
+
+    // 生命和法力（最终值）
     private int maxHealth;
     private int currentHealth;
     private int maxMana;
     private int currentMana;
 
-    // 战斗属性
+    // 战斗属性（最终值）
     private int physicalAttack;
     private int physicalDefense;
     private int magicAttack;

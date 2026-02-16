@@ -33,6 +33,11 @@ public class EnemyInstanceEntity {
     private String templateId;
 
     /**
+     * 显示名称（包含编号，如"哥布林#1"）
+     */
+    private String displayName;
+
+    /**
      * 当前生命值
      */
     private int currentHealth;

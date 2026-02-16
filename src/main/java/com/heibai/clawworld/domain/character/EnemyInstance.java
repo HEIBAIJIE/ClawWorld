@@ -12,6 +12,7 @@ public class EnemyInstance {
     private String mapId;
     private String instanceId;
     private String templateId;
+    private String displayName; // 显示名称（包含编号，如"哥布林#1"）
 
     // 运行时状态
     private int currentHealth;
@@ -36,5 +37,13 @@ public class EnemyInstance {
         }
         long elapsedSeconds = (System.currentTimeMillis() - lastDeathTime) / 1000;
         return elapsedSeconds >= respawnSeconds;
+    }
+
+    /**
+     * 是否可通过
+     * 根据设计文档：在消灭敌人以前，无法进入敌人所在的格子
+     */
+    public boolean isPassable() {
+        return isDead;
     }
 }

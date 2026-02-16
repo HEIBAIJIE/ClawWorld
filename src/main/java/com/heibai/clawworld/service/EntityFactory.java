@@ -61,7 +61,20 @@ public class EntityFactory {
         enemy.setLevel(template.getLevel());
         enemy.setTier(Enemy.EnemyTier.valueOf(template.getTier()));
 
-        // 战斗属性
+        // 职业基础属性（敌人没有四维，直接使用模板值）
+        enemy.setBaseMaxHealth(template.getHealth());
+        enemy.setBaseMaxMana(template.getMana());
+        enemy.setBasePhysicalAttack(template.getPhysicalAttack());
+        enemy.setBasePhysicalDefense(template.getPhysicalDefense());
+        enemy.setBaseMagicAttack(template.getMagicAttack());
+        enemy.setBaseMagicDefense(template.getMagicDefense());
+        enemy.setBaseSpeed(template.getSpeed());
+        enemy.setBaseCritRate(template.getCritRate());
+        enemy.setBaseCritDamage(template.getCritDamage());
+        enemy.setBaseHitRate(template.getHitRate());
+        enemy.setBaseDodgeRate(template.getDodgeRate());
+
+        // 战斗属性（最终值，敌人没有装备加成，等于基础值）
         enemy.setMaxHealth(template.getHealth());
         enemy.setCurrentHealth(template.getHealth());
         enemy.setMaxMana(template.getMana());
@@ -107,7 +120,8 @@ public class EntityFactory {
         enemy.setRespawnSeconds(template.getRespawnSeconds());
         enemy.setLastDeathTime(null);
 
-        // 位置
+        // 位置（使用MapEntity统一管理）
+        enemy.setMapId(mapId);
         enemy.setX(config.getX());
         enemy.setY(config.getY());
 
@@ -134,8 +148,12 @@ public class EntityFactory {
         npc.setId(config.getEntityId());
         npc.setName(template.getName());
         npc.setDescription(template.getDescription());
+
+        // 位置（使用MapEntity统一管理）
+        npc.setMapId(mapId);
         npc.setX(config.getX());
         npc.setY(config.getY());
+
         npc.setHasShop(template.isHasShop());
         npc.setHasDialogue(template.isHasDialogue());
 
@@ -146,9 +164,6 @@ public class EntityFactory {
             npc.setDialogues(dialogues);
         }
 
-        npc.setShopGold(template.getShopGold());
-        npc.setShopRefreshSeconds(template.getShopRefreshSeconds());
-        npc.setPriceMultiplier(template.getPriceMultiplier());
         npc.setFaction("FRIENDLY");
 
         log.debug("Created NPC instance: {} at ({}, {}) on map {}",
@@ -171,8 +186,12 @@ public class EntityFactory {
         waypoint.setId(config.getEntityId());
         waypoint.setName(template.getName());
         waypoint.setDescription(template.getDescription());
+
+        // 位置（使用MapEntity统一管理）
+        waypoint.setMapId(mapId);
         waypoint.setX(config.getX());
         waypoint.setY(config.getY());
+
         waypoint.setTargetMapId(template.getTargetMapId());
         waypoint.setTargetX(template.getTargetX());
         waypoint.setTargetY(template.getTargetY());

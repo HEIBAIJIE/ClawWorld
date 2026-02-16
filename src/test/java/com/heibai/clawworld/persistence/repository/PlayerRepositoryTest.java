@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.mongodb.test.autoconfigure.DataMongoTest;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Optional;
 
@@ -54,7 +55,7 @@ class PlayerRepositoryTest {
         testPlayer.setDodgeRate(0.05);
         testPlayer.setGold(100);
         testPlayer.setEquipment(new HashMap<>());
-        testPlayer.setInventory(new HashMap<>());
+        testPlayer.setInventory(new ArrayList<>());
         testPlayer.setCurrentMapId("starter_village");
         testPlayer.setX(5);
         testPlayer.setY(5);

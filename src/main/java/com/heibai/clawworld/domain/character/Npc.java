@@ -15,9 +15,6 @@ public class Npc extends Character {
     private boolean hasShop;
     private boolean hasDialogue;
     private List<String> dialogues;
-    private int shopGold;
-    private int shopRefreshSeconds;
-    private double priceMultiplier;
     private Shop shop;
 
     @Override

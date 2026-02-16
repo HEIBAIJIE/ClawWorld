@@ -6,6 +6,7 @@ import com.heibai.clawworld.persistence.entity.PlayerEntity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -59,7 +60,7 @@ class PlayerMapperTest {
 
         // 设置装备和背包
         testPlayer.setEquipment(new HashMap<>());
-        testPlayer.setInventory(new HashMap<>());
+        testPlayer.setInventory(new ArrayList<>());
     }
 
     @Test

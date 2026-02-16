@@ -6,8 +6,9 @@ import com.heibai.clawworld.domain.item.Item;
 import com.heibai.clawworld.persistence.entity.PlayerEntity;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -42,13 +43,26 @@ public class PlayerMapper {
         entity.setVitality(player.getVitality());
         entity.setFreeAttributePoints(player.getFreeAttributePoints());
 
-        // 生命和法力
+        // 职业基础属性
+        entity.setBaseMaxHealth(player.getBaseMaxHealth());
+        entity.setBaseMaxMana(player.getBaseMaxMana());
+        entity.setBasePhysicalAttack(player.getBasePhysicalAttack());
+        entity.setBasePhysicalDefense(player.getBasePhysicalDefense());
+        entity.setBaseMagicAttack(player.getBaseMagicAttack());
+        entity.setBaseMagicDefense(player.getBaseMagicDefense());
+        entity.setBaseSpeed(player.getBaseSpeed());
+        entity.setBaseCritRate(player.getBaseCritRate());
+        entity.setBaseCritDamage(player.getBaseCritDamage());
+        entity.setBaseHitRate(player.getBaseHitRate());
+        entity.setBaseDodgeRate(player.getBaseDodgeRate());
+
+        // 生命和法力（最终值）
         entity.setMaxHealth(player.getMaxHealth());
         entity.setCurrentHealth(player.getCurrentHealth());
         entity.setMaxMana(player.getMaxMana());
         entity.setCurrentMana(player.getCurrentMana());
 
-        // 战斗属性
+        // 战斗属性（最终值）
         entity.setPhysicalAttack(player.getPhysicalAttack());
         entity.setPhysicalDefense(player.getPhysicalDefense());
         entity.setMagicAttack(player.getMagicAttack());
@@ -62,9 +76,9 @@ public class PlayerMapper {
         // 金钱
         entity.setGold(player.getGold());
 
-        // 装备栏
+        // 装备栏（使用枚举名称作为key）
         if (player.getEquipment() != null) {
-            Map<String, PlayerEntity.EquipmentSlotData> equipmentMap = player.getEquipment().entrySet().stream()
+            entity.setEquipment(player.getEquipment().entrySet().stream()
                     .filter(entry -> entry.getValue() != null)
                     .collect(Collectors.toMap(
                             entry -> entry.getKey().name(),
@@ -74,30 +88,35 @@ public class PlayerMapper {
                                 data.setInstanceNumber(entry.getValue().getInstanceNumber());
                                 return data;
                             }
-                    ));
-            entity.setEquipment(equipmentMap);
+                    )));
         }
 
-        // 背包
+        // 背包（统一存储普通物品和装备）
         if (player.getInventory() != null) {
-            Map<String, PlayerEntity.ItemStackData> inventoryMap = player.getInventory().entrySet().stream()
-                    .collect(Collectors.toMap(
-                            Map.Entry::getKey,
-                            entry -> {
-                                PlayerEntity.ItemStackData data = new PlayerEntity.ItemStackData();
-                                data.setItemId(entry.getValue().getItem().getId());
-                                data.setQuantity(entry.getValue().getQuantity());
-                                return data;
-                            }
-                    ));
-            entity.setInventory(inventoryMap);
+            List<PlayerEntity.InventorySlotData> inventoryList = player.getInventory().stream()
+                    .map(slot -> {
+                        PlayerEntity.InventorySlotData data = new PlayerEntity.InventorySlotData();
+                        data.setType(slot.getType().name());
+                        data.setQuantity(slot.getQuantity());
+
+                        if (slot.isItem()) {
+                            data.setItemId(slot.getItem().getId());
+                        } else if (slot.isEquipment()) {
+                            data.setItemId(slot.getEquipment().getId());
+                            data.setEquipmentInstanceNumber(slot.getEquipment().getInstanceNumber());
+                        }
+
+                        return data;
+                    })
+                    .collect(Collectors.toList());
+            entity.setInventory(inventoryList);
         }
 
         // 技能
         entity.setSkills(player.getSkills());
 
-        // 位置信息
-        entity.setCurrentMapId(player.getCurrentMapId());
+        // 位置信息（从MapEntity继承）
+        entity.setCurrentMapId(player.getMapId());
         entity.setX(player.getX());
         entity.setY(player.getY());
 
@@ -143,13 +162,26 @@ public class PlayerMapper {
         player.setVitality(entity.getVitality());
         player.setFreeAttributePoints(entity.getFreeAttributePoints());
 
-        // 生命和法力
+        // 职业基础属性
+        player.setBaseMaxHealth(entity.getBaseMaxHealth());
+        player.setBaseMaxMana(entity.getBaseMaxMana());
+        player.setBasePhysicalAttack(entity.getBasePhysicalAttack());
+        player.setBasePhysicalDefense(entity.getBasePhysicalDefense());
+        player.setBaseMagicAttack(entity.getBaseMagicAttack());
+        player.setBaseMagicDefense(entity.getBaseMagicDefense());
+        player.setBaseSpeed(entity.getBaseSpeed());
+        player.setBaseCritRate(entity.getBaseCritRate());
+        player.setBaseCritDamage(entity.getBaseCritDamage());
+        player.setBaseHitRate(entity.getBaseHitRate());
+        player.setBaseDodgeRate(entity.getBaseDodgeRate());
+
+        // 生命和法力（最终值）
         player.setMaxHealth(entity.getMaxHealth());
         player.setCurrentHealth(entity.getCurrentHealth());
         player.setMaxMana(entity.getMaxMana());
         player.setCurrentMana(entity.getCurrentMana());
 
-        // 战斗属性
+        // 战斗属性（最终值）
         player.setPhysicalAttack(entity.getPhysicalAttack());
         player.setPhysicalDefense(entity.getPhysicalDefense());
         player.setMagicAttack(entity.getMagicAttack());
@@ -165,13 +197,13 @@ public class PlayerMapper {
 
         // 装备栏和背包需要在Service层通过ConfigDataManager重建完整对象
         player.setEquipment(new HashMap<>());
-        player.setInventory(new HashMap<>());
+        player.setInventory(new ArrayList<>());
 
         // 技能
         player.setSkills(entity.getSkills());
 
-        // 位置信息
-        player.setCurrentMapId(entity.getCurrentMapId());
+        // 位置信息（设置到MapEntity）
+        player.setMapId(entity.getCurrentMapId());
         player.setX(entity.getX());
         player.setY(entity.getY());
 

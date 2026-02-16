@@ -1,20 +1,16 @@
 package com.heibai.clawworld.domain.character;
 
 import lombok.Data;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 队伍领域对象
+ * 队伍领域对象（纯业务逻辑对象，不包含持久化注解）
  * 根据设计文档：每个玩家在没有队伍时天然是一个队伍，每个玩家的阵营由队伍决定
  */
 @Data
-@Document(collection = "parties")
 public class Party {
-    @Id
     private String id;
 
     /**
@@ -93,7 +89,7 @@ public class Party {
         private String inviteeId;
 
         /**
-         * 邀请发起时间（毫秒时间戳）
+         * 邀请发起时间（毫秒间戳）
          */
         private Long inviteTime;
 
