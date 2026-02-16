@@ -25,6 +25,7 @@ public class PlayerMapper {
 
         PlayerEntity entity = new PlayerEntity();
         entity.setId(player.getId());
+        entity.setName(player.getName());
         entity.setRoleId(player.getRoleId());
 
         // 基础属性
@@ -137,6 +138,7 @@ public class PlayerMapper {
 
         Player player = new Player();
         player.setId(entity.getId());
+        player.setName(entity.getName());
         player.setRoleId(entity.getRoleId());
 
         // 基础属性

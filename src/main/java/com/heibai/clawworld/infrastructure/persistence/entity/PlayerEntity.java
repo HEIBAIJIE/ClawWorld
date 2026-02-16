@@ -19,6 +19,7 @@ public class PlayerEntity {
     @Id
     private String id;
 
+    private String name; // 玩家昵称
     private String roleId;
 
     // 基础属性

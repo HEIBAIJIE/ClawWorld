@@ -1,7 +1,10 @@
 package com.heibai.clawworld.application.service;
 
 import com.heibai.clawworld.domain.character.Player;
+import com.heibai.clawworld.domain.chat.ChatMessage;
 import com.heibai.clawworld.domain.map.GameMap;
+
+import java.util.List;
 
 /**
  * 窗口内容生成服务
@@ -22,6 +25,15 @@ public interface WindowContentService {
      * @return 地图窗口的文本内容
      */
     String generateMapWindowContent(Player player, GameMap map);
+
+    /**
+     * 生成地图窗口内容（包含聊天记录）
+     * @param player 玩家对象
+     * @param map 地图对象
+     * @param chatHistory 聊天记录
+     * @return 地图窗口的文本内容
+     */
+    String generateMapWindowContent(Player player, GameMap map, List<ChatMessage> chatHistory);
 
     /**
      * 生成战斗窗口内容

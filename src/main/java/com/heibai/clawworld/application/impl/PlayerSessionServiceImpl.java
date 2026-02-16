@@ -77,6 +77,7 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
         // 创建玩家
         Player player = new Player();
         player.setId(UUID.randomUUID().toString());
+        player.setName(playerName); // 设置玩家昵称
         player.setRoleId(roleConfig.getId());
         player.setLevel(1);
         player.setExperience(0);

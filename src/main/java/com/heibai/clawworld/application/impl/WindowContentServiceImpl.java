@@ -2,6 +2,7 @@ package com.heibai.clawworld.application.impl;
 
 import com.heibai.clawworld.application.service.WindowContentService;
 import com.heibai.clawworld.domain.character.Player;
+import com.heibai.clawworld.domain.chat.ChatMessage;
 import com.heibai.clawworld.domain.item.Equipment;
 import com.heibai.clawworld.domain.map.GameMap;
 import com.heibai.clawworld.domain.map.MapEntity;
@@ -10,6 +11,7 @@ import com.heibai.clawworld.infrastructure.config.data.character.RoleConfig;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -40,6 +42,11 @@ public class WindowContentServiceImpl implements WindowContentService {
 
     @Override
     public String generateMapWindowContent(Player player, GameMap map) {
+        return generateMapWindowContent(player, map, null);
+    }
+
+    @Override
+    public String generateMapWindowContent(Player player, GameMap map, List<ChatMessage> chatHistory) {
         StringBuilder sb = new StringBuilder();
 
         // 标题
@@ -94,17 +101,35 @@ public class WindowContentServiceImpl implements WindowContentService {
 
         // 玩家状态
         sb.append("--- 你的状态 ---\n");
+        sb.append(String.format("角色: %s (%s) Lv.%d\n",
+            player.getName() != null ? player.getName() : "未命名",
+            getRoleName(player.getRoleId()),
+            player.getLevel()));
         sb.append(String.format("位置: (%d, %d)\n", player.getX(), player.getY()));
-        sb.append(String.format("等级: %d  经验: %d\n", player.getLevel(), player.getExperience()));
-        sb.append(String.format("生命: %d/%d  法力: %d/%d\n",
-            player.getCurrentHealth(), player.getMaxHealth(),
-            player.getCurrentMana(), player.getMaxMana()));
-        sb.append(String.format("金币: %d\n", player.getGold()));
-        sb.append(String.format("力量: %d  敏捷: %d  智力: %d  体力: %d\n",
+        sb.append(String.format("经验: %d  金币: %d\n", player.getExperience(), player.getGold()));
+        sb.append(String.format("力量%d 敏捷%d 智力%d 体力%d\n",
             player.getStrength(), player.getAgility(),
             player.getIntelligence(), player.getVitality()));
+        sb.append(String.format("生命%d/%d 法力%d/%d\n",
+            player.getCurrentHealth(), player.getMaxHealth(),
+            player.getCurrentMana(), player.getMaxMana()));
+        sb.append(String.format("物攻%d 物防%d 法攻%d 法防%d 速度%d\n",
+            player.getPhysicalAttack(), player.getPhysicalDefense(),
+            player.getMagicAttack(), player.getMagicDefense(), player.getSpeed()));
         if (player.getFreeAttributePoints() > 0) {
             sb.append(String.format("可用属性点: %d\n", player.getFreeAttributePoints()));
+        }
+        sb.append("\n");
+
+        // 技能
+        sb.append("--- 技能 ---\n");
+        if (player.getSkills() != null && !player.getSkills().isEmpty()) {
+            for (String skillId : player.getSkills()) {
+                String skillName = getSkillName(skillId);
+                sb.append(skillName).append("\n");
+            }
+        } else {
+            sb.append("无技能\n");
         }
         sb.append("\n");
 
@@ -121,6 +146,54 @@ public class WindowContentServiceImpl implements WindowContentService {
         }
         sb.append("\n");
 
+        // 地图实体列表
+        sb.append("--- 地图实体 ---\n");
+        if (map.getEntities() != null && !map.getEntities().isEmpty()) {
+            for (MapEntity entity : map.getEntities()) {
+                sb.append(String.format("%s (%d,%d)", entity.getName(), entity.getX(), entity.getY()));
+
+                // 计算是否可达（简单判断：曼哈顿距离）
+                int distance = Math.abs(entity.getX() - player.getX()) + Math.abs(entity.getY() - player.getY());
+                if (distance <= 1) {
+                    sb.append(" [可直接交互]");
+                } else {
+                    sb.append(" [需移动]");
+                }
+
+                // 显示实体类型
+                if (entity.getEntityType() != null) {
+                    sb.append(" [").append(entity.getEntityType()).append("]");
+                }
+
+                sb.append("\n");
+            }
+        } else {
+            sb.append("地图上没有其他实体\n");
+        }
+        sb.append("\n");
+
+        // 周围9格可交互实体
+        sb.append("--- 周围可交互实体 ---\n");
+        boolean hasNearbyEntity = false;
+        if (map.getEntities() != null) {
+            for (MapEntity entity : map.getEntities()) {
+                int dx = Math.abs(entity.getX() - player.getX());
+                int dy = Math.abs(entity.getY() - player.getY());
+                if (dx <= 1 && dy <= 1 && entity.isInteractable()) {
+                    sb.append(String.format("- %s (%d,%d)", entity.getName(), entity.getX(), entity.getY()));
+                    if (entity.getDescription() != null && !entity.getDescription().isEmpty()) {
+                        sb.append(" - ").append(entity.getDescription());
+                    }
+                    sb.append("\n");
+                    hasNearbyEntity = true;
+                }
+            }
+        }
+        if (!hasNearbyEntity) {
+            sb.append("周围没有可交互的实体\n");
+        }
+        sb.append("\n");
+
         // 背包
         sb.append("--- 背包 ---\n");
         if (player.getInventory() != null && !player.getInventory().isEmpty()) {
@@ -133,6 +206,69 @@ public class WindowContentServiceImpl implements WindowContentService {
             }
         } else {
             sb.append("背包为空\n");
+        }
+        sb.append("\n");
+
+        // 组队情况
+        sb.append("--- 组队情况 ---\n");
+        if (player.getPartyId() != null) {
+            if (player.isPartyLeader()) {
+                sb.append("你是队长\n");
+            } else {
+                sb.append("你在队伍中\n");
+            }
+            sb.append("队伍ID: ").append(player.getPartyId()).append("\n");
+        } else {
+            sb.append("你当前没有队伍\n");
+        }
+        sb.append("\n");
+
+        // 可达的有意义格子
+        sb.append("--- 可达目标 ---\n");
+        boolean hasReachableTarget = false;
+        if (map.getEntities() != null) {
+            for (MapEntity entity : map.getEntities()) {
+                int dx = Math.abs(entity.getX() - player.getX());
+                int dy = Math.abs(entity.getY() - player.getY());
+                // 如果实体不在周围9格内，但可能是有意义的目标
+                if ((dx > 1 || dy > 1) && entity.isInteractable()) {
+                    sb.append(String.format("- %s: 移动到 (%d,%d) 可交互\n",
+                        entity.getName(), entity.getX(), entity.getY()));
+                    hasReachableTarget = true;
+                }
+            }
+        }
+        if (!hasReachableTarget) {
+            sb.append("没有需要移动才能到达的目标\n");
+        }
+        sb.append("\n");
+
+        // 聊天记录
+        sb.append("--- 最近聊天 ---\n");
+        if (chatHistory != null && !chatHistory.isEmpty()) {
+            int count = 0;
+            for (ChatMessage msg : chatHistory) {
+                if (count >= 10) break; // 最多显示10条
+                String channelPrefix = "";
+                switch (msg.getChannelType()) {
+                    case WORLD:
+                        channelPrefix = "[世界]";
+                        break;
+                    case MAP:
+                        channelPrefix = "[地图]";
+                        break;
+                    case PARTY:
+                        channelPrefix = "[队伍]";
+                        break;
+                    case PRIVATE:
+                        channelPrefix = "[私聊]";
+                        break;
+                }
+                sb.append(String.format("%s %s: %s\n", channelPrefix, msg.getSenderNickname(), msg.getMessage()));
+                count++;
+            }
+        } else {
+            sb.append("(暂无聊天记录，使用 say 指令发送消息)\n");
         }
         sb.append("\n");
 
@@ -176,5 +312,24 @@ public class WindowContentServiceImpl implements WindowContentService {
             case ACCESSORY2: return "饰品2";
             default: return slot.name();
         }
+    }
+
+    private String getRoleName(String roleId) {
+        if (roleId == null) {
+            return "未知";
+        }
+        RoleConfig roleConfig = configDataManager.getRole(roleId);
+        return roleConfig != null ? roleConfig.getName() : "未知";
+    }
+
+    private String getSkillName(String skillId) {
+        if (skillId == null) {
+            return "未知技能";
+        }
+        if ("basic_attack".equals(skillId)) {
+            return "普通攻击";
+        }
+        var skillConfig = configDataManager.getSkill(skillId);
+        return skillConfig != null ? skillConfig.getName() : skillId;
     }
 }
