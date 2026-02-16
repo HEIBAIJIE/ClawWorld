@@ -71,6 +71,7 @@ public class ItemConfigLoader {
                 eq.setId(csvReader.getString(record, "id"));
                 eq.setName(csvReader.getString(record, "name"));
                 eq.setDescription(csvReader.getString(record, "description"));
+                eq.setBasePrice(csvReader.getInt(record, "basePrice"));
                 eq.setSlot(csvReader.getString(record, "slot"));
                 eq.setRarity(csvReader.getString(record, "rarity"));
                 eq.setStrength(csvReader.getInt(record, "strength"));

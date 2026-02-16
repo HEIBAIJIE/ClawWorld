@@ -21,6 +21,7 @@ public class Item {
         MATERIAL,
         QUEST,
         SKILL_BOOK,
+        EQUIPMENT,
         OTHER
     }
 }
