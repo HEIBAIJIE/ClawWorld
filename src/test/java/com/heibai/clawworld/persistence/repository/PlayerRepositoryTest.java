@@ -27,11 +27,8 @@ class PlayerRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        // 创建测试数据
+        // 创建测试数据（仅包含游戏数据，不包含账号信息）
         testPlayer = new PlayerEntity();
-        testPlayer.setUsername("testuser");
-        testPlayer.setNickname("测试玩家");
-        testPlayer.setPassword("password123");
         testPlayer.setRoleId("WARRIOR");
         testPlayer.setLevel(1);
         testPlayer.setExperience(0);
@@ -59,7 +56,6 @@ class PlayerRepositoryTest {
         testPlayer.setCurrentMapId("starter_village");
         testPlayer.setX(5);
         testPlayer.setY(5);
-        testPlayer.setOnline(false);
     }
 
     @AfterEach
@@ -77,44 +73,8 @@ class PlayerRepositoryTest {
         // 根据ID查找
         Optional<PlayerEntity> found = playerRepository.findById(saved.getId());
         assertTrue(found.isPresent());
-        assertEquals("testuser", found.get().getUsername());
-        assertEquals("测试玩家", found.get().getNickname());
-    }
-
-    @Test
-    void testFindByUsername() {
-        playerRepository.save(testPlayer);
-
-        Optional<PlayerEntity> found = playerRepository.findByUsername("testuser");
-        assertTrue(found.isPresent());
-        assertEquals("测试玩家", found.get().getNickname());
-    }
-
-    @Test
-    void testFindByNickname() {
-        playerRepository.save(testPlayer);
-
-        Optional<PlayerEntity> found = playerRepository.findByNickname("测试玩家");
-        assertTrue(found.isPresent());
-        assertEquals("testuser", found.get().getUsername());
-    }
-
-    @Test
-    void testExistsByUsername() {
-        assertFalse(playerRepository.existsByUsername("testuser"));
-
-        playerRepository.save(testPlayer);
-
-        assertTrue(playerRepository.existsByUsername("testuser"));
-    }
-
-    @Test
-    void testExistsByNickname() {
-        assertFalse(playerRepository.existsByNickname("测试玩家"));
-
-        playerRepository.save(testPlayer);
-
-        assertTrue(playerRepository.existsByNickname("测试玩家"));
+        assertEquals("WARRIOR", found.get().getRoleId());
+        assertEquals(1, found.get().getLevel());
     }
 
     @Test
@@ -144,24 +104,5 @@ class PlayerRepositoryTest {
 
         Optional<PlayerEntity> deleted = playerRepository.findById(saved.getId());
         assertFalse(deleted.isPresent());
-    }
-
-    @Test
-    void testUniqueUsernameConstraint() {
-        playerRepository.save(testPlayer);
-
-        // 尝试保存相同用户名的玩家
-        PlayerEntity duplicate = new PlayerEntity();
-        duplicate.setUsername("testuser");
-        duplicate.setNickname("另一个玩家");
-        duplicate.setPassword("password456");
-        duplicate.setRoleId("WARRIOR");
-        duplicate.setLevel(1);
-        duplicate.setCurrentMapId("starter_village");
-
-        // MongoDB的唯一索引会在保存时抛出异常
-        assertThrows(org.springframework.dao.DuplicateKeyException.class, () -> {
-            playerRepository.save(duplicate);
-        });
     }
 }

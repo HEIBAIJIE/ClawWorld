@@ -19,9 +19,6 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 public class Player extends Character {
     private String id;
-    private String username;
-    private String nickname;
-    private String password;
     private String roleId; // 职业ID
 
     // 四维属性（玩家自由分配的属性点）

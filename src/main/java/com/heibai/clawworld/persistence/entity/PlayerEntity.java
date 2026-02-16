@@ -20,13 +20,6 @@ public class PlayerEntity {
     @Id
     private String id;
 
-    @Indexed(unique = true)
-    private String username;
-
-    @Indexed(unique = true)
-    private String nickname;
-
-    private String password;
     private String roleId;
 
     // 基础属性
@@ -94,12 +87,6 @@ public class PlayerEntity {
     // 战斗状态
     private boolean inCombat;
     private String combatId;
-
-    // 在线状态
-    private boolean online;
-    private String sessionId;
-    private Long lastLoginTime;
-    private Long lastLogoutTime;
 
     /**
      * 装备栏数据

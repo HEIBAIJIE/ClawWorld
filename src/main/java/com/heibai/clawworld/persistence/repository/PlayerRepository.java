@@ -11,29 +11,6 @@ import java.util.Optional;
  */
 @Repository
 public interface PlayerRepository extends MongoRepository<PlayerEntity, String> {
-
-    /**
-     * 根据用户名查找玩家
-     */
-    Optional<PlayerEntity> findByUsername(String username);
-
-    /**
-     * 根据昵称查找玩家
-     */
-    Optional<PlayerEntity> findByNickname(String nickname);
-
-    /**
-     * 检查用户名是否存在
-     */
-    boolean existsByUsername(String username);
-
-    /**
-     * 检查昵称是否存在
-     */
-    boolean existsByNickname(String nickname);
-
-    /**
-     * 根据会话ID查找玩家
-     */
-    Optional<PlayerEntity> findBySessionId(String sessionId);
+    // 玩家仓储只负责游戏数据的持久化
+    // 账号相关的查询（用户名、昵称、会话ID）请使用AccountRepository
 }

@@ -24,12 +24,9 @@ class PlayerMapperTest {
     void setUp() {
         playerMapper = new PlayerMapper();
 
-        // 创建测试玩家
+        // 创建测试玩家（仅包含游戏数据）
         testPlayer = new Player();
         testPlayer.setId("test_id");
-        testPlayer.setUsername("testuser");
-        testPlayer.setNickname("测试玩家");
-        testPlayer.setPassword("password123");
         testPlayer.setRoleId("WARRIOR");
         testPlayer.setLevel(5);
         testPlayer.setExperience(500);
@@ -69,9 +66,6 @@ class PlayerMapperTest {
 
         assertNotNull(entity);
         assertEquals("test_id", entity.getId());
-        assertEquals("testuser", entity.getUsername());
-        assertEquals("测试玩家", entity.getNickname());
-        assertEquals("password123", entity.getPassword());
         assertEquals("WARRIOR", entity.getRoleId());
         assertEquals(5, entity.getLevel());
         assertEquals(500, entity.getExperience());
@@ -105,9 +99,6 @@ class PlayerMapperTest {
     void testToDomain() {
         PlayerEntity entity = new PlayerEntity();
         entity.setId("test_id");
-        entity.setUsername("testuser");
-        entity.setNickname("测试玩家");
-        entity.setPassword("password123");
         entity.setRoleId("WARRIOR");
         entity.setLevel(5);
         entity.setExperience(500);
@@ -140,9 +131,6 @@ class PlayerMapperTest {
 
         assertNotNull(player);
         assertEquals("test_id", player.getId());
-        assertEquals("testuser", player.getUsername());
-        assertEquals("测试玩家", player.getNickname());
-        assertEquals("password123", player.getPassword());
         assertEquals("WARRIOR", player.getRoleId());
         assertEquals(5, player.getLevel());
         assertEquals(500, player.getExperience());
@@ -192,8 +180,7 @@ class PlayerMapperTest {
 
         assertNotNull(converted);
         assertEquals(testPlayer.getId(), converted.getId());
-        assertEquals(testPlayer.getUsername(), converted.getUsername());
-        assertEquals(testPlayer.getNickname(), converted.getNickname());
+        assertEquals(testPlayer.getRoleId(), converted.getRoleId());
         assertEquals(testPlayer.getLevel(), converted.getLevel());
         assertEquals(testPlayer.getGold(), converted.getGold());
     }

@@ -27,9 +27,6 @@ public class PlayerMapper {
 
         PlayerEntity entity = new PlayerEntity();
         entity.setId(player.getId());
-        entity.setUsername(player.getUsername());
-        entity.setNickname(player.getNickname());
-        entity.setPassword(player.getPassword());
         entity.setRoleId(player.getRoleId());
 
         // 基础属性
@@ -128,9 +125,6 @@ public class PlayerMapper {
         entity.setInCombat(player.isInCombat());
         entity.setCombatId(player.getCombatId());
 
-        // 会话和在线状态字段在Service层设置，这里不处理
-        // sessionId, online, lastLoginTime, lastLogoutTime
-
         return entity;
     }
 
@@ -145,9 +139,6 @@ public class PlayerMapper {
 
         Player player = new Player();
         player.setId(entity.getId());
-        player.setUsername(entity.getUsername());
-        player.setNickname(entity.getNickname());
-        player.setPassword(entity.getPassword());
         player.setRoleId(entity.getRoleId());
 
         // 基础属性
