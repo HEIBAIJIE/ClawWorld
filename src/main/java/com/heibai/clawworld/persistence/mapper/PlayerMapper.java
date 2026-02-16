@@ -1,0 +1,189 @@
+package com.heibai.clawworld.persistence.mapper;
+
+import com.heibai.clawworld.domain.character.Player;
+import com.heibai.clawworld.domain.item.Equipment;
+import com.heibai.clawworld.domain.item.Item;
+import com.heibai.clawworld.persistence.entity.PlayerEntity;
+import org.springframework.stereotype.Component;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+/**
+ * 玩家领域对象与持久化实体之间的映射器
+ */
+@Component
+public class PlayerMapper {
+
+    /**
+     * 将领域对象转换为持久化实体
+     */
+    public PlayerEntity toEntity(Player player) {
+        if (player == null) {
+            return null;
+        }
+
+        PlayerEntity entity = new PlayerEntity();
+        entity.setId(player.getId());
+        entity.setUsername(player.getUsername());
+        entity.setNickname(player.getNickname());
+        entity.setPassword(player.getPassword());
+        entity.setRoleId(player.getRoleId());
+
+        // 基础属性
+        entity.setLevel(player.getLevel());
+        entity.setExperience(player.getExperience());
+
+        // 四维属性
+        entity.setStrength(player.getStrength());
+        entity.setAgility(player.getAgility());
+        entity.setIntelligence(player.getIntelligence());
+        entity.setVitality(player.getVitality());
+        entity.setFreeAttributePoints(player.getFreeAttributePoints());
+
+        // 生命和法力
+        entity.setMaxHealth(player.getMaxHealth());
+        entity.setCurrentHealth(player.getCurrentHealth());
+        entity.setMaxMana(player.getMaxMana());
+        entity.setCurrentMana(player.getCurrentMana());
+
+        // 战斗属性
+        entity.setPhysicalAttack(player.getPhysicalAttack());
+        entity.setPhysicalDefense(player.getPhysicalDefense());
+        entity.setMagicAttack(player.getMagicAttack());
+        entity.setMagicDefense(player.getMagicDefense());
+        entity.setSpeed(player.getSpeed());
+        entity.setCritRate(player.getCritRate());
+        entity.setCritDamage(player.getCritDamage());
+        entity.setHitRate(player.getHitRate());
+        entity.setDodgeRate(player.getDodgeRate());
+
+        // 金钱
+        entity.setGold(player.getGold());
+
+        // 装备栏
+        if (player.getEquipment() != null) {
+            Map<String, PlayerEntity.EquipmentSlotData> equipmentMap = player.getEquipment().entrySet().stream()
+                    .filter(entry -> entry.getValue() != null)
+                    .collect(Collectors.toMap(
+                            entry -> entry.getKey().name(),
+                            entry -> {
+                                PlayerEntity.EquipmentSlotData data = new PlayerEntity.EquipmentSlotData();
+                                data.setEquipmentId(entry.getValue().getId());
+                                data.setInstanceNumber(entry.getValue().getInstanceNumber());
+                                return data;
+                            }
+                    ));
+            entity.setEquipment(equipmentMap);
+        }
+
+        // 背包
+        if (player.getInventory() != null) {
+            Map<String, PlayerEntity.ItemStackData> inventoryMap = player.getInventory().entrySet().stream()
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            entry -> {
+                                PlayerEntity.ItemStackData data = new PlayerEntity.ItemStackData();
+                                data.setItemId(entry.getValue().getItem().getId());
+                                data.setQuantity(entry.getValue().getQuantity());
+                                return data;
+                            }
+                    ));
+            entity.setInventory(inventoryMap);
+        }
+
+        // 技能
+        entity.setSkills(player.getSkills());
+
+        // 位置信息
+        entity.setCurrentMapId(player.getCurrentMapId());
+        entity.setX(player.getX());
+        entity.setY(player.getY());
+
+        // 队伍信息
+        entity.setPartyId(player.getPartyId());
+        entity.setPartyLeader(player.isPartyLeader());
+
+        // 战斗状态
+        entity.setInCombat(player.isInCombat());
+        entity.setCombatId(player.getCombatId());
+
+        // 会话和在线状态字段在Service层设置，这里不处理
+        // sessionId, online, lastLoginTime, lastLogoutTime
+
+        return entity;
+    }
+
+    /**
+     * 将持久化实体转换为领域对象
+     * 注意：这个方法只转换基础数据，装备和物品的完整对象需要通过ConfigDataManager加载
+     */
+    public Player toDomain(PlayerEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+
+        Player player = new Player();
+        player.setId(entity.getId());
+        player.setUsername(entity.getUsername());
+        player.setNickname(entity.getNickname());
+        player.setPassword(entity.getPassword());
+        player.setRoleId(entity.getRoleId());
+
+        // 基础属性
+        player.setLevel(entity.getLevel());
+        player.setExperience(entity.getExperience());
+        player.setFaction("PLAYER"); // 玩家阵营由队伍决定，这里设置默认值
+
+        // 四维属性
+        player.setStrength(entity.getStrength());
+        player.setAgility(entity.getAgility());
+        player.setIntelligence(entity.getIntelligence());
+        player.setVitality(entity.getVitality());
+        player.setFreeAttributePoints(entity.getFreeAttributePoints());
+
+        // 生命和法力
+        player.setMaxHealth(entity.getMaxHealth());
+        player.setCurrentHealth(entity.getCurrentHealth());
+        player.setMaxMana(entity.getMaxMana());
+        player.setCurrentMana(entity.getCurrentMana());
+
+        // 战斗属性
+        player.setPhysicalAttack(entity.getPhysicalAttack());
+        player.setPhysicalDefense(entity.getPhysicalDefense());
+        player.setMagicAttack(entity.getMagicAttack());
+        player.setMagicDefense(entity.getMagicDefense());
+        player.setSpeed(entity.getSpeed());
+        player.setCritRate(entity.getCritRate());
+        player.setCritDamage(entity.getCritDamage());
+        player.setHitRate(entity.getHitRate());
+        player.setDodgeRate(entity.getDodgeRate());
+
+        // 金钱
+        player.setGold(entity.getGold());
+
+        // 装备栏和背包需要在Service层通过ConfigDataManager重建完整对象
+        player.setEquipment(new HashMap<>());
+        player.setInventory(new HashMap<>());
+
+        // 技能
+        player.setSkills(entity.getSkills());
+
+        // 位置信息
+        player.setCurrentMapId(entity.getCurrentMapId());
+        player.setX(entity.getX());
+        player.setY(entity.getY());
+
+        // 队伍信息
+        player.setPartyId(entity.getPartyId());
+        player.setPartyLeader(entity.isPartyLeader());
+
+        // 战斗状态
+        player.setInCombat(entity.isInCombat());
+        player.setCombatId(entity.getCombatId());
+        player.setCombatStartTime(entity.isInCombat() ? System.currentTimeMillis() : null);
+
+        return player;
+    }
+}

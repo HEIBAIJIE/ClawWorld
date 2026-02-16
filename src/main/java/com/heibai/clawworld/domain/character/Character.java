@@ -41,6 +41,7 @@ public abstract class Character extends MapEntity {
 
     // 战斗状态
     private boolean inCombat;
+    private String combatId;
     private Long combatStartTime;
 
     @Override

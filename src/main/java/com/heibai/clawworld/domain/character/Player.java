@@ -8,15 +8,17 @@ import com.heibai.clawworld.domain.item.Item;
 import java.util.Map;
 
 /**
- * 玩家领域对象
+ * 玩家领域对象（纯业务逻辑对象，不包含持久化注解）
  * 根据设计文档：玩家是一类特殊的角色，特殊之处在于他们的行为受控制
  * 玩家的最终数值 = 职业原始数值 + 四维影响 + 装备加成
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class Player extends Character {
+    private String id;
     private String username;
     private String nickname;
+    private String password;
     private String roleId; // 职业ID
 
     // 四维属性（玩家自由分配的属性点）
@@ -35,6 +37,9 @@ public class Player extends Character {
     // 背包（最多50类物品）
     // 注意：装备是一种特殊的物品，未装备的装备也存储在背包中
     private Map<String, ItemStack> inventory;
+
+    // 位置信息
+    private String currentMapId;
 
     // 队伍ID
     private String partyId;
