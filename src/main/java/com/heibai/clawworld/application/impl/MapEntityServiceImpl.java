@@ -29,6 +29,8 @@ public class MapEntityServiceImpl implements MapEntityService {
     private final PlayerSessionService playerSessionService;
     private final com.heibai.clawworld.infrastructure.persistence.repository.EnemyInstanceRepository enemyInstanceRepository;
     private final com.heibai.clawworld.infrastructure.persistence.repository.NpcShopInstanceRepository npcShopInstanceRepository;
+    private final com.heibai.clawworld.application.service.PartyService partyService;
+    private final com.heibai.clawworld.application.service.TradeService tradeService;
 
     @Override
     public EntityInfo inspectCharacter(String playerId, String characterName) {
@@ -236,6 +238,14 @@ public class MapEntityServiceImpl implements MapEntityService {
 
         // 根据交互选项处理不同的交互
         switch (option.toLowerCase()) {
+            case "inspect":
+            case "查看":
+                // 查看交互：返回角色详细信息
+                EntityInfo entityInfo = inspectCharacter(playerId, targetName);
+                return entityInfo.isSuccess() ?
+                    InteractionResult.success(entityInfo.getAttributes().toString()) :
+                    InteractionResult.error(entityInfo.getMessage());
+
             case "attack":
             case "攻击":
                 // 攻击交互：发起战斗
@@ -248,12 +258,6 @@ public class MapEntityServiceImpl implements MapEntityService {
             case "talk":
             case "交谈":
                 // 对话交互 - 查找NPC并返回对话内容
-                // 注意：需要实现NPC实例查找
-                // 当前简化处理，返回占位符
-                // 未来需要实现：
-                // 1. 从NpcInstanceRepository查找NPC
-                // 2. 获取NPC的对话列表
-                // 3. 返回对话内容
                 return InteractionResult.success("与 " + targetName + " 对话：\n（对话内容需要从NPC配置中读取）");
 
             case "shop":
@@ -266,12 +270,99 @@ public class MapEntityServiceImpl implements MapEntityService {
                 );
 
             case "teleport":
+            case "传送":
                 // 传送交互
                 return InteractionResult.success("传送到 " + targetName);
 
             case "loot":
+            case "拾取":
                 // 拾取交互
                 return InteractionResult.success("拾取 " + targetName);
+
+            // 玩家间交互选项
+            case "邀请组队":
+            case "invite party":
+                com.heibai.clawworld.application.service.PartyService.PartyResult inviteResult =
+                    partyService.invitePlayer(playerId, targetName);
+                return inviteResult.isSuccess() ?
+                    InteractionResult.success(inviteResult.getMessage()) :
+                    InteractionResult.error(inviteResult.getMessage());
+
+            case "接受组队邀请":
+            case "accept party invite":
+                com.heibai.clawworld.application.service.PartyService.PartyResult acceptInviteResult =
+                    partyService.acceptInvite(playerId, targetName);
+                return acceptInviteResult.isSuccess() ?
+                    InteractionResult.success(acceptInviteResult.getMessage()) :
+                    InteractionResult.error(acceptInviteResult.getMessage());
+
+            case "拒绝组队邀请":
+            case "reject party invite":
+                com.heibai.clawworld.application.service.PartyService.PartyResult rejectInviteResult =
+                    partyService.rejectInvite(playerId, targetName);
+                return rejectInviteResult.isSuccess() ?
+                    InteractionResult.success(rejectInviteResult.getMessage()) :
+                    InteractionResult.error(rejectInviteResult.getMessage());
+
+            case "请求加入队伍":
+            case "request join party":
+                com.heibai.clawworld.application.service.PartyService.PartyResult requestJoinResult =
+                    partyService.requestJoin(playerId, targetName);
+                return requestJoinResult.isSuccess() ?
+                    InteractionResult.success(requestJoinResult.getMessage()) :
+                    InteractionResult.error(requestJoinResult.getMessage());
+
+            case "接受组队请求":
+            case "accept party request":
+                com.heibai.clawworld.application.service.PartyService.PartyResult acceptRequestResult =
+                    partyService.acceptJoinRequest(playerId, targetName);
+                return acceptRequestResult.isSuccess() ?
+                    InteractionResult.success(acceptRequestResult.getMessage()) :
+                    InteractionResult.error(acceptRequestResult.getMessage());
+
+            case "拒绝组队请求":
+            case "reject party request":
+                com.heibai.clawworld.application.service.PartyService.PartyResult rejectRequestResult =
+                    partyService.rejectJoinRequest(playerId, targetName);
+                return rejectRequestResult.isSuccess() ?
+                    InteractionResult.success(rejectRequestResult.getMessage()) :
+                    InteractionResult.error(rejectRequestResult.getMessage());
+
+            case "请求交易":
+            case "request trade":
+                com.heibai.clawworld.application.service.TradeService.TradeResult tradeRequestResult =
+                    tradeService.requestTrade(playerId, targetName);
+                if (tradeRequestResult.isSuccess()) {
+                    return InteractionResult.successWithWindowChange(
+                        tradeRequestResult.getMessage(),
+                        tradeRequestResult.getTradeId(),
+                        "TRADE"
+                    );
+                } else {
+                    return InteractionResult.error(tradeRequestResult.getMessage());
+                }
+
+            case "接受交易请求":
+            case "accept trade request":
+                com.heibai.clawworld.application.service.TradeService.TradeResult acceptTradeResult =
+                    tradeService.acceptTradeRequest(playerId, targetName);
+                if (acceptTradeResult.isSuccess()) {
+                    return InteractionResult.successWithWindowChange(
+                        acceptTradeResult.getMessage(),
+                        acceptTradeResult.getTradeId(),
+                        "TRADE"
+                    );
+                } else {
+                    return InteractionResult.error(acceptTradeResult.getMessage());
+                }
+
+            case "拒绝交易请求":
+            case "reject trade request":
+                com.heibai.clawworld.application.service.TradeService.OperationResult rejectTradeResult =
+                    tradeService.rejectTradeRequest(playerId, targetName);
+                return rejectTradeResult.isSuccess() ?
+                    InteractionResult.success(rejectTradeResult.getMessage()) :
+                    InteractionResult.error(rejectTradeResult.getMessage());
 
             default:
                 return InteractionResult.error("未知的交互选项: " + option);
