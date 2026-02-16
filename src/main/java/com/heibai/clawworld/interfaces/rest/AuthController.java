@@ -47,7 +47,7 @@ public class AuthController {
 
         if (result.isSuccess()) {
             return ResponseEntity.ok(
-                    LoginResponse.success(result.getSessionId(), result.getBackgroundPrompt())
+                    LoginResponse.success(result.getSessionId(), result.getBackgroundPrompt(), result.getWindowContent())
             );
         } else {
             return ResponseEntity.status(401)

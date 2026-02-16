@@ -113,8 +113,14 @@ const handleLogin = async () => {
       sessionId.value = response.data.sessionId
       localStorage.setItem('sessionId', response.data.sessionId)
 
-      // 设置游戏文本（背景提示）
-      gameText.value = response.data.backgroundPrompt || '欢迎来到 ClawWorld！\n\n请使用 register 指令注册角色。\n例如: register 战士 张三'
+      // 设置游戏文本（背景提示 + 窗口内容）
+      let initialText = response.data.backgroundPrompt || '欢迎来到 ClawWorld！'
+
+      if (response.data.windowContent) {
+        initialText += '\n\n' + response.data.windowContent
+      }
+
+      gameText.value = initialText
 
       // 登录成功
       isLoggedIn.value = true

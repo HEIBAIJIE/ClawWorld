@@ -1,11 +1,12 @@
 package com.heibai.clawworld.application.impl;
 
+import com.heibai.clawworld.application.service.PlayerSessionService;
+import com.heibai.clawworld.application.service.WindowContentService;
 import com.heibai.clawworld.domain.character.Player;
+import com.heibai.clawworld.domain.map.GameMap;
+import com.heibai.clawworld.infrastructure.factory.MapInitializationService;
 import com.heibai.clawworld.infrastructure.persistence.entity.AccountEntity;
-import com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity;
-import com.heibai.clawworld.infrastructure.persistence.mapper.PlayerMapper;
 import com.heibai.clawworld.infrastructure.persistence.repository.AccountRepository;
-import com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -21,9 +22,10 @@ import java.util.UUID;
 public class AuthService {
 
     private final AccountRepository accountRepository;
-    private final PlayerRepository playerRepository;
+    private final PlayerSessionService playerSessionService;
     private final BackgroundPromptService backgroundPromptService;
-    private final PlayerMapper playerMapper;
+    private final WindowContentService windowContentService;
+    private final MapInitializationService mapInitializationService;
 
     /**
      * 登录或注册
@@ -63,19 +65,31 @@ public class AuthService {
 
             accountRepository.save(account);
 
-            // 获取玩家信息
+            // 获取玩家信息（使用 PlayerSessionService 获取完整数据）
             Player player = null;
             if (account.getPlayerId() != null) {
-                Optional<PlayerEntity> playerEntity = playerRepository.findById(account.getPlayerId());
-                if (playerEntity.isPresent()) {
-                    player = playerMapper.toDomain(playerEntity.get());
-                }
+                player = playerSessionService.getPlayerState(account.getPlayerId());
             }
 
             // 生成背景prompt
             String backgroundPrompt = backgroundPromptService.generateBackgroundPrompt(player);
 
-            return LoginResult.success(sessionId, backgroundPrompt, account.getPlayerId() == null);
+            // 生成窗口内容
+            String windowContent = null;
+            if (player != null) {
+                // 已注册用户，生成地图窗口内容
+                GameMap map = mapInitializationService.getMap(player.getMapId());
+                if (map != null) {
+                    windowContent = windowContentService.generateMapWindowContent(player, map);
+                } else {
+                    windowContent = "地图加载失败，请联系管理员。";
+                }
+            } else {
+                // 未注册用户，生成注册窗口内容
+                windowContent = windowContentService.generateRegisterWindowContent();
+            }
+
+            return LoginResult.success(sessionId, backgroundPrompt, windowContent, account.getPlayerId() == null);
         } else {
             // 账号不存在，创建新账号
             AccountEntity newAccount = new AccountEntity();
@@ -96,7 +110,10 @@ public class AuthService {
             // 新用户，生成背景prompt（不包含玩家信息）
             String backgroundPrompt = backgroundPromptService.generateBackgroundPrompt(null);
 
-            return LoginResult.success(sessionId, backgroundPrompt, true);
+            // 新用户，生成注册窗口内容
+            String windowContent = windowContentService.generateRegisterWindowContent();
+
+            return LoginResult.success(sessionId, backgroundPrompt, windowContent, true);
         }
     }
 
@@ -151,22 +168,24 @@ public class AuthService {
         private final String message;
         private final String sessionId;
         private final String backgroundPrompt;
+        private final String windowContent;
         private final boolean isNewUser;
 
-        private LoginResult(boolean success, String message, String sessionId, String backgroundPrompt, boolean isNewUser) {
+        private LoginResult(boolean success, String message, String sessionId, String backgroundPrompt, String windowContent, boolean isNewUser) {
             this.success = success;
             this.message = message;
             this.sessionId = sessionId;
             this.backgroundPrompt = backgroundPrompt;
+            this.windowContent = windowContent;
             this.isNewUser = isNewUser;
         }
 
-        public static LoginResult success(String sessionId, String backgroundPrompt, boolean isNewUser) {
-            return new LoginResult(true, "登录成功", sessionId, backgroundPrompt, isNewUser);
+        public static LoginResult success(String sessionId, String backgroundPrompt, String windowContent, boolean isNewUser) {
+            return new LoginResult(true, "登录成功", sessionId, backgroundPrompt, windowContent, isNewUser);
         }
 
         public static LoginResult error(String message) {
-            return new LoginResult(false, message, null, null, false);
+            return new LoginResult(false, message, null, null, null, false);
         }
 
         public boolean isSuccess() {
@@ -183,6 +202,10 @@ public class AuthService {
 
         public String getBackgroundPrompt() {
             return backgroundPrompt;
+        }
+
+        public String getWindowContent() {
+            return windowContent;
         }
 
         public boolean isNewUser() {

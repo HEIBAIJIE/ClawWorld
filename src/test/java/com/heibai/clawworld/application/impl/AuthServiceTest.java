@@ -1,11 +1,12 @@
 package com.heibai.clawworld.application.impl;
 
+import com.heibai.clawworld.application.service.PlayerSessionService;
+import com.heibai.clawworld.application.service.WindowContentService;
 import com.heibai.clawworld.domain.character.Player;
+import com.heibai.clawworld.domain.map.GameMap;
+import com.heibai.clawworld.infrastructure.factory.MapInitializationService;
 import com.heibai.clawworld.infrastructure.persistence.entity.AccountEntity;
-import com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity;
-import com.heibai.clawworld.infrastructure.persistence.mapper.PlayerMapper;
 import com.heibai.clawworld.infrastructure.persistence.repository.AccountRepository;
-import com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,19 +31,21 @@ class AuthServiceTest {
     private AccountRepository accountRepository;
 
     @Mock
-    private PlayerRepository playerRepository;
+    private PlayerSessionService playerSessionService;
 
     @Mock
     private BackgroundPromptService backgroundPromptService;
 
     @Mock
-    private PlayerMapper playerMapper;
+    private WindowContentService windowContentService;
+
+    @Mock
+    private MapInitializationService mapInitializationService;
 
     @InjectMocks
     private AuthService authService;
 
     private AccountEntity testAccount;
-    private PlayerEntity testPlayer;
 
     @BeforeEach
     void setUp() {
@@ -51,12 +54,6 @@ class AuthServiceTest {
         testAccount.setUsername("testuser");
         testAccount.setPassword("testpass");
         testAccount.setPlayerId("player1");
-
-        testPlayer = new PlayerEntity();
-        testPlayer.setId("player1");
-        testPlayer.setRoleId("warrior");
-        testPlayer.setLevel(5);
-        testPlayer.setGold(1000);
     }
 
     @Test
@@ -65,6 +62,7 @@ class AuthServiceTest {
         when(accountRepository.findByUsername("newuser")).thenReturn(Optional.empty());
         when(accountRepository.save(any(AccountEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(backgroundPromptService.generateBackgroundPrompt(null)).thenReturn("Welcome to ClawWorld!");
+        when(windowContentService.generateRegisterWindowContent()).thenReturn("Register window content");
 
         // Act
         AuthService.LoginResult result = authService.loginOrRegister("newuser", "newpass");
@@ -74,10 +72,12 @@ class AuthServiceTest {
         assertEquals("登录成功", result.getMessage());
         assertNotNull(result.getSessionId());
         assertEquals("Welcome to ClawWorld!", result.getBackgroundPrompt());
+        assertEquals("Register window content", result.getWindowContent());
         assertTrue(result.isNewUser());
 
         verify(accountRepository).save(any(AccountEntity.class));
         verify(backgroundPromptService).generateBackgroundPrompt(null);
+        verify(windowContentService).generateRegisterWindowContent();
     }
 
     @Test
@@ -85,12 +85,19 @@ class AuthServiceTest {
         // Arrange
         when(accountRepository.findByUsername("testuser")).thenReturn(Optional.of(testAccount));
         when(accountRepository.save(any(AccountEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(playerRepository.findById("player1")).thenReturn(Optional.of(testPlayer));
 
         Player mockPlayer = new Player();
         mockPlayer.setId("player1");
-        when(playerMapper.toDomain(any(PlayerEntity.class))).thenReturn(mockPlayer);
+        mockPlayer.setMapId("starter_village");
+        when(playerSessionService.getPlayerState("player1")).thenReturn(mockPlayer);
         when(backgroundPromptService.generateBackgroundPrompt(any())).thenReturn("Welcome back!");
+
+        GameMap mockMap = new GameMap();
+        mockMap.setId("starter_village");
+        mockMap.setName("新手村");
+        when(mapInitializationService.getMap("starter_village")).thenReturn(mockMap);
+        when(windowContentService.generateMapWindowContent(any(Player.class), any(GameMap.class)))
+            .thenReturn("Map window content");
 
         // Act
         AuthService.LoginResult result = authService.loginOrRegister("testuser", "testpass");
@@ -100,12 +107,13 @@ class AuthServiceTest {
         assertEquals("登录成功", result.getMessage());
         assertNotNull(result.getSessionId());
         assertEquals("Welcome back!", result.getBackgroundPrompt());
+        assertEquals("Map window content", result.getWindowContent());
         assertFalse(result.isNewUser());
 
         verify(accountRepository).save(any(AccountEntity.class));
-        verify(playerRepository).findById("player1");
-        verify(playerMapper).toDomain(any(PlayerEntity.class));
+        verify(playerSessionService).getPlayerState("player1");
         verify(backgroundPromptService).generateBackgroundPrompt(any());
+        verify(windowContentService).generateMapWindowContent(any(Player.class), any(GameMap.class));
     }
 
     @Test
@@ -133,6 +141,7 @@ class AuthServiceTest {
         when(accountRepository.findByUsername("testuser")).thenReturn(Optional.of(testAccount));
         when(accountRepository.save(any(AccountEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(backgroundPromptService.generateBackgroundPrompt(null)).thenReturn("Welcome!");
+        when(windowContentService.generateRegisterWindowContent()).thenReturn("Register window content");
 
         // Act
         AuthService.LoginResult result = authService.loginOrRegister("testuser", "testpass");
@@ -140,10 +149,12 @@ class AuthServiceTest {
         // Assert
         assertTrue(result.isSuccess());
         assertNotNull(result.getSessionId());
+        assertEquals("Register window content", result.getWindowContent());
         assertTrue(result.isNewUser());
 
-        verify(playerRepository, never()).findById(anyString());
+        verify(playerSessionService, never()).getPlayerState(anyString());
         verify(backgroundPromptService).generateBackgroundPrompt(null);
+        verify(windowContentService).generateRegisterWindowContent();
     }
 
     @Test
