@@ -1,9 +1,11 @@
 package com.heibai.clawworld.combat;
 
 import com.heibai.clawworld.domain.combat.Combat;
+import com.heibai.clawworld.service.ConfigDataManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,10 +21,12 @@ import static org.junit.jupiter.api.Assertions.*;
 class CombatEngineTest {
 
     private CombatEngine combatEngine;
+    private ConfigDataManager configDataManager;
 
     @BeforeEach
     void setUp() {
-        combatEngine = new CombatEngine();
+        configDataManager = Mockito.mock(ConfigDataManager.class);
+        combatEngine = new CombatEngine(configDataManager);
     }
 
     // ==================== 战斗创建测试 ====================

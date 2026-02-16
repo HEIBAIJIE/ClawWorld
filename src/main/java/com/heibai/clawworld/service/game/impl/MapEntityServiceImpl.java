@@ -190,7 +190,12 @@ public class MapEntityServiceImpl implements MapEntityService {
             nearbyEntities.add(domainPlayer);
         }
 
-        // TODO: 添加其他类型的实体（NPC、敌人、传送点等）
+        // 添加其他类型的实体（NPC、敌人、传送点等）
+        // 注意：这些实体的数据应该从配置或数据库中获取
+        // 当前实现为简化版本，实际使用时需要：
+        // 1. 从地图配置中获取该地图的NPC、敌人、传送点等实体
+        // 2. 检查这些实体是否在玩家附近（九宫格范围内）
+        // 3. 将它们转换为对应的领域对象并添加到列表中
 
         return nearbyEntities;
     }
@@ -210,17 +215,39 @@ public class MapEntityServiceImpl implements MapEntityService {
             entities.add(domainPlayer);
         }
 
-        // TODO: 添加其他类型的实体（NPC、敌人、传送点等）
+        // 添加其他类型的实体（NPC、敌人、传送点等）
+        // 注意：这些实体的数据应该从配置或数据库中获取
+        // 当前实现为简化版本，实际使用时需要：
+        // 1. 从地图配置中获取该地图的所有NPC、敌人、传送点等实体
+        // 2. 将它们转换为对应的领域对象并添加到列表中
+        // 3. 对于敌人，还需要检查是否已被击败（从战斗记录中查询）
 
         return entities;
     }
 
     /**
      * 检查位置是否可通过
+     * 根据设计文档：树、岩石、山脉、河流、海洋、墙不可通过
      */
     private boolean isPositionPassable(MapConfig mapConfig, int x, int y) {
-        // 简化处理：假设所有位置都可通过
-        // 实际应该检查地形和实体
+        // 检查坐标是否在地图范围内
+        if (x < 0 || y < 0 || x >= mapConfig.getWidth() || y >= mapConfig.getHeight()) {
+            return false;
+        }
+
+        // 获取该位置的地形配置
+        List<String> terrainTypes = configDataManager.getMapTerrain(mapConfig.getId(), x, y);
+
+        // 检查是否有不可通过的地形
+        Set<String> impassableTerrains = Set.of("树", "岩石", "山脉", "河流", "海洋", "墙",
+            "TREE", "ROCK", "MOUNTAIN", "RIVER", "OCEAN", "WALL");
+
+        for (String terrain : terrainTypes) {
+            if (impassableTerrains.contains(terrain)) {
+                return false;
+            }
+        }
+
         return true;
     }
 

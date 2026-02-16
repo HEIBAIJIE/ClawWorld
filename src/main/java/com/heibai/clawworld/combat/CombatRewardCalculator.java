@@ -1,5 +1,8 @@
 package com.heibai.clawworld.combat;
 
+import com.heibai.clawworld.service.ConfigDataManager;
+import com.heibai.clawworld.config.character.EnemyConfig;
+import com.heibai.clawworld.config.character.EnemyLootConfig;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -13,13 +16,26 @@ import java.util.Random;
 public class CombatRewardCalculator {
 
     private final Random random;
+    private final ConfigDataManager configDataManager;
 
     public CombatRewardCalculator() {
         this.random = new Random();
+        this.configDataManager = null;
     }
 
     public CombatRewardCalculator(Random random) {
         this.random = random;
+        this.configDataManager = null;
+    }
+
+    public CombatRewardCalculator(ConfigDataManager configDataManager) {
+        this.random = new Random();
+        this.configDataManager = configDataManager;
+    }
+
+    public CombatRewardCalculator(Random random, ConfigDataManager configDataManager) {
+        this.random = random;
+        this.configDataManager = configDataManager;
     }
 
     /**
@@ -32,16 +48,51 @@ public class CombatRewardCalculator {
         CombatReward reward = new CombatReward();
         reward.setPartyId(winnerPartyId);
 
-        // TODO: 从敌人配置中获取掉落信息
-        // 这里使用简化的计算
+        // 从敌人配置中获取掉落信息
+        if (configDataManager != null && enemy.getEnemyConfigId() != null) {
+            EnemyConfig enemyConfig = configDataManager.getEnemy(enemy.getEnemyConfigId());
+            if (enemyConfig != null) {
+                // 随机经验值（在配置的范围内）
+                int exp = enemyConfig.getExpMin() + random.nextInt(enemyConfig.getExpMax() - enemyConfig.getExpMin() + 1);
+                reward.setExperience(exp);
+
+                // 随机金钱（在配置的范围内）
+                int gold = enemyConfig.getGoldMin() + random.nextInt(enemyConfig.getGoldMax() - enemyConfig.getGoldMin() + 1);
+                reward.setGold(gold);
+
+                // 计算物品掉落
+                List<String> droppedItems = new ArrayList<>();
+                List<EnemyLootConfig> lootConfigs = configDataManager.getEnemyLoot(enemy.getEnemyConfigId());
+                if (lootConfigs != null) {
+                    for (EnemyLootConfig lootConfig : lootConfigs) {
+                        // 根据掉落率判断是否掉落
+                        if (random.nextDouble() < lootConfig.getDropRate()) {
+                            droppedItems.add(lootConfig.getItemId());
+                        }
+                    }
+                }
+                reward.setItems(droppedItems);
+            } else {
+                // 配置不存在，使用简化计算
+                useSimplifiedReward(enemy, reward);
+            }
+        } else {
+            // 没有配置管理器，使用简化计算
+            useSimplifiedReward(enemy, reward);
+        }
+
+        return reward;
+    }
+
+    /**
+     * 使用简化的奖励计算（当配置不可用时）
+     */
+    private void useSimplifiedReward(CombatCharacter enemy, CombatReward reward) {
         int baseExp = enemy.getMaxHealth() * 2;
         int baseGold = enemy.getMaxHealth();
-
         reward.setExperience(baseExp);
         reward.setGold(baseGold);
         reward.setItems(new ArrayList<>());
-
-        return reward;
     }
 
     /**
@@ -51,14 +102,14 @@ public class CombatRewardCalculator {
      * - 如果玩家被玩家击败，如果败方平均等级超过地图推荐等级，败方5%的金钱会被胜利方平分
      */
     public PlayerDefeatPenalty calculatePlayerDefeatPenalty(CombatCharacter player, boolean defeatedByEnemy,
-                                                            int playerLevel, int mapRecommendedLevel) {
+                                                            int playerLevel, int mapRecommendedLevel, int playerGold) {
         PlayerDefeatPenalty penalty = new PlayerDefeatPenalty();
         penalty.setPlayerId(player.getCharacterId());
 
-        // TODO: 从玩家数据中获取金钱
-        // 这里使用简化的计算
+        // 从玩家数据中获取金钱并计算惩罚
         if (playerLevel > mapRecommendedLevel) {
-            penalty.setGoldLost(0); // 需要从实际玩家数据计算5%
+            int goldLost = (int) (playerGold * 0.05); // 5%的金钱
+            penalty.setGoldLost(goldLost);
             penalty.setHasPenalty(true);
         } else {
             penalty.setGoldLost(0);

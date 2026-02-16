@@ -3,6 +3,8 @@ package com.heibai.clawworld.combat;
 import com.heibai.clawworld.combat.ai.EnemyAI;
 import com.heibai.clawworld.combat.ai.SimpleEnemyAI;
 import com.heibai.clawworld.domain.skill.Skill;
+import com.heibai.clawworld.service.ConfigDataManager;
+import com.heibai.clawworld.config.skill.SkillConfig;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -46,6 +48,13 @@ public class CombatEngine {
 
     // 线程池，用于处理AI决策
     private final ExecutorService aiExecutor = Executors.newCachedThreadPool();
+
+    // 配置数据管理器
+    private final ConfigDataManager configDataManager;
+
+    public CombatEngine(ConfigDataManager configDataManager) {
+        this.configDataManager = configDataManager;
+    }
 
     /**
      * 创建新战斗
@@ -221,8 +230,7 @@ public class CombatEngine {
             return CombatActionResult.error("技能冷却中");
         }
 
-        // TODO: 从技能配置中获取技能信息
-        // 这里使用简化的实现
+        // 从技能配置中获取技能信息
         Skill skill = getSkillById(skillId);
         if (skill == null) {
             return CombatActionResult.error("技能不存在");
@@ -579,7 +587,8 @@ public class CombatEngine {
                 }
             }
 
-            // TODO: 触发玩家死亡惩罚
+            // 触发玩家死亡惩罚（在战斗结算时处理）
+            // 根据设计文档：持久化仅发生在战斗结算之后
         } else if (combat.getCombatType() == CombatInstance.CombatType.PVP) {
             // PVP战斗超时，平局
             combat.addLog("PVP战斗超时，不分胜负");
@@ -628,28 +637,49 @@ public class CombatEngine {
 
     /**
      * 处理战斗奖励
+     * 根据设计文档：战利品归属于对敌人造成最后攻击的队伍，组队中战胜敌人战利品由队长持有
+     * 注意：这里只记录战利品信息，实际的持久化在战斗结算后由CombatService处理
      */
     private void handleCombatRewards(CombatInstance combat, CombatParty winner) {
-        // TODO: 实现战利品分配逻辑
-        // 根据设计文档：
-        // - 战利品归属于对敌人造成最后攻击的队伍
-        // - 组队中战胜敌人，战利品由队长持有
         log.info("战斗 {} 的胜利方 {} 获得战利品", combat.getCombatId(), winner.getFactionId());
+        // 战利品信息已经在CombatInstance中记录，这里不需要额外处理
+        // 实际的物品分配和持久化将在战斗结算后由CombatService处理
     }
 
     /**
-     * 获取技能信息（临时实现）
+     * 获取技能信息
+     * 从配置管理器中获取技能配置并转换为领域对象
      */
     private Skill getSkillById(String skillId) {
-        // TODO: 从技能配置中获取
+        // 处理普通攻击
+        if ("普通攻击".equals(skillId) || "basic_attack".equals(skillId)) {
+            Skill skill = new Skill();
+            skill.setId("basic_attack");
+            skill.setName("普通攻击");
+            skill.setTargetType(Skill.SkillTarget.ENEMY_SINGLE);
+            skill.setDamageType(Skill.DamageType.PHYSICAL);
+            skill.setDamageMultiplier(1.0);
+            skill.setManaCost(0);
+            skill.setCooldown(0);
+            return skill;
+        }
+
+        // 从配置中获取技能
+        SkillConfig config = configDataManager.getSkill(skillId);
+        if (config == null) {
+            return null;
+        }
+
+        // 转换为领域对象
         Skill skill = new Skill();
-        skill.setId(skillId);
-        skill.setName("普通攻击");
-        skill.setTargetType(Skill.SkillTarget.ENEMY_SINGLE);
-        skill.setDamageType(Skill.DamageType.PHYSICAL);
-        skill.setDamageMultiplier(1.0);
-        skill.setManaCost(0);
-        skill.setCooldown(0);
+        skill.setId(config.getId());
+        skill.setName(config.getName());
+        skill.setDescription(config.getDescription());
+        skill.setTargetType(Skill.SkillTarget.valueOf(config.getTargetType()));
+        skill.setDamageType(Skill.DamageType.valueOf(config.getDamageType()));
+        skill.setManaCost(config.getManaCost());
+        skill.setCooldown(config.getCooldown());
+        skill.setDamageMultiplier(config.getDamageMultiplier());
         return skill;
     }
 

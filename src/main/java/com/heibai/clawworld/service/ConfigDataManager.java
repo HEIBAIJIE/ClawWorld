@@ -17,6 +17,7 @@ import jakarta.annotation.PostConstruct;
 import java.io.InputStream;
 import java.security.MessageDigest;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 配置数据管理器 - 统一入口，委托给各个Loader
@@ -208,6 +209,15 @@ public class ConfigDataManager {
 
     public List<MapTerrainConfig> getMapTerrain(String mapId) {
         return mapConfigLoader.getMapTerrain(mapId);
+    }
+
+    public List<String> getMapTerrain(String mapId, int x, int y) {
+        List<MapTerrainConfig> terrains = mapConfigLoader.getMapTerrain(mapId);
+        return terrains.stream()
+            .filter(t -> t.getX() == x && t.getY() == y)
+            .flatMap(t -> Arrays.stream(t.getTerrainTypes().split(",")))
+            .map(String::trim)
+            .collect(Collectors.toList());
     }
 
     public List<MapEntityConfig> getMapEntities(String mapId) {

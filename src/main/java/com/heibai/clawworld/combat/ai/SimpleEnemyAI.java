@@ -2,6 +2,8 @@ package com.heibai.clawworld.combat.ai;
 
 import com.heibai.clawworld.combat.CombatCharacter;
 import com.heibai.clawworld.combat.CombatInstance;
+import com.heibai.clawworld.service.ConfigDataManager;
+import com.heibai.clawworld.config.skill.SkillConfig;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Comparator;
@@ -20,9 +22,18 @@ import java.util.Random;
 public class SimpleEnemyAI implements EnemyAI {
 
     private final Random random = new Random();
+    private final ConfigDataManager configDataManager;
 
     // 普通攻击技能ID
     private static final String BASIC_ATTACK_SKILL_ID = "普通攻击";
+
+    public SimpleEnemyAI() {
+        this.configDataManager = null; // 默认构造函数，用于不需要配置的场景
+    }
+
+    public SimpleEnemyAI(ConfigDataManager configDataManager) {
+        this.configDataManager = configDataManager;
+    }
 
     @Override
     public AIDecision makeDecision(CombatInstance combat, CombatCharacter enemy) {
@@ -71,8 +82,14 @@ public class SimpleEnemyAI implements EnemyAI {
         List<String> availableSkills = skills.stream()
             .filter(skillId -> !enemy.isSkillOnCooldown(skillId))
             .filter(skillId -> {
-                // TODO: 从技能配置中获取法力消耗
-                // 这里简化处理，假设所有技能都可用
+                // 从技能配置中获取法力消耗
+                if (configDataManager != null) {
+                    SkillConfig skillConfig = configDataManager.getSkill(skillId);
+                    if (skillConfig != null) {
+                        return enemy.getCurrentMana() >= skillConfig.getManaCost();
+                    }
+                }
+                // 如果没有配置管理器或找不到技能配置，假设可用
                 return true;
             })
             .toList();

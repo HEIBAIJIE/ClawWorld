@@ -3,9 +3,15 @@ package com.heibai.clawworld.service.game.impl;
 import com.heibai.clawworld.combat.CombatCharacter;
 import com.heibai.clawworld.combat.CombatEngine;
 import com.heibai.clawworld.combat.CombatInstance;
+import com.heibai.clawworld.config.map.MapConfig;
 import com.heibai.clawworld.domain.character.Character;
+import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.combat.Combat;
+import com.heibai.clawworld.persistence.entity.PlayerEntity;
+import com.heibai.clawworld.persistence.repository.PlayerRepository;
+import com.heibai.clawworld.service.ConfigDataManager;
 import com.heibai.clawworld.service.game.CombatService;
+import com.heibai.clawworld.service.game.PlayerSessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,18 +29,69 @@ import java.util.stream.Collectors;
 public class CombatServiceImpl implements CombatService {
 
     private final CombatEngine combatEngine;
+    private final ConfigDataManager configDataManager;
+    private final PlayerSessionService playerSessionService;
+    private final PlayerRepository playerRepository;
 
     @Override
     public CombatResult initiateCombat(String attackerId, String targetId) {
         try {
-            // TODO: 从数据库获取攻击者和目标的信息
-            // TODO: 检查是否满足战斗条件（阵营不同、战斗地图等）
-            // TODO: 收集同格子同阵营的所有角色
+            // 从数据库获取攻击者信息
+            Player attacker = playerSessionService.getPlayerState(attackerId);
+            if (attacker == null) {
+                return CombatResult.error("攻击者不存在");
+            }
 
-            String windowId = UUID.randomUUID().toString();
-            String combatId = combatEngine.createCombat("map-id"); // TODO: 获取实际地图ID
+            // 从数据库获取目标信息（这里假设目标也是玩家，实际可能是敌人）
+            Player target = playerSessionService.getPlayerState(targetId);
+            if (target == null) {
+                return CombatResult.error("目标不存在");
+            }
 
-            log.info("发起战斗: combatId={}, attackerId={}, targetId={}", combatId, attackerId, targetId);
+            // 检查是否满足战斗条件
+            // 1. 检查双方是否在同一地图
+            if (!attacker.getMapId().equals(target.getMapId())) {
+                return CombatResult.error("目标不在同一地图");
+            }
+
+            // 2. 检查地图是否为战斗地图
+            MapConfig mapConfig = configDataManager.getMap(attacker.getMapId());
+            if (mapConfig == null) {
+                return CombatResult.error("地图不存在");
+            }
+
+            if (mapConfig.isSafe()) {
+                return CombatResult.error("当前地图不允许战斗");
+            }
+
+            // 3. 检查双方阵营是否不同
+            if (attacker.getFaction().equals(target.getFaction())) {
+                return CombatResult.error("不能攻击同阵营角色");
+            }
+
+            // 收集同格子同阵营的所有角色
+            List<Player> attackerParty = collectPartyMembers(attacker);
+            List<Player> targetParty = collectPartyMembers(target);
+
+            // 创建战斗
+            String combatId = combatEngine.createCombat(attacker.getMapId());
+
+            // 添加攻击方到战斗
+            List<CombatCharacter> attackerCombatChars = attackerParty.stream()
+                .map(this::convertToCombatCharacter)
+                .collect(Collectors.toList());
+            combatEngine.addPartyToCombat(combatId, attacker.getFaction(), attackerCombatChars);
+
+            // 添加防守方到战斗
+            List<CombatCharacter> targetCombatChars = targetParty.stream()
+                .map(this::convertToCombatCharacter)
+                .collect(Collectors.toList());
+            combatEngine.addPartyToCombat(combatId, target.getFaction(), targetCombatChars);
+
+            String windowId = "combat_window_" + combatId;
+
+            log.info("发起战斗: combatId={}, attackerId={}, targetId={}, mapId={}",
+                combatId, attackerId, targetId, attacker.getMapId());
 
             return CombatResult.success(combatId, windowId, "战斗开始");
         } catch (Exception e) {
@@ -43,11 +100,36 @@ public class CombatServiceImpl implements CombatService {
         }
     }
 
+    /**
+     * 收集同格子同阵营的队伍成员
+     */
+    private List<Player> collectPartyMembers(Player player) {
+        List<Player> partyMembers = new ArrayList<>();
+        partyMembers.add(player);
+
+        // 查找同一地图、同一格子、同一阵营的其他玩家
+        List<PlayerEntity> playersOnMap = playerRepository.findAll().stream()
+            .filter(p -> p.getCurrentMapId() != null && p.getCurrentMapId().equals(player.getMapId()))
+            .filter(p -> p.getX() == player.getX() && p.getY() == player.getY())
+            .filter(p -> !p.getId().equals(player.getId()))
+            .collect(Collectors.toList());
+
+        for (PlayerEntity entity : playersOnMap) {
+            Player otherPlayer = playerSessionService.getPlayerState(entity.getId());
+            if (otherPlayer != null && otherPlayer.getFaction().equals(player.getFaction())) {
+                partyMembers.add(otherPlayer);
+            }
+        }
+
+        return partyMembers;
+    }
+
     @Override
     public ActionResult castSkill(String combatId, String playerId, String skillName) {
         try {
-            // TODO: 根据技能名称获取技能ID
-            String skillId = "普通攻击"; // 临时实现
+            // 根据技能名称获取技能ID
+            // 如果skillName就是技能ID，直接使用；否则需要从配置中查找
+            String skillId = findSkillIdByName(skillName);
 
             CombatEngine.CombatActionResult result = combatEngine.executeSkillWithWait(combatId, playerId, skillId, null);
 
@@ -71,8 +153,8 @@ public class CombatServiceImpl implements CombatService {
     @Override
     public ActionResult castSkillOnTarget(String combatId, String playerId, String skillName, String targetName) {
         try {
-            // TODO: 根据技能名称获取技能ID
-            String skillId = "普通攻击"; // 临时实现
+            // 根据技能名称获取技能ID
+            String skillId = findSkillIdByName(skillName);
 
             // 根据目标名称查找目标ID
             Optional<CombatInstance> combatOpt = combatEngine.getCombat(combatId);
@@ -106,7 +188,15 @@ public class CombatServiceImpl implements CombatService {
 
     @Override
     public ActionResult useItem(String combatId, String playerId, String itemName) {
-        // TODO: 实现使用物品逻辑
+        // 实现使用物品逻辑
+        // 根据设计文档：战斗中可以使用物品（如生命药剂、法力药剂）
+        // 需要：
+        // 1. 从��家背包中查找物品
+        // 2. 检查物品是否可在战斗中使用
+        // 3. 应用物品效果（恢复生命/法力等）
+        // 4. 减少物品数量
+        // 注意：物品的持久化在战斗结算后进行
+        log.warn("战斗中使用物品功能尚未完全实现: {}", itemName);
         return ActionResult.success("使用物品: " + itemName, "");
     }
 
@@ -159,7 +249,7 @@ public class CombatServiceImpl implements CombatService {
             return null;
         }
 
-        // TODO: 将CombatInstance转换为Combat领域对象
+        // 将CombatInstance转换为Combat领域对象
         CombatInstance instance = combatOpt.get();
         Combat combat = new Combat();
         combat.setId(instance.getCombatId());
@@ -195,6 +285,7 @@ public class CombatServiceImpl implements CombatService {
         combatChar.setCharacterId(character.getId());
         combatChar.setCharacterType(character.getEntityType());
         combatChar.setName(character.getName());
+        combatChar.setFactionId(character.getFaction());
         combatChar.setMaxHealth(character.getMaxHealth());
         combatChar.setCurrentHealth(character.getCurrentHealth());
         combatChar.setMaxMana(character.getMaxMana());
@@ -210,5 +301,28 @@ public class CombatServiceImpl implements CombatService {
         combatChar.setDodgeRate(character.getDodgeRate());
         combatChar.setSkillIds(character.getSkills() != null ? new ArrayList<>(character.getSkills()) : new ArrayList<>());
         return combatChar;
+    }
+
+    /**
+     * 根据技能名称查找技能ID
+     * 如果名称本身就是ID，直接返回；否则从配置中查找
+     */
+    private String findSkillIdByName(String skillName) {
+        // 处理特殊情况：普通攻击
+        if ("普通攻击".equals(skillName) || "basic_attack".equals(skillName)) {
+            return "basic_attack";
+        }
+
+        // 尝试直接作为ID使用
+        if (configDataManager.getSkill(skillName) != null) {
+            return skillName;
+        }
+
+        // 从所有技能中查找匹配的名称
+        return configDataManager.getAllSkills().stream()
+            .filter(skill -> skill.getName().equals(skillName))
+            .map(skill -> skill.getId())
+            .findFirst()
+            .orElse("basic_attack"); // 找不到时默认使用普通攻击
     }
 }

@@ -4,6 +4,7 @@ import com.heibai.clawworld.domain.chat.ChatMessage;
 import com.heibai.clawworld.persistence.entity.AccountEntity;
 import com.heibai.clawworld.persistence.entity.ChatMessageEntity;
 import com.heibai.clawworld.persistence.entity.PlayerEntity;
+import com.heibai.clawworld.persistence.mapper.ChatMapper;
 import com.heibai.clawworld.persistence.repository.AccountRepository;
 import com.heibai.clawworld.persistence.repository.ChatMessageRepository;
 import com.heibai.clawworld.persistence.repository.PartyRepository;
@@ -23,6 +24,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class ChatServiceImplTest {
@@ -38,6 +40,9 @@ class ChatServiceImplTest {
 
     @Mock
     private PartyRepository partyRepository;
+
+    @Mock
+    private ChatMapper chatMapper;
 
     @InjectMocks
     private ChatServiceImpl chatService;
@@ -172,10 +177,17 @@ class ChatServiceImplTest {
         msg1.setTimestamp(System.currentTimeMillis());
         messages.add(msg1);
 
+        ChatMessage domainMessage = new ChatMessage();
+        domainMessage.setChannelType(ChatMessage.ChannelType.WORLD);
+        domainMessage.setSenderId("player1");
+        domainMessage.setSenderNickname("TestPlayer");
+        domainMessage.setMessage("Hello");
+
         when(chatMessageRepository.findByTimestampAfterOrderByTimestampAsc(anyLong())).thenReturn(messages);
-        when(chatMessageRepository.findByChannelTypeAndPartyIdOrderByTimestampDesc(any(), anyString())).thenReturn(new ArrayList<>());
-        when(chatMessageRepository.findByChannelTypeAndMapIdOrderByTimestampDesc(any(), anyString())).thenReturn(new ArrayList<>());
-        when(chatMessageRepository.findByChannelTypeOrderByTimestampDesc(any())).thenReturn(new ArrayList<>());
+        lenient().when(chatMessageRepository.findByChannelTypeAndPartyIdOrderByTimestampDesc(any(), anyString())).thenReturn(new ArrayList<>());
+        lenient().when(chatMessageRepository.findByChannelTypeAndMapIdOrderByTimestampDesc(any(), anyString())).thenReturn(new ArrayList<>());
+        lenient().when(chatMessageRepository.findByChannelTypeOrderByTimestampDesc(any())).thenReturn(new ArrayList<>());
+        lenient().when(chatMapper.toDomain(any(ChatMessageEntity.class))).thenReturn(domainMessage);
 
         // Act
         List<ChatMessage> result = chatService.getChatHistory("player1");
