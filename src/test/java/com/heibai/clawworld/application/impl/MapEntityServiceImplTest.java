@@ -4,7 +4,6 @@ import com.heibai.clawworld.application.service.*;
 import com.heibai.clawworld.infrastructure.config.data.map.MapConfig;
 import com.heibai.clawworld.domain.map.MapEntity;
 import com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity;
-import com.heibai.clawworld.infrastructure.persistence.mapper.PlayerMapper;
 import com.heibai.clawworld.infrastructure.persistence.repository.EnemyInstanceRepository;
 import com.heibai.clawworld.infrastructure.persistence.repository.NpcShopInstanceRepository;
 import com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository;
@@ -16,12 +15,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,9 +28,6 @@ class MapEntityServiceImplTest {
 
     @Mock
     private PlayerRepository playerRepository;
-
-    @Mock
-    private PlayerMapper playerMapper;
 
     @Mock
     private ConfigDataManager configDataManager;
@@ -45,6 +41,22 @@ class MapEntityServiceImplTest {
     @Mock
     private NpcShopInstanceRepository npcShopInstanceRepository;
 
+    // 新增的委托服务
+    @Mock
+    private PathfindingService pathfindingService;
+
+    @Mock
+    private MapEntityQueryService mapEntityQueryService;
+
+    @Mock
+    private TeleportService teleportService;
+
+    @Mock
+    private DialogueService dialogueService;
+
+    @Mock
+    private RestService restService;
+
     @Mock
     private PartyService partyService;
 
@@ -53,6 +65,9 @@ class MapEntityServiceImplTest {
 
     @Mock
     private CombatService combatService;
+
+    @Mock
+    private CharacterInfoService characterInfoService;
 
     @InjectMocks
     private MapEntityServiceImpl mapEntityService;
@@ -81,6 +96,8 @@ class MapEntityServiceImplTest {
         // Arrange
         when(playerRepository.findById("player1")).thenReturn(Optional.of(testPlayer));
         when(configDataManager.getMap("map1")).thenReturn(testMap);
+        when(pathfindingService.isPositionPassable("map1", 6, 6)).thenReturn(true);
+        when(pathfindingService.findPath("map1", 5, 5, 6, 6)).thenReturn(List.of(new int[]{6, 6}));
         when(playerRepository.save(any(PlayerEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
@@ -168,6 +185,9 @@ class MapEntityServiceImplTest {
     void testInteract_Talk() {
         // Arrange
         when(playerRepository.findById("player1")).thenReturn(Optional.of(testPlayer));
+        when(dialogueService.talk("player1", "npc1")).thenReturn(
+                DialogueService.DialogueResult.success("与 npc1 对话", List.of("你好"))
+        );
 
         // Act
         MapEntityService.InteractionResult result = mapEntityService.interact("player1", "npc1", "talk");
@@ -180,26 +200,27 @@ class MapEntityServiceImplTest {
     @Test
     void testGetNearbyInteractableEntities_ReturnsEntities() {
         // Arrange
-        when(playerRepository.findById("player1")).thenReturn(Optional.of(testPlayer));
-        when(playerRepository.findAll()).thenReturn(Collections.singletonList(testPlayer));
+        when(mapEntityQueryService.getNearbyInteractableEntities("player1")).thenReturn(new ArrayList<>());
 
         // Act
         List<MapEntity> result = mapEntityService.getNearbyInteractableEntities("player1");
 
         // Assert
         assertNotNull(result);
+        verify(mapEntityQueryService).getNearbyInteractableEntities("player1");
     }
 
     @Test
     void testGetMapEntities_ReturnsEntities() {
         // Arrange
-        when(playerRepository.findAll()).thenReturn(Collections.singletonList(testPlayer));
+        when(mapEntityQueryService.getMapEntities("map1")).thenReturn(new ArrayList<>());
 
         // Act
         List<MapEntity> result = mapEntityService.getMapEntities("map1");
 
         // Assert
         assertNotNull(result);
+        verify(mapEntityQueryService).getMapEntities("map1");
     }
 
     @Test
