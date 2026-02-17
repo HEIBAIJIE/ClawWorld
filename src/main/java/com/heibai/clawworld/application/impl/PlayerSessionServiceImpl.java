@@ -9,6 +9,7 @@ import com.heibai.clawworld.domain.item.Equipment;
 import com.heibai.clawworld.domain.item.Item;
 import com.heibai.clawworld.domain.item.Rarity;
 import com.heibai.clawworld.domain.map.GameMap;
+import com.heibai.clawworld.domain.service.PlayerStatsService;
 import com.heibai.clawworld.infrastructure.persistence.entity.AccountEntity;
 import com.heibai.clawworld.infrastructure.persistence.entity.PartyEntity;
 import com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity;
@@ -36,6 +37,7 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
     private final PartyRepository partyRepository;
     private final PlayerMapper playerMapper;
     private final ConfigDataManager configDataManager;
+    private final PlayerStatsService playerStatsService;
     private final com.heibai.clawworld.infrastructure.factory.MapInitializationService mapInitializationService;
 
     @Override
@@ -91,9 +93,9 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
         // 初始化金钱
         player.setGold(100);
 
-        // 应用职业基础属性
-        Role role = convertRoleConfigToRole(roleConfig);
-        player.applyRoleStats(role);
+        // 应用职业基础属性（使用领域服务）
+        Role role = playerStatsService.convertRoleConfigToRole(roleConfig);
+        playerStatsService.recalculateStats(player, role);
 
         // 初始化当前生命和法力
         player.setCurrentHealth(player.getMaxHealth());
@@ -204,6 +206,16 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
         player.setInventory(inventory);
 
         return player;
+    }
+
+    @Override
+    @Transactional
+    public void savePlayerState(Player player) {
+        if (player == null || player.getId() == null) {
+            return;
+        }
+        PlayerEntity entity = playerMapper.toEntity(player);
+        playerRepository.save(entity);
     }
 
     @Override
@@ -392,12 +404,8 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
                 player.setVitality(0);
                 player.setFreeAttributePoints(player.getFreeAttributePoints() + totalPoints);
 
-                // 重新计算属性
-                RoleConfig roleConfig = configDataManager.getRole(player.getRoleId());
-                if (roleConfig != null) {
-                    Role role = convertRoleConfigToRole(roleConfig);
-                    player.applyRoleStats(role);
-                }
+                // 重新计算属性（使用领域服务）
+                playerStatsService.recalculateStats(player);
                 break;
             default:
                 return OperationResult.error("未知的物品效果");
@@ -450,12 +458,8 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
         player.getEquipment().put(slot, equipment);
         player.getInventory().remove(targetSlot);
 
-        // 重新计算属性
-        RoleConfig roleConfig = configDataManager.getRole(player.getRoleId());
-        if (roleConfig != null) {
-            Role role = convertRoleConfigToRole(roleConfig);
-            player.applyRoleStats(role);
-        }
+        // 重新计算属性（使用领域服务）
+        playerStatsService.recalculateStats(player);
 
         // 保存玩家状态
         PlayerEntity entity = playerMapper.toEntity(player);
@@ -504,12 +508,8 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
 
         player.setFreeAttributePoints(player.getFreeAttributePoints() - amount);
 
-        // 重新计算属性
-        RoleConfig roleConfig = configDataManager.getRole(player.getRoleId());
-        if (roleConfig != null) {
-            Role role = convertRoleConfigToRole(roleConfig);
-            player.applyRoleStats(role);
-        }
+        // 重新计算属性（使用领域服务）
+        playerStatsService.recalculateStats(player);
 
         // 保存玩家状态
         PlayerEntity entity = playerMapper.toEntity(player);
@@ -549,39 +549,6 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
         }
 
         return OperationResult.success("等待 " + seconds + " 秒完成");
-    }
-
-    /**
-     * 转换RoleConfig到Role领域对象
-     */
-    private Role convertRoleConfigToRole(RoleConfig config) {
-        Role role = new Role();
-        role.setId(config.getId());
-        role.setName(config.getName());
-        role.setDescription(config.getDescription());
-        role.setBaseHealth(config.getBaseHealth());
-        role.setBaseMana(config.getBaseMana());
-        role.setBasePhysicalAttack(config.getBasePhysicalAttack());
-        role.setBasePhysicalDefense(config.getBasePhysicalDefense());
-        role.setBaseMagicAttack(config.getBaseMagicAttack());
-        role.setBaseMagicDefense(config.getBaseMagicDefense());
-        role.setBaseSpeed(config.getBaseSpeed());
-        role.setBaseCritRate(config.getBaseCritRate());
-        role.setBaseCritDamage(config.getBaseCritDamage());
-        role.setBaseHitRate(config.getBaseHitRate());
-        role.setBaseDodgeRate(config.getBaseDodgeRate());
-        role.setHealthPerLevel(config.getHealthPerLevel());
-        role.setManaPerLevel(config.getManaPerLevel());
-        role.setPhysicalAttackPerLevel(config.getPhysicalAttackPerLevel());
-        role.setPhysicalDefensePerLevel(config.getPhysicalDefensePerLevel());
-        role.setMagicAttackPerLevel(config.getMagicAttackPerLevel());
-        role.setMagicDefensePerLevel(config.getMagicDefensePerLevel());
-        role.setSpeedPerLevel(config.getSpeedPerLevel());
-        role.setCritRatePerLevel(config.getCritRatePerLevel());
-        role.setCritDamagePerLevel(config.getCritDamagePerLevel());
-        role.setHitRatePerLevel(config.getHitRatePerLevel());
-        role.setDodgeRatePerLevel(config.getDodgeRatePerLevel());
-        return role;
     }
 
     /**

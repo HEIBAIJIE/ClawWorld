@@ -25,6 +25,12 @@ public interface PlayerSessionService {
     Player getPlayerState(String playerId);
 
     /**
+     * 保存玩家状态
+     * @param player 玩家对象
+     */
+    void savePlayerState(Player player);
+
+    /**
      * 获取玩家详细状态信息（用于inspect self指令）
      * @param playerId 玩家ID
      * @return 详细状态信息（纯文本）

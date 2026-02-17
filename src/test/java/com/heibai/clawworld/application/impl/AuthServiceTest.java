@@ -5,6 +5,7 @@ import com.heibai.clawworld.application.service.MapEntityService;
 import com.heibai.clawworld.application.service.PlayerSessionService;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.map.GameMap;
+import com.heibai.clawworld.domain.service.PlayerLevelService;
 import com.heibai.clawworld.infrastructure.factory.MapInitializationService;
 import com.heibai.clawworld.infrastructure.persistence.entity.AccountEntity;
 import com.heibai.clawworld.infrastructure.persistence.repository.AccountRepository;
@@ -52,6 +53,9 @@ class AuthServiceTest {
 
     @Mock
     private ChatService chatService;
+
+    @Mock
+    private PlayerLevelService playerLevelService;
 
     @Mock
     private com.heibai.clawworld.infrastructure.persistence.repository.TradeRepository tradeRepository;
@@ -106,7 +110,9 @@ class AuthServiceTest {
         Player mockPlayer = new Player();
         mockPlayer.setId("player1");
         mockPlayer.setMapId("starter_village");
+        mockPlayer.setRoleId("warrior");
         when(playerSessionService.getPlayerState("player1")).thenReturn(mockPlayer);
+        when(playerLevelService.processLevelUp(any(Player.class))).thenReturn(false);
 
         // Mock trade cleanup
         when(tradeRepository.findActiveTradesByPlayerId(any(), anyString())).thenReturn(new ArrayList<>());
@@ -133,7 +139,8 @@ class AuthServiceTest {
         assertFalse(result.isNewUser());
 
         verify(accountRepository).save(any(AccountEntity.class));
-        verify(playerSessionService).getPlayerState("player1");
+        verify(playerSessionService, times(2)).getPlayerState("player1"); // 调用两次：升级前和升级后
+        verify(playerLevelService).processLevelUp(any(Player.class));
         verify(backgroundLogGenerator).generateBackgroundLogs(any());
     }
 

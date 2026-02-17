@@ -135,15 +135,23 @@ class CombatEngineTest {
     }
 
     @Test
-    @DisplayName("跳过回合 - 不是玩家回合")
+    @DisplayName("跳过回合 - 不是该角色的回合")
     void testSkipTurn_NotPlayerTurn() {
         String combatId = combatEngine.createCombat("map-1");
 
+        // 创建两个角色，速度不同
+        CombatCharacter player1 = createTestCharacter("player1", "玩家1", 100, 50);
+        player1.setSpeed(100);
+        CombatCharacter player2 = createTestCharacter("player2", "玩家2", 100, 50);
+        player2.setSpeed(200); // player2 速度更快，会先行动
+
         List<CombatCharacter> characters = new ArrayList<>();
-        characters.add(createTestCharacter("player1", "玩家1", 100, 50));
+        characters.add(player1);
+        characters.add(player2);
 
         combatEngine.addPartyToCombat(combatId, "player_faction", characters);
 
+        // player1 尝试跳过回合，但应该是 player2 的回合（因为 player2 速度更快）
         CombatEngine.CombatActionResult result = combatEngine.skipTurn(combatId, "player1");
 
         assertFalse(result.isSuccess());
@@ -268,9 +276,8 @@ class CombatEngineTest {
         assertEquals(0, entry.getProgress());
         assertFalse(entry.isReady());
 
-        for (int i = 0; i < 100; i++) {
-            entry.increaseProgress();
-        }
+        // 使用 advanceByTime 推进进度，speed=100，需要100个时间单位到达10000
+        entry.advanceByTime(100);
 
         assertEquals(10000, entry.getProgress());
         assertTrue(entry.isReady());
@@ -291,8 +298,8 @@ class CombatEngineTest {
     }
 
     @Test
-    @DisplayName("战斗实例 - 推进所有行动条")
-    void testCombatInstance_AdvanceActionBars() {
+    @DisplayName("战斗实例 - CTB行动顺序")
+    void testCombatInstance_CTBActionOrder() {
         CombatInstance combat = new CombatInstance("test-combat", "map-1");
 
         CombatCharacter char1 = createTestCharacter("char1", "角色1", 100, 50);
@@ -307,12 +314,8 @@ class CombatEngineTest {
 
         combat.addParty("faction1", party);
 
-        // 推进行动条
-        for (int i = 0; i < 100; i++) {
-            combat.advanceActionBars();
-        }
-
-        // char2速度更快，应该先准备好
+        // getCurrentTurnCharacterId 会自动计算并推进行动条
+        // char2速度更快（150 vs 100），应该先行动
         Optional<String> currentTurn = combat.getCurrentTurnCharacterId();
         assertTrue(currentTurn.isPresent());
         assertEquals("char2", currentTurn.get());

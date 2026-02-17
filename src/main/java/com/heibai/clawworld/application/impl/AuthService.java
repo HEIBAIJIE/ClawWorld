@@ -7,6 +7,7 @@ import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.chat.ChatMessage;
 import com.heibai.clawworld.domain.map.GameMap;
 import com.heibai.clawworld.domain.map.MapEntity;
+import com.heibai.clawworld.domain.service.PlayerLevelService;
 import com.heibai.clawworld.infrastructure.factory.MapInitializationService;
 import com.heibai.clawworld.infrastructure.persistence.entity.AccountEntity;
 import com.heibai.clawworld.infrastructure.persistence.repository.AccountRepository;
@@ -36,6 +37,7 @@ public class AuthService {
     private final MapInitializationService mapInitializationService;
     private final MapEntityService mapEntityService;
     private final ChatService chatService;
+    private final PlayerLevelService playerLevelService;
     private final com.heibai.clawworld.infrastructure.persistence.repository.TradeRepository tradeRepository;
     private final com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository playerRepository;
 
@@ -91,7 +93,10 @@ public class AuthService {
                 cleanupPlayerCombatState(player);
 
                 // 检查并处理升级（处理离线期间可能获得的经验）
-                checkAndProcessLevelUp(account.getPlayerId());
+                if (playerLevelService.processLevelUp(player)) {
+                    // 升级后保存玩家状态
+                    playerSessionService.savePlayerState(player);
+                }
                 // 重新获取玩家信息（升级后数据可能已更新）
                 player = playerSessionService.getPlayerState(account.getPlayerId());
             }
@@ -340,41 +345,6 @@ public class AuthService {
 
         public boolean isNewUser() {
             return isNewUser;
-        }
-    }
-
-    /**
-     * 检查并处理玩家升级
-     */
-    private void checkAndProcessLevelUp(String playerId) {
-        Optional<com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity> playerOpt =
-            playerRepository.findById(playerId);
-        if (playerOpt.isEmpty()) {
-            return;
-        }
-
-        com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity player = playerOpt.get();
-        int requiredExp = com.heibai.clawworld.domain.character.Character.calculateExperienceForLevel(player.getLevel());
-        boolean leveledUp = false;
-
-        while (player.getExperience() >= requiredExp) {
-            // 扣除升级所需经验
-            player.setExperience(player.getExperience() - requiredExp);
-
-            // 升级
-            player.setLevel(player.getLevel() + 1);
-
-            // 获得5个属性点
-            player.setFreeAttributePoints(player.getFreeAttributePoints() + 5);
-
-            leveledUp = true;
-
-            // 计算下一级所需经验
-            requiredExp = com.heibai.clawworld.domain.character.Character.calculateExperienceForLevel(player.getLevel());
-        }
-
-        if (leveledUp) {
-            playerRepository.save(player);
         }
     }
 }

@@ -2,7 +2,9 @@ package com.heibai.clawworld.application.impl;
 
 import com.heibai.clawworld.infrastructure.config.data.character.RoleConfig;
 import com.heibai.clawworld.domain.character.Player;
+import com.heibai.clawworld.domain.character.Role;
 import com.heibai.clawworld.domain.map.GameMap;
+import com.heibai.clawworld.domain.service.PlayerStatsService;
 import com.heibai.clawworld.infrastructure.factory.MapInitializationService;
 import com.heibai.clawworld.infrastructure.persistence.entity.AccountEntity;
 import com.heibai.clawworld.infrastructure.persistence.entity.PartyEntity;
@@ -43,6 +45,9 @@ class PlayerSessionServiceImplTest {
 
     @Mock
     private ConfigDataManager configDataManager;
+
+    @Mock
+    private PlayerStatsService playerStatsService;
 
     @Mock
     private MapInitializationService mapInitializationService;
@@ -110,6 +115,7 @@ class PlayerSessionServiceImplTest {
         when(partyRepository.save(any(PartyEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(accountRepository.save(any(AccountEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(playerMapper.toEntity(any(Player.class))).thenReturn(testPlayer);
+        when(playerStatsService.convertRoleConfigToRole(any(RoleConfig.class))).thenReturn(new Role());
 
         // Mock map and window content
         GameMap mockMap = new GameMap();
@@ -128,6 +134,7 @@ class PlayerSessionServiceImplTest {
         verify(playerRepository, atLeastOnce()).save(any(PlayerEntity.class));
         verify(partyRepository).save(any(PartyEntity.class));
         verify(accountRepository).save(any(AccountEntity.class));
+        verify(playerStatsService).recalculateStats(any(Player.class), any(Role.class));
     }
 
     @Test
@@ -171,7 +178,6 @@ class PlayerSessionServiceImplTest {
 
         when(playerRepository.findById("player1")).thenReturn(Optional.of(testPlayer));
         when(playerMapper.toDomain(testPlayer)).thenReturn(player);
-        when(configDataManager.getRole("warrior")).thenReturn(testRole);
         when(playerMapper.toEntity(any(Player.class))).thenReturn(testPlayer);
         when(playerRepository.save(any(PlayerEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -182,6 +188,7 @@ class PlayerSessionServiceImplTest {
         assertTrue(result.isSuccess());
         assertTrue(result.getMessage().contains("添加属性点成功"));
         verify(playerRepository).save(any(PlayerEntity.class));
+        verify(playerStatsService).recalculateStats(any(Player.class));
     }
 
     @Test
