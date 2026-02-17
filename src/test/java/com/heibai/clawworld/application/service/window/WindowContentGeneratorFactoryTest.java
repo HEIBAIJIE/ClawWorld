@@ -1,5 +1,7 @@
 package com.heibai.clawworld.application.service.window;
 
+import com.heibai.clawworld.application.impl.window.WindowContentGenerator;
+import com.heibai.clawworld.application.impl.window.WindowContentGeneratorFactory;
 import com.heibai.clawworld.interfaces.command.CommandContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,7 +13,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 /**
  * WindowContentGeneratorFactory 单元测试

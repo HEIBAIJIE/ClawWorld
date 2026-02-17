@@ -1,6 +1,16 @@
 package com.heibai.clawworld.interfaces.command;
 
-import com.heibai.clawworld.interfaces.command.impl.*;
+import com.heibai.clawworld.interfaces.command.impl.combat.CastCommand;
+import com.heibai.clawworld.interfaces.command.impl.combat.CastTargetCommand;
+import com.heibai.clawworld.interfaces.command.impl.combat.EndCombatCommand;
+import com.heibai.clawworld.interfaces.command.impl.combat.WaitCombatCommand;
+import com.heibai.clawworld.interfaces.command.impl.map.*;
+import com.heibai.clawworld.interfaces.command.impl.party.PartyEndCommand;
+import com.heibai.clawworld.interfaces.command.impl.party.PartyLeaveCommand;
+import com.heibai.clawworld.interfaces.command.impl.player.AttributeAddCommand;
+import com.heibai.clawworld.interfaces.command.impl.player.EquipCommand;
+import com.heibai.clawworld.interfaces.command.impl.trade.TradeLockCommand;
+import com.heibai.clawworld.interfaces.command.impl.trade.TradeMoneyCommand;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

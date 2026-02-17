@@ -1,8 +1,8 @@
 package com.heibai.clawworld.application.impl;
 
 import com.heibai.clawworld.application.service.WindowContentService;
-import com.heibai.clawworld.application.service.window.WindowContentGenerator;
-import com.heibai.clawworld.application.service.window.WindowContentGeneratorFactory;
+import com.heibai.clawworld.application.impl.window.WindowContentGenerator;
+import com.heibai.clawworld.application.impl.window.WindowContentGeneratorFactory;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.chat.ChatMessage;
 import com.heibai.clawworld.domain.map.GameMap;

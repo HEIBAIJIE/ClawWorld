@@ -1,7 +1,16 @@
 package com.heibai.clawworld.interfaces.command;
 
-import com.heibai.clawworld.interfaces.command.impl.*;
 import com.heibai.clawworld.application.service.*;
+import com.heibai.clawworld.interfaces.command.impl.combat.CastCommand;
+import com.heibai.clawworld.interfaces.command.impl.combat.CastTargetCommand;
+import com.heibai.clawworld.interfaces.command.impl.combat.UseItemCombatCommand;
+import com.heibai.clawworld.interfaces.command.impl.map.*;
+import com.heibai.clawworld.interfaces.command.impl.party.*;
+import com.heibai.clawworld.interfaces.command.impl.player.AttributeAddCommand;
+import com.heibai.clawworld.interfaces.command.impl.player.EquipCommand;
+import com.heibai.clawworld.interfaces.command.impl.shop.ShopBuyCommand;
+import com.heibai.clawworld.interfaces.command.impl.shop.ShopSellCommand;
+import com.heibai.clawworld.interfaces.command.impl.trade.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
