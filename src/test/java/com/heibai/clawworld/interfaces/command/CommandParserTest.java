@@ -73,16 +73,11 @@ class CommandParserTest {
     }
 
     @Test
-    @DisplayName("解析查看角色指令")
-    void testParseInspectCharacterCommand() throws CommandParser.CommandParseException {
-        Command command = parser.parse("inspect 哥布林", CommandContext.WindowType.MAP);
-
-        assertNotNull(command);
-        assertTrue(command instanceof InspectCharacterCommand);
-        assertEquals(Command.CommandType.INSPECT_CHARACTER, command.getType());
-
-        InspectCharacterCommand inspectCommand = (InspectCharacterCommand) command;
-        assertEquals("哥布林", inspectCommand.getCharacterName());
+    @DisplayName("解析查看角色指令 - 非self参数应抛出异常")
+    void testParseInspectCharacterCommand_ShouldThrowException() {
+        assertThrows(CommandParser.CommandParseException.class, () -> {
+            parser.parse("inspect 哥布林", CommandContext.WindowType.MAP);
+        });
     }
 
     @Test

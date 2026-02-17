@@ -51,6 +51,9 @@ class StateServiceImplTest {
     @Mock
     private com.heibai.clawworld.infrastructure.persistence.repository.TradeRepository tradeRepository;
 
+    @Mock
+    private com.heibai.clawworld.application.service.CombatService combatService;
+
     @InjectMocks
     private StateServiceImpl stateService;
 

@@ -32,6 +32,7 @@ public class StateServiceImpl implements StateService {
     private final com.heibai.clawworld.infrastructure.config.ConfigDataManager configDataManager;
     private final com.heibai.clawworld.application.service.PartyService partyService;
     private final com.heibai.clawworld.infrastructure.persistence.repository.TradeRepository tradeRepository;
+    private final com.heibai.clawworld.application.service.CombatService combatService;
 
     @Override
     public String generateMapState(String playerId, String commandResult) {
@@ -348,22 +349,184 @@ public class StateServiceImpl implements StateService {
     public String generateCombatState(String playerId, String combatId, String commandResult) {
         StringBuilder state = new StringBuilder();
 
-        // 战斗窗口的状态相对简单，主要是战斗日志和角色状态变化
+        // 获取战斗状态
+        com.heibai.clawworld.domain.combat.Combat combat = combatService.getCombatState(combatId);
+        if (combat == null) {
+            state.append(">>> ").append(commandResult).append("\n\n");
+            state.append("=== 战斗状态 ===\n");
+            state.append("战斗不存在或已结束\n");
+            updateLastStateTimestamp(playerId);
+            return state.toString();
+        }
+
+        // 1. 指令响应
         state.append(">>> ").append(commandResult).append("\n\n");
 
-        // 战斗状态的详细信息
-        state.append("=== 战斗状态 ===\n");
-        state.append("（战斗日志）\n");
-        state.append("- 等待你的回合...\n");
+        // 2. 战斗日志（显示最近的战斗事件）
+        if (combat.getCombatLog() != null && !combat.getCombatLog().isEmpty()) {
+            state.append("=== 战斗日志 ===\n");
+            int startIndex = Math.max(0, combat.getCombatLog().size() - 10);
+            for (int i = startIndex; i < combat.getCombatLog().size(); i++) {
+                state.append(combat.getCombatLog().get(i)).append("\n");
+            }
+            state.append("\n");
+        }
+
+        // 3. 参战方信息
+        state.append("=== 参战方 ===\n");
+        if (combat.getParties() != null) {
+            int partyIndex = 1;
+            for (com.heibai.clawworld.domain.combat.Combat.CombatParty party : combat.getParties()) {
+                state.append("【第").append(partyIndex++).append("方】");
+                List<String> names = new java.util.ArrayList<>();
+                for (com.heibai.clawworld.domain.combat.Combat.CombatCharacter character : party.getCharacters()) {
+                    names.add(character.getName());
+                }
+                state.append(String.join(", ", names)).append("\n");
+            }
+        }
         state.append("\n");
 
-        state.append("（行动条顺序）\n");
-        state.append("- 当前回合信息需要从战斗系统获取\n");
+        // 4. 所有角色状态
+        state.append("=== 角色状态 ===\n");
+        if (combat.getParties() != null) {
+            for (com.heibai.clawworld.domain.combat.Combat.CombatParty party : combat.getParties()) {
+                for (com.heibai.clawworld.domain.combat.Combat.CombatCharacter character : party.getCharacters()) {
+                    String statusIcon = character.getCurrentHealth() <= 0 ? "☠" : "♥";
+                    state.append(String.format("%s %s - HP:%d/%d MP:%d/%d 速度:%d",
+                        statusIcon,
+                        character.getName(),
+                        character.getCurrentHealth(),
+                        character.getMaxHealth(),
+                        character.getCurrentMana(),
+                        character.getMaxMana(),
+                        character.getSpeed()));
+
+                    // 标记当前玩家
+                    if (character.getCharacterId() != null && character.getCharacterId().equals(playerId)) {
+                        state.append(" (你)");
+                    }
+                    state.append("\n");
+                }
+            }
+        }
         state.append("\n");
+
+        // 5. 行动条顺序
+        state.append("=== 行动条 ===\n");
+        if (combat.getActionBar() != null && !combat.getActionBar().isEmpty()) {
+            int displayCount = Math.min(5, combat.getActionBar().size());
+            for (int i = 0; i < displayCount; i++) {
+                com.heibai.clawworld.domain.combat.Combat.ActionBarEntry entry = combat.getActionBar().get(i);
+                String characterName = findCharacterNameInCombat(combat, entry.getCharacterId());
+                String marker = "";
+                if (entry.getCharacterId() != null && entry.getCharacterId().equals(playerId)) {
+                    marker = " ← 你";
+                }
+                if (i == 0) {
+                    state.append(String.format("→ %d. %s (进度:%d)%s\n", i + 1, characterName, entry.getProgress(), marker));
+                } else {
+                    state.append(String.format("  %d. %s (进度:%d)%s\n", i + 1, characterName, entry.getProgress(), marker));
+                }
+            }
+        } else {
+            state.append("（无行动条信息）\n");
+        }
+        state.append("\n");
+
+        // 6. 当前玩家的技能
+        com.heibai.clawworld.domain.combat.Combat.CombatCharacter playerCharacter = findPlayerCharacterInCombat(combat, playerId);
+        if (playerCharacter != null) {
+            state.append("=== 你的技能 ===\n");
+            // 获取玩家的技能列表
+            Player player = playerSessionService.getPlayerState(playerId);
+            if (player != null && player.getSkills() != null && !player.getSkills().isEmpty()) {
+                for (String skillId : player.getSkills()) {
+                    var skillConfig = configDataManager.getSkill(skillId);
+                    if (skillConfig != null) {
+                        state.append("- ").append(skillConfig.getName());
+                        state.append(" (消耗:").append(skillConfig.getManaCost()).append("MP");
+                        if (skillConfig.getCooldown() > 0) {
+                            state.append(", CD:").append(skillConfig.getCooldown()).append("回合");
+                        }
+                        state.append(")");
+
+                        // 检查冷却状态
+                        if (playerCharacter.getSkillCooldowns() != null) {
+                            for (var cooldown : playerCharacter.getSkillCooldowns()) {
+                                if (cooldown.getSkillId().equals(skillId) && cooldown.getRemainingTurns() > 0) {
+                                    state.append(" [冷却中:").append(cooldown.getRemainingTurns()).append("回合]");
+                                }
+                            }
+                        }
+                        state.append("\n");
+                    }
+                }
+            } else {
+                state.append("- 普通攻击 (attack)\n");
+            }
+            state.append("\n");
+        }
+
+        // 7. 当前回合提示
+        state.append("=== 当前状态 ===\n");
+        if (combat.getActionBar() != null && !combat.getActionBar().isEmpty()) {
+            String currentTurnId = combat.getActionBar().get(0).getCharacterId();
+            if (currentTurnId != null && currentTurnId.equals(playerId)) {
+                state.append("★ 轮到你的回合！请选择行动。\n");
+            } else {
+                String currentTurnName = findCharacterNameInCombat(combat, currentTurnId);
+                state.append("等待 ").append(currentTurnName).append(" 行动...\n");
+            }
+        }
+        state.append("\n");
+
+        // 8. 可用指令
+        state.append("=== 可用指令 ===\n");
+        state.append("cast [技能名称] - 释放非指向技能（如：cast attack）\n");
+        state.append("cast [技能名称] [目标名称] - 对目标释放技能（如：cast 火球术 哥布林#1）\n");
+        state.append("use [物品名称] - 使用物品\n");
+        state.append("wait - 跳过回合\n");
+        state.append("end - 逃离战斗（角色视为死亡）\n");
 
         updateLastStateTimestamp(playerId);
 
         return state.toString();
+    }
+
+    /**
+     * 在战斗中查找角色名称
+     */
+    private String findCharacterNameInCombat(com.heibai.clawworld.domain.combat.Combat combat, String characterId) {
+        if (combat.getParties() == null) {
+            return characterId;
+        }
+        for (com.heibai.clawworld.domain.combat.Combat.CombatParty party : combat.getParties()) {
+            for (com.heibai.clawworld.domain.combat.Combat.CombatCharacter character : party.getCharacters()) {
+                if (characterId != null && characterId.equals(character.getCharacterId())) {
+                    return character.getName();
+                }
+            }
+        }
+        return characterId;
+    }
+
+    /**
+     * 在战斗中查找玩家角色
+     */
+    private com.heibai.clawworld.domain.combat.Combat.CombatCharacter findPlayerCharacterInCombat(
+            com.heibai.clawworld.domain.combat.Combat combat, String playerId) {
+        if (combat.getParties() == null) {
+            return null;
+        }
+        for (com.heibai.clawworld.domain.combat.Combat.CombatParty party : combat.getParties()) {
+            for (com.heibai.clawworld.domain.combat.Combat.CombatCharacter character : party.getCharacters()) {
+                if (playerId != null && playerId.equals(character.getCharacterId())) {
+                    return character;
+                }
+            }
+        }
+        return null;
     }
 
     @Override

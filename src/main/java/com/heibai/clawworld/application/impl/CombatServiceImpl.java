@@ -2,6 +2,7 @@ package com.heibai.clawworld.application.impl;
 
 import com.heibai.clawworld.application.service.WindowStateService;
 import com.heibai.clawworld.domain.combat.CombatCharacter;
+import com.heibai.clawworld.domain.combat.CombatParty;
 import com.heibai.clawworld.domain.service.CombatEngine;
 import com.heibai.clawworld.domain.combat.CombatInstance;
 import com.heibai.clawworld.infrastructure.config.data.map.MapConfig;
@@ -10,6 +11,7 @@ import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.combat.Combat;
 import com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity;
 import com.heibai.clawworld.infrastructure.persistence.repository.AccountRepository;
+import com.heibai.clawworld.infrastructure.persistence.repository.EnemyInstanceRepository;
 import com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository;
 import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
 import com.heibai.clawworld.application.service.CombatService;
@@ -36,6 +38,7 @@ public class CombatServiceImpl implements CombatService {
     private final PlayerRepository playerRepository;
     private final WindowStateService windowStateService;
     private final AccountRepository accountRepository;
+    private final EnemyInstanceRepository enemyInstanceRepository;
 
     @Override
     public CombatResult initiateCombat(String attackerId, String targetId) {
@@ -126,6 +129,164 @@ public class CombatServiceImpl implements CombatService {
         }
 
         return partyMembers;
+    }
+
+    @Override
+    public CombatResult initiateCombatWithEnemy(String attackerId, String enemyDisplayName, String mapId) {
+        try {
+            // 从数据库获取攻击者信息
+            Player attacker = playerSessionService.getPlayerState(attackerId);
+            if (attacker == null) {
+                return CombatResult.error("攻击者不存在");
+            }
+
+            // 检查地图是否为战斗地图
+            MapConfig mapConfig = configDataManager.getMap(mapId);
+            if (mapConfig == null) {
+                return CombatResult.error("地图不存在");
+            }
+
+            if (mapConfig.isSafe()) {
+                return CombatResult.error("当前地图不允许战斗");
+            }
+
+            // 查找敌人实例
+            List<com.heibai.clawworld.infrastructure.persistence.entity.EnemyInstanceEntity> enemiesOnMap =
+                enemyInstanceRepository.findByMapId(mapId);
+
+            com.heibai.clawworld.infrastructure.persistence.entity.EnemyInstanceEntity targetEnemy = null;
+            for (var enemy : enemiesOnMap) {
+                if (enemy.getDisplayName() != null && enemy.getDisplayName().equals(enemyDisplayName)) {
+                    targetEnemy = enemy;
+                    break;
+                }
+            }
+
+            if (targetEnemy == null) {
+                return CombatResult.error("目标敌人不存在: " + enemyDisplayName);
+            }
+
+            if (targetEnemy.isDead()) {
+                return CombatResult.error("目标敌人已死亡，等待刷新");
+            }
+
+            if (targetEnemy.isInCombat()) {
+                // 如果敌人已在战斗中，加入现有战斗
+                String existingCombatId = targetEnemy.getCombatId();
+                Optional<CombatInstance> existingCombat = combatEngine.getCombat(existingCombatId);
+                if (existingCombat.isPresent()) {
+                    // 将玩家加入现有战斗
+                    List<Player> attackerParty = collectPartyMembers(attacker);
+                    List<CombatCharacter> attackerCombatChars = attackerParty.stream()
+                        .map(this::convertToCombatCharacter)
+                        .collect(Collectors.toList());
+                    combatEngine.addPartyToCombat(existingCombatId, attacker.getFaction(), attackerCombatChars);
+
+                    log.info("玩家加入现有战斗: combatId={}, attackerId={}, enemyName={}",
+                        existingCombatId, attackerId, enemyDisplayName);
+
+                    return CombatResult.success(existingCombatId, existingCombatId, "加入战斗");
+                }
+            }
+
+            // 检查玩家是否在敌人附近（九宫格范围内）
+            int dx = Math.abs(attacker.getX() - targetEnemy.getX());
+            int dy = Math.abs(attacker.getY() - targetEnemy.getY());
+            if (dx > 1 || dy > 1) {
+                return CombatResult.error("目标敌人不在交互范围内，请先移动到敌人附近");
+            }
+
+            // 获取敌人配置
+            com.heibai.clawworld.infrastructure.config.data.character.EnemyConfig enemyConfig =
+                configDataManager.getEnemy(targetEnemy.getTemplateId());
+            if (enemyConfig == null) {
+                return CombatResult.error("敌人配置不存在: " + targetEnemy.getTemplateId());
+            }
+
+            // 收集同格子同阵营的所有玩家
+            List<Player> attackerParty = collectPartyMembers(attacker);
+
+            // 收集同格子的所有敌人（同一阵营）
+            String enemyFaction = "enemy_" + targetEnemy.getTemplateId();
+            final int targetX = targetEnemy.getX();
+            final int targetY = targetEnemy.getY();
+            List<com.heibai.clawworld.infrastructure.persistence.entity.EnemyInstanceEntity> enemiesAtPosition =
+                enemiesOnMap.stream()
+                    .filter(e -> e.getX() == targetX && e.getY() == targetY)
+                    .filter(e -> !e.isDead())
+                    .collect(Collectors.toList());
+
+            // 创建战斗
+            String combatId = combatEngine.createCombat(mapId);
+
+            // 添加攻击方（玩家）到战斗
+            List<CombatCharacter> attackerCombatChars = attackerParty.stream()
+                .map(this::convertToCombatCharacter)
+                .collect(Collectors.toList());
+            combatEngine.addPartyToCombat(combatId, attacker.getFaction(), attackerCombatChars);
+
+            // 添加防守方（敌人）到战斗
+            List<CombatCharacter> enemyCombatChars = new ArrayList<>();
+            for (var enemy : enemiesAtPosition) {
+                var config = configDataManager.getEnemy(enemy.getTemplateId());
+                if (config != null) {
+                    CombatCharacter combatChar = convertEnemyToCombatCharacter(enemy, config);
+                    enemyCombatChars.add(combatChar);
+
+                    // 更新敌人状态为战斗中
+                    enemy.setInCombat(true);
+                    enemy.setCombatId(combatId);
+                    enemyInstanceRepository.save(enemy);
+                }
+            }
+            combatEngine.addPartyToCombat(combatId, enemyFaction, enemyCombatChars);
+
+            log.info("发起PVE战斗: combatId={}, attackerId={}, enemyName={}, mapId={}, enemyCount={}",
+                combatId, attackerId, enemyDisplayName, mapId, enemyCombatChars.size());
+
+            return CombatResult.success(combatId, combatId, "战斗开始");
+        } catch (Exception e) {
+            log.error("发起PVE战斗失败", e);
+            return CombatResult.error("发起战斗失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 将敌人实例转换为战斗角色
+     */
+    private CombatCharacter convertEnemyToCombatCharacter(
+            com.heibai.clawworld.infrastructure.persistence.entity.EnemyInstanceEntity enemy,
+            com.heibai.clawworld.infrastructure.config.data.character.EnemyConfig config) {
+        CombatCharacter combatChar = new CombatCharacter();
+        combatChar.setCharacterId(enemy.getId());
+        combatChar.setCharacterType("ENEMY");
+        combatChar.setName(enemy.getDisplayName());
+        combatChar.setFactionId("enemy_" + enemy.getTemplateId());
+        combatChar.setMaxHealth(config.getHealth());
+        combatChar.setCurrentHealth(enemy.getCurrentHealth());
+        combatChar.setMaxMana(config.getMana());
+        combatChar.setCurrentMana(enemy.getCurrentMana());
+        combatChar.setPhysicalAttack(config.getPhysicalAttack());
+        combatChar.setPhysicalDefense(config.getPhysicalDefense());
+        combatChar.setMagicAttack(config.getMagicAttack());
+        combatChar.setMagicDefense(config.getMagicDefense());
+        combatChar.setSpeed(config.getSpeed());
+        combatChar.setCritRate(config.getCritRate());
+        combatChar.setCritDamage(config.getCritDamage());
+        combatChar.setHitRate(config.getHitRate());
+        combatChar.setDodgeRate(config.getDodgeRate());
+
+        // 解析敌人技能
+        List<String> skillIds = new ArrayList<>();
+        if (config.getSkills() != null && !config.getSkills().isEmpty()) {
+            String[] skills = config.getSkills().split(",");
+            for (String skill : skills) {
+                skillIds.add(skill.trim());
+            }
+        }
+        combatChar.setSkillIds(skillIds);
+
+        return combatChar;
     }
 
     @Override
@@ -270,6 +431,58 @@ public class CombatServiceImpl implements CombatService {
             .map(entry -> String.format("[#%d] %s", entry.getSequence(), entry.getMessage()))
             .collect(Collectors.toList());
         combat.setCombatLog(logs);
+
+        // 转换参战方信息
+        List<Combat.CombatParty> parties = new ArrayList<>();
+        for (Map.Entry<String, CombatParty> entry : instance.getParties().entrySet()) {
+            Combat.CombatParty party = new Combat.CombatParty();
+            party.setFaction(entry.getKey());
+
+            List<Combat.CombatCharacter> characters = new ArrayList<>();
+            for (CombatCharacter cc : entry.getValue().getCharacters()) {
+                Combat.CombatCharacter character = new Combat.CombatCharacter();
+                character.setCharacterId(cc.getCharacterId());
+                character.setCharacterType(cc.getCharacterType());
+                character.setName(cc.getName());
+                character.setCurrentHealth(cc.getCurrentHealth());
+                character.setMaxHealth(cc.getMaxHealth());
+                character.setCurrentMana(cc.getCurrentMana());
+                character.setMaxMana(cc.getMaxMana());
+                character.setSpeed(cc.getSpeed());
+                character.setDead(!cc.isAlive());
+
+                // 转换技能冷却
+                List<Combat.SkillCooldown> cooldowns = new ArrayList<>();
+                if (cc.getSkillCooldowns() != null) {
+                    for (Map.Entry<String, Integer> cdEntry : cc.getSkillCooldowns().entrySet()) {
+                        Combat.SkillCooldown cooldown = new Combat.SkillCooldown();
+                        cooldown.setSkillId(cdEntry.getKey());
+                        cooldown.setRemainingTurns(cdEntry.getValue());
+                        cooldowns.add(cooldown);
+                    }
+                }
+                character.setSkillCooldowns(cooldowns);
+
+                characters.add(character);
+            }
+            party.setCharacters(characters);
+            parties.add(party);
+        }
+        combat.setParties(parties);
+
+        // 转换行动条信息（按进度排序）
+        List<Combat.ActionBarEntry> actionBarEntries = new ArrayList<>();
+        List<CombatInstance.ActionBarEntry> sortedEntries = instance.getActionBar().values().stream()
+            .sorted((a, b) -> Integer.compare(b.getProgress(), a.getProgress()))
+            .collect(Collectors.toList());
+
+        for (CombatInstance.ActionBarEntry abEntry : sortedEntries) {
+            Combat.ActionBarEntry entry = new Combat.ActionBarEntry();
+            entry.setCharacterId(abEntry.getCharacterId());
+            entry.setProgress(abEntry.getProgress());
+            actionBarEntries.add(entry);
+        }
+        combat.setActionBar(actionBarEntries);
 
         return combat;
     }

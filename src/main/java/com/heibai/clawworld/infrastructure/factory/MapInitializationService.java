@@ -29,6 +29,8 @@ public class MapInitializationService {
 
     private final ConfigDataManager configDataManager;
     private final EntityFactory entityFactory;
+    private final com.heibai.clawworld.infrastructure.persistence.repository.EnemyInstanceRepository enemyInstanceRepository;
+    private final com.heibai.clawworld.infrastructure.persistence.repository.NpcShopInstanceRepository npcShopInstanceRepository;
 
     // 运行时地图缓存 - 实际游戏中应该存储在数据库或分布式缓存中
     private final Map<String, GameMap> runtimeMaps = new HashMap<>();
@@ -42,6 +44,13 @@ public class MapInitializationService {
             try {
                 GameMap gameMap = createMapInstance(mapConfig);
                 runtimeMaps.put(gameMap.getId(), gameMap);
+
+                // 同步敌人实例到数据库
+                syncEnemiesToDatabase(mapConfig.getId(), gameMap.getEntities());
+
+                // 同步NPC实例到数据库
+                syncNpcsToDatabase(mapConfig.getId(), gameMap.getEntities());
+
                 log.info("Initialized map: {} with {} entities",
                         gameMap.getName(), gameMap.getEntities().size());
             } catch (Exception e) {
@@ -50,6 +59,93 @@ public class MapInitializationService {
         }
 
         log.info("Map initialization complete. Total maps: {}", runtimeMaps.size());
+    }
+
+    /**
+     * 同步敌人实例到数据库
+     * 如果数据库中已存在则保留现有状态，否则创建新实例
+     */
+    private void syncEnemiesToDatabase(String mapId, List<MapEntity> entities) {
+        for (MapEntity entity : entities) {
+            if (entity instanceof com.heibai.clawworld.domain.character.Enemy enemy) {
+                // 检查数据库中是否已存在该敌人实例
+                var existingOpt = enemyInstanceRepository.findByMapIdAndInstanceId(mapId, enemy.getId());
+                if (existingOpt.isEmpty()) {
+                    // 创建新的敌人实例实体
+                    var enemyEntity = new com.heibai.clawworld.infrastructure.persistence.entity.EnemyInstanceEntity();
+                    enemyEntity.setMapId(mapId);
+                    enemyEntity.setInstanceId(enemy.getId());
+                    enemyEntity.setTemplateId(extractTemplateId(enemy.getId()));
+                    enemyEntity.setDisplayName(enemy.getName());
+                    enemyEntity.setCurrentHealth(enemy.getCurrentHealth());
+                    enemyEntity.setCurrentMana(enemy.getCurrentMana());
+                    enemyEntity.setDead(false);
+                    enemyEntity.setInCombat(false);
+                    enemyEntity.setX(enemy.getX());
+                    enemyEntity.setY(enemy.getY());
+
+                    enemyInstanceRepository.save(enemyEntity);
+                    log.debug("Created enemy instance in database: {} on map {}", enemy.getName(), mapId);
+                }
+            }
+        }
+    }
+
+    /**
+     * 从实例ID提取模板ID
+     * 例如: goblin_1 -> goblin, wolf_2 -> wolf
+     */
+    private String extractTemplateId(String instanceId) {
+        int lastUnderscore = instanceId.lastIndexOf('_');
+        if (lastUnderscore > 0) {
+            String suffix = instanceId.substring(lastUnderscore + 1);
+            try {
+                Integer.parseInt(suffix);
+                return instanceId.substring(0, lastUnderscore);
+            } catch (NumberFormatException e) {
+                // 不是数字后缀，返回原始ID
+            }
+        }
+        return instanceId;
+    }
+
+    /**
+     * 同步NPC实例到数据库
+     */
+    private void syncNpcsToDatabase(String mapId, List<MapEntity> entities) {
+        for (MapEntity entity : entities) {
+            if (entity instanceof com.heibai.clawworld.domain.character.Npc npc) {
+                // 检查数据库中是否已存在该NPC实例
+                var existingOpt = npcShopInstanceRepository.findByNpcId(npc.getId());
+                if (existingOpt.isEmpty()) {
+                    // 获取NPC配置
+                    var npcConfig = configDataManager.getNpc(npc.getId());
+                    if (npcConfig != null && npcConfig.isHasShop()) {
+                        // 创建新的NPC商店实例实体
+                        var npcEntity = new com.heibai.clawworld.infrastructure.persistence.entity.NpcShopInstanceEntity();
+                        npcEntity.setNpcId(npc.getId());
+                        npcEntity.setMapId(mapId);
+                        npcEntity.setCurrentGold(npcConfig.getShopGold());
+                        npcEntity.setLastRefreshTime(System.currentTimeMillis());
+
+                        // 初始化商店物品
+                        var shopItems = configDataManager.getNpcShopItems(npc.getId());
+                        var itemDataList = new java.util.ArrayList<com.heibai.clawworld.infrastructure.persistence.entity.NpcShopInstanceEntity.ShopItemData>();
+                        for (var shopItem : shopItems) {
+                            var itemData = new com.heibai.clawworld.infrastructure.persistence.entity.NpcShopInstanceEntity.ShopItemData();
+                            itemData.setItemId(shopItem.getItemId());
+                            itemData.setMaxQuantity(shopItem.getQuantity());
+                            itemData.setCurrentQuantity(shopItem.getQuantity());
+                            itemDataList.add(itemData);
+                        }
+                        npcEntity.setItems(itemDataList);
+
+                        npcShopInstanceRepository.save(npcEntity);
+                        log.debug("Created NPC shop instance in database: {} on map {}", npc.getName(), mapId);
+                    }
+                }
+            }
+        }
     }
 
     /**

@@ -9,12 +9,21 @@ import com.heibai.clawworld.domain.combat.Combat;
 public interface CombatService {
 
     /**
-     * 发起战斗
+     * 发起战斗（玩家对玩家）
      * @param attackerId 攻击者ID
      * @param targetId 目标ID
      * @return 战斗结果
      */
     CombatResult initiateCombat(String attackerId, String targetId);
+
+    /**
+     * 发起战斗（玩家对敌人）
+     * @param attackerId 攻击者玩家ID
+     * @param enemyDisplayName 敌人显示名称（如"哥布林#1"）
+     * @param mapId 地图ID
+     * @return 战斗结果
+     */
+    CombatResult initiateCombatWithEnemy(String attackerId, String enemyDisplayName, String mapId);
 
     /**
      * 释放技能（非指向）

@@ -99,8 +99,8 @@ ClawWorld 的核心竞争力在于**对智能体友好**的设计理念：
 - `move [x] [y]` - 移动到坐标（支持自动寻路）
 - `say [频道] [消息]` - 聊天（world/map/party）
 - `say to [玩家] [消息]` - 私聊
-- `inspect [目标]` - 查看角色或实体
-- `interact [目标] [选项]` - 交互
+- `inspect self` - 查看自身状态
+- `interact [目标] [选项]` - 交互（包括查看其他角色、攻击等）
 - `use [物品]` - 使用物品
 - `equip [装备]` - 装备物品
 - `attribute add [属性] [数量]` - 加点（str/agi/int/vit）

@@ -67,6 +67,7 @@ public class Combat {
         private int maxHealth;
         private int currentMana;
         private int maxMana;
+        private int speed;
         private boolean isDead;
         private List<SkillCooldown> skillCooldowns = new ArrayList<>();
 

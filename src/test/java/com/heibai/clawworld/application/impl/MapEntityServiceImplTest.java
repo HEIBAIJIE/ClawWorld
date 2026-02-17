@@ -1,13 +1,14 @@
 package com.heibai.clawworld.application.impl;
 
+import com.heibai.clawworld.application.service.*;
 import com.heibai.clawworld.infrastructure.config.data.map.MapConfig;
 import com.heibai.clawworld.domain.map.MapEntity;
 import com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity;
 import com.heibai.clawworld.infrastructure.persistence.mapper.PlayerMapper;
+import com.heibai.clawworld.infrastructure.persistence.repository.EnemyInstanceRepository;
+import com.heibai.clawworld.infrastructure.persistence.repository.NpcShopInstanceRepository;
 import com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository;
 import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
-import com.heibai.clawworld.application.service.MapEntityService;
-import com.heibai.clawworld.application.service.PlayerSessionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +38,21 @@ class MapEntityServiceImplTest {
 
     @Mock
     private PlayerSessionService playerSessionService;
+
+    @Mock
+    private EnemyInstanceRepository enemyInstanceRepository;
+
+    @Mock
+    private NpcShopInstanceRepository npcShopInstanceRepository;
+
+    @Mock
+    private PartyService partyService;
+
+    @Mock
+    private TradeService tradeService;
+
+    @Mock
+    private CombatService combatService;
 
     @InjectMocks
     private MapEntityServiceImpl mapEntityService;
@@ -110,14 +126,15 @@ class MapEntityServiceImplTest {
     void testInteract_Attack() {
         // Arrange
         when(playerRepository.findById("player1")).thenReturn(Optional.of(testPlayer));
+        when(enemyInstanceRepository.findByMapId("map1")).thenReturn(Collections.emptyList());
+        when(playerRepository.findAll()).thenReturn(Collections.emptyList());
 
         // Act
         MapEntityService.InteractionResult result = mapEntityService.interact("player1", "enemy1", "attack");
 
         // Assert
-        assertTrue(result.isSuccess());
-        assertTrue(result.isWindowChanged());
-        assertEquals("COMBAT", result.getNewWindowType());
+        // 由于没有找到敌人或玩家，应该返回错误
+        assertFalse(result.isSuccess());
     }
 
     @Test

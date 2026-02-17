@@ -1,14 +1,15 @@
 package com.heibai.clawworld.application.impl;
 
+import com.heibai.clawworld.application.service.*;
 import com.heibai.clawworld.infrastructure.config.data.map.MapConfig;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.map.MapEntity;
 import com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity;
 import com.heibai.clawworld.infrastructure.persistence.mapper.PlayerMapper;
+import com.heibai.clawworld.infrastructure.persistence.repository.EnemyInstanceRepository;
+import com.heibai.clawworld.infrastructure.persistence.repository.NpcShopInstanceRepository;
 import com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository;
 import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
-import com.heibai.clawworld.application.service.MapEntityService;
-import com.heibai.clawworld.application.service.PlayerSessionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,10 +28,11 @@ public class MapEntityServiceImpl implements MapEntityService {
     private final PlayerMapper playerMapper;
     private final ConfigDataManager configDataManager;
     private final PlayerSessionService playerSessionService;
-    private final com.heibai.clawworld.infrastructure.persistence.repository.EnemyInstanceRepository enemyInstanceRepository;
-    private final com.heibai.clawworld.infrastructure.persistence.repository.NpcShopInstanceRepository npcShopInstanceRepository;
-    private final com.heibai.clawworld.application.service.PartyService partyService;
-    private final com.heibai.clawworld.application.service.TradeService tradeService;
+    private final EnemyInstanceRepository enemyInstanceRepository;
+    private final NpcShopInstanceRepository npcShopInstanceRepository;
+    private final PartyService partyService;
+    private final TradeService tradeService;
+    private final CombatService combatService;
 
     @Override
     public EntityInfo inspectCharacter(String playerId, String characterName) {
@@ -254,11 +256,46 @@ public class MapEntityServiceImpl implements MapEntityService {
             case "attack":
             case "攻击":
                 // 攻击交互：发起战斗
-                return InteractionResult.successWithWindowChange(
-                        "发起战斗",
-                        "combat_" + UUID.randomUUID().toString(),
+                // 首先尝试查找敌人
+                List<com.heibai.clawworld.infrastructure.persistence.entity.EnemyInstanceEntity> enemies =
+                    enemyInstanceRepository.findByMapId(player.getCurrentMapId());
+                for (var enemy : enemies) {
+                    if (enemy.getDisplayName() != null && enemy.getDisplayName().equals(targetName)) {
+                        // 找到敌人，发起PVE战斗
+                        com.heibai.clawworld.application.service.CombatService.CombatResult combatResult =
+                            combatService.initiateCombatWithEnemy(playerId, targetName, player.getCurrentMapId());
+                        if (combatResult.isSuccess()) {
+                            return InteractionResult.successWithWindowChange(
+                                combatResult.getMessage(),
+                                combatResult.getCombatId(),
+                                "COMBAT"
+                            );
+                        } else {
+                            return InteractionResult.error(combatResult.getMessage());
+                        }
+                    }
+                }
+                // 如果不是敌人，尝试查找玩家（PVP战斗）
+                // 先通过玩家名称查找玩家ID
+                List<PlayerEntity> playersOnMapForPvp = playerRepository.findAll().stream()
+                    .filter(p -> p.getCurrentMapId() != null && p.getCurrentMapId().equals(player.getCurrentMapId()))
+                    .filter(p -> p.getName() != null && p.getName().equals(targetName))
+                    .collect(Collectors.toList());
+                if (playersOnMapForPvp.isEmpty()) {
+                    return InteractionResult.error("目标不存在: " + targetName);
+                }
+                String targetPlayerId = playersOnMapForPvp.get(0).getId();
+                com.heibai.clawworld.application.service.CombatService.CombatResult pvpResult =
+                    combatService.initiateCombat(playerId, targetPlayerId);
+                if (pvpResult.isSuccess()) {
+                    return InteractionResult.successWithWindowChange(
+                        pvpResult.getMessage(),
+                        pvpResult.getCombatId(),
                         "COMBAT"
-                );
+                    );
+                } else {
+                    return InteractionResult.error(pvpResult.getMessage());
+                }
 
             case "talk":
             case "交谈":
