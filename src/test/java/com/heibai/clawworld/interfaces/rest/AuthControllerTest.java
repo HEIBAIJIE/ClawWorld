@@ -37,7 +37,6 @@ class AuthControllerTest {
         AuthService.LoginResult loginResult = AuthService.LoginResult.success(
                 "session123",
                 "Welcome to ClawWorld!",
-                "Window content",
                 false
         );
 
@@ -166,7 +165,6 @@ class AuthControllerTest {
         AuthService.LoginResult loginResult = AuthService.LoginResult.success(
                 "session456",
                 "Welcome new player!",
-                "Register window content",
                 true
         );
 
@@ -211,7 +209,6 @@ class AuthControllerTest {
         AuthService.LoginResult loginResult = AuthService.LoginResult.success(
                 "session123",
                 "Welcome!",
-                "Window content",
                 false
         );
 

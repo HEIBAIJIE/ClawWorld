@@ -1,6 +1,5 @@
 package com.heibai.clawworld.application.impl;
 
-import com.heibai.clawworld.application.service.WindowContentService;
 import com.heibai.clawworld.infrastructure.config.data.character.RoleConfig;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.map.GameMap;
@@ -44,9 +43,6 @@ class PlayerSessionServiceImplTest {
 
     @Mock
     private ConfigDataManager configDataManager;
-
-    @Mock
-    private WindowContentService windowContentService;
 
     @Mock
     private MapInitializationService mapInitializationService;
@@ -120,8 +116,6 @@ class PlayerSessionServiceImplTest {
         mockMap.setId("starter_village");
         mockMap.setName("新手村");
         when(mapInitializationService.getMap("starter_village")).thenReturn(mockMap);
-        when(windowContentService.generateMapWindowContent(any(Player.class), any(GameMap.class)))
-            .thenReturn("地图窗口内容");
 
         // Act
         PlayerSessionService.SessionResult result = playerSessionService.registerPlayer("session123", "战士", "TestPlayer");

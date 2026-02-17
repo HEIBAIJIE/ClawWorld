@@ -40,4 +40,20 @@ public class AccountEntity {
 
     // 最后一次获取状态的时间戳（用于追踪环境变化）
     private Long lastStateTimestamp;
+
+    // 最后一次执行的指令（用于在状态中显示）
+    private String lastCommand;
+    private Long lastCommandTimestamp;
+
+    // 上次状态的实体快照（用于追踪实体变化）
+    // 格式：Map<entityName, EntitySnapshot>
+    // EntitySnapshot包含：位置(x,y)和交互选项列表
+    private java.util.Map<String, EntitySnapshot> lastEntitySnapshot;
+
+    @Data
+    public static class EntitySnapshot {
+        private int x;
+        private int y;
+        private java.util.List<String> interactionOptions;
+    }
 }

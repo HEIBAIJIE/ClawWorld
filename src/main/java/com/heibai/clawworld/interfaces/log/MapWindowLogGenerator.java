@@ -1,74 +1,78 @@
-package com.heibai.clawworld.application.impl.window;
+package com.heibai.clawworld.interfaces.log;
 
 import com.heibai.clawworld.application.service.PartyService;
-import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.character.Party;
+import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.chat.ChatMessage;
 import com.heibai.clawworld.domain.item.Equipment;
 import com.heibai.clawworld.domain.map.GameMap;
 import com.heibai.clawworld.domain.map.MapEntity;
 import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
 import com.heibai.clawworld.infrastructure.config.data.character.RoleConfig;
-import com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity;
 import com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity;
-import com.heibai.clawworld.infrastructure.persistence.mapper.PlayerMapper;
-import com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository;
 import com.heibai.clawworld.infrastructure.persistence.repository.TradeRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
- * 地图窗口内容生成器
+ * 地图窗口日志生成器
  */
-@Component("mapWindowContentGenerator")
+@Service
 @RequiredArgsConstructor
-public class MapWindowContentGenerator implements WindowContentGenerator {
+public class MapWindowLogGenerator {
 
     private final ConfigDataManager configDataManager;
-    private final PlayerRepository playerRepository;
-    private final PlayerMapper playerMapper;
     private final PartyService partyService;
     private final TradeRepository tradeRepository;
 
-    @Override
-    public String generateContent(WindowContext context) {
-        Player player = context.getPlayer();
-        GameMap map = context.getMap();
-        List<ChatMessage> chatHistory = context.getChatHistory();
+    /**
+     * 生成地图窗口日志
+     */
+    public void generateMapWindowLogs(GameLogBuilder builder, Player player, GameMap map, List<MapEntity> allEntities, List<ChatMessage> chatHistory) {
+        // 1. 地图基本信息
+        String mapInfo = String.format("当前地图名：%s，%s%s",
+            map.getName(),
+            map.getDescription(),
+            map.isSafe() ? "【安全区域】" : String.format("【危险区域】推荐等级: %d", map.getRecommendedLevel()));
+        builder.addWindow("地图窗口", mapInfo);
 
+        // 2. 地图网格
+        builder.addWindow("地图窗口", "地图：\n" + generateMapGrid(map, allEntities));
+
+        // 3. 玩家状态
+        builder.addWindow("地图窗口", "你的状态：\n" + generatePlayerStatus(player));
+
+        // 4. 技能
+        builder.addWindow("地图窗口", "你的技能：\n" + generateSkills(player));
+
+        // 5. 装备
+        builder.addWindow("地图窗口", "你的装备：\n" + generateEquipment(player));
+
+        // 6. 背包
+        builder.addWindow("地图窗口", "你的背包：\n" + generateInventory(player));
+
+        // 7. 组队情况
+        builder.addWindow("地图窗口", "你的组队情况：\n" + generatePartyInfo(player));
+
+        // 8. 地图实体
+        builder.addWindow("地图窗口", map.getName() + "的地图实体：\n" + generateMapEntities(player, allEntities, map));
+
+        // 9. 可达目标
+        builder.addWindow("地图窗口", "你移动后可以交互的实体：\n" + generateReachableTargets(player, allEntities));
+
+        // 10. 聊天记录
+        builder.addWindow("地图窗口", "新增聊天：\n" + generateChatHistory(chatHistory));
+
+        // 11. 可用指令
+        builder.addWindow("地图窗口", "当前窗口可用指令：\n" + generateAvailableCommands());
+    }
+
+    private String generateMapGrid(GameMap map, List<MapEntity> allEntities) {
         StringBuilder sb = new StringBuilder();
-
-        // 标题
-        sb.append("=== ").append(map.getName()).append(" ===\n");
-        sb.append(map.getDescription()).append("\n");
-        if (!map.isSafe()) {
-            sb.append("【危险区域】推荐等级: ").append(map.getRecommendedLevel()).append("\n");
-        } else {
-            sb.append("【安全区域】\n");
-        }
-        sb.append("\n");
-
-        // 获取地图上的所有实体
-        List<MapEntity> allEntities = new ArrayList<>();
-        if (map.getEntities() != null) {
-            allEntities.addAll(map.getEntities());
-        }
-        // 添加当前地图上的所有玩家
-        List<PlayerEntity> playersOnMap = playerRepository.findAll().stream()
-                .filter(p -> p.getCurrentMapId() != null && p.getCurrentMapId().equals(map.getId()))
-                .collect(Collectors.toList());
-        for (PlayerEntity p : playersOnMap) {
-            Player domainPlayer = playerMapper.toDomain(p);
-            allEntities.add(domainPlayer);
-        }
-
-        // 地图网格
-        sb.append("--- 地图 ---\n");
         if (map.getTerrain() != null && !map.getTerrain().isEmpty()) {
             for (int y = map.getHeight() - 1; y >= 0; y--) {
                 for (int x = 0; x < map.getWidth(); x++) {
@@ -101,45 +105,17 @@ public class MapWindowContentGenerator implements WindowContentGenerator {
                 sb.append("\n");
             }
         } else {
-            sb.append("地图数据加载中...\n");
+            sb.append("地图数据加载中...");
         }
-        sb.append("\n");
-
-        // 玩家状态
-        appendPlayerStatus(sb, player);
-
-        // 技能
-        appendSkills(sb, player);
-
-        // 装备
-        appendEquipment(sb, player);
-
-        // 地图实体列表
-        appendMapEntities(sb, player, allEntities, map);
-
-        // 背包
-        appendInventory(sb, player);
-
-        // 组队情况
-        appendPartyInfo(sb, player);
-
-        // 可达目标
-        appendReachableTargets(sb, player, allEntities);
-
-        // 聊天记录
-        appendChatHistory(sb, chatHistory);
-
-        // 可用指令
-        appendAvailableCommands(sb);
-
         return sb.toString();
     }
 
-    private void appendPlayerStatus(StringBuilder sb, Player player) {
-        sb.append("--- 你的状态 ---\n");
+    private String generatePlayerStatus(Player player) {
+        RoleConfig role = configDataManager.getRole(player.getRoleId());
+        StringBuilder sb = new StringBuilder();
         sb.append(String.format("角色: %s (%s) Lv.%d\n",
             player.getName() != null ? player.getName() : "未命名",
-            getRoleName(player.getRoleId()),
+            role != null ? role.getName() : "未知",
             player.getLevel()));
         sb.append(String.format("位置: (%d, %d)\n", player.getX(), player.getY()));
         sb.append(String.format("经验: %d  金币: %d\n", player.getExperience(), player.getGold()));
@@ -149,30 +125,31 @@ public class MapWindowContentGenerator implements WindowContentGenerator {
         sb.append(String.format("生命%d/%d 法力%d/%d\n",
             player.getCurrentHealth(), player.getMaxHealth(),
             player.getCurrentMana(), player.getMaxMana()));
-        sb.append(String.format("物攻%d 物防%d 法攻%d 法防%d 速度%d\n",
+        sb.append(String.format("物攻%d 物防%d 法攻%d 法防%d 速度%d",
             player.getPhysicalAttack(), player.getPhysicalDefense(),
             player.getMagicAttack(), player.getMagicDefense(), player.getSpeed()));
         if (player.getFreeAttributePoints() > 0) {
-            sb.append(String.format("可用属性点: %d\n", player.getFreeAttributePoints()));
+            sb.append(String.format("\n可用属性点: %d", player.getFreeAttributePoints()));
         }
-        sb.append("\n");
+        return sb.toString();
     }
 
-    private void appendSkills(StringBuilder sb, Player player) {
-        sb.append("--- 技能 ---\n");
+    private String generateSkills(Player player) {
+        StringBuilder sb = new StringBuilder();
         if (player.getSkills() != null && !player.getSkills().isEmpty()) {
             for (String skillId : player.getSkills()) {
-                String skillName = getSkillName(skillId);
+                String skillName = configDataManager.getSkill(skillId) != null ?
+                    configDataManager.getSkill(skillId).getName() : skillId;
                 sb.append(skillName).append("\n");
             }
         } else {
-            sb.append("无技能\n");
+            sb.append("普通攻击");
         }
-        sb.append("\n");
+        return sb.toString();
     }
 
-    private void appendEquipment(StringBuilder sb, Player player) {
-        sb.append("--- 装备 ---\n");
+    private String generateEquipment(Player player) {
+        StringBuilder sb = new StringBuilder();
         if (player.getEquipment() != null && !player.getEquipment().isEmpty()) {
             for (Map.Entry<Equipment.EquipmentSlot, Equipment> entry : player.getEquipment().entrySet()) {
                 sb.append(String.format("%s: %s\n",
@@ -180,51 +157,13 @@ public class MapWindowContentGenerator implements WindowContentGenerator {
                     entry.getValue().getDisplayName()));
             }
         } else {
-            sb.append("无装备\n");
+            sb.append("无装备");
         }
-        sb.append("\n");
+        return sb.toString();
     }
 
-    private void appendMapEntities(StringBuilder sb, Player player, List<MapEntity> allEntities, GameMap map) {
-        sb.append("--- 地图实体 ---\n");
-        if (!allEntities.isEmpty()) {
-            for (MapEntity entity : allEntities) {
-                if (entity.getName().equals(player.getName())) {
-                    continue;
-                }
-
-                sb.append(String.format("%s (%d,%d)", entity.getName(), entity.getX(), entity.getY()));
-
-                int distance = Math.abs(entity.getX() - player.getX()) + Math.abs(entity.getY() - player.getY());
-                if (distance <= 1) {
-                    sb.append(" [可直接交互]");
-                } else {
-                    sb.append(" [需移动]");
-                }
-
-                if (entity.getEntityType() != null) {
-                    sb.append(" [类型：").append(entity.getEntityType()).append("]");
-                }
-
-                if (entity.isInteractable()) {
-                    List<String> options = getEntityInteractionOptions(entity, player, map);
-                    if (options != null && !options.isEmpty()) {
-                        sb.append(" [交互选项: ");
-                        sb.append(String.join(", ", options));
-                        sb.append("]");
-                    }
-                }
-
-                sb.append("\n");
-            }
-        } else {
-            sb.append("地图上没有其他实体\n");
-        }
-        sb.append("\n");
-    }
-
-    private void appendInventory(StringBuilder sb, Player player) {
-        sb.append("--- 背包 ---\n");
+    private String generateInventory(Player player) {
+        StringBuilder sb = new StringBuilder();
         if (player.getInventory() != null && !player.getInventory().isEmpty()) {
             for (Player.InventorySlot slot : player.getInventory()) {
                 if (slot.isItem()) {
@@ -234,28 +173,68 @@ public class MapWindowContentGenerator implements WindowContentGenerator {
                 }
             }
         } else {
-            sb.append("背包为空\n");
+            sb.append("背包为空");
         }
-        sb.append("\n");
+        return sb.toString();
     }
 
-    private void appendPartyInfo(StringBuilder sb, Player player) {
-        sb.append("--- 组队情况 ---\n");
+    private String generatePartyInfo(Player player) {
+        StringBuilder sb = new StringBuilder();
         if (player.getPartyId() != null) {
             if (player.isPartyLeader()) {
                 sb.append("你是队长\n");
             } else {
                 sb.append("你在队伍中\n");
             }
-            sb.append("队伍ID: ").append(player.getPartyId()).append("\n");
+            sb.append("队伍ID: ").append(player.getPartyId());
         } else {
-            sb.append("你当前没有队伍\n");
+            sb.append("你当前没有队伍");
         }
-        sb.append("\n");
+        return sb.toString();
     }
 
-    private void appendReachableTargets(StringBuilder sb, Player player, List<MapEntity> allEntities) {
-        sb.append("--- 移动后可达目标 ---\n");
+    private String generateMapEntities(Player player, List<MapEntity> allEntities, GameMap map) {
+        StringBuilder sb = new StringBuilder();
+        boolean hasEntities = false;
+        for (MapEntity entity : allEntities) {
+            if (entity.getName().equals(player.getName())) {
+                continue;
+            }
+
+            hasEntities = true;
+            sb.append(String.format("%s (%d,%d)", entity.getName(), entity.getX(), entity.getY()));
+
+            int distance = Math.abs(entity.getX() - player.getX()) + Math.abs(entity.getY() - player.getY());
+            if (distance <= 1) {
+                sb.append(" [可直接交互]");
+            } else {
+                sb.append(" [需移动]");
+            }
+
+            if (entity.getEntityType() != null) {
+                sb.append(" [类型：").append(entity.getEntityType()).append("]");
+            }
+
+            if (entity.isInteractable()) {
+                List<String> options = getEntityInteractionOptions(entity, player, map);
+                if (options != null && !options.isEmpty()) {
+                    sb.append(" [交互选项: ");
+                    sb.append(String.join(", ", options));
+                    sb.append("]");
+                }
+            }
+
+            sb.append("\n");
+        }
+
+        if (!hasEntities) {
+            sb.append("地图上没有其他实体");
+        }
+        return sb.toString();
+    }
+
+    private String generateReachableTargets(Player player, List<MapEntity> allEntities) {
+        StringBuilder sb = new StringBuilder();
         boolean hasReachableTarget = false;
         for (MapEntity entity : allEntities) {
             if (entity.getName().equals(player.getName())) {
@@ -265,51 +244,53 @@ public class MapWindowContentGenerator implements WindowContentGenerator {
             int dx = Math.abs(entity.getX() - player.getX());
             int dy = Math.abs(entity.getY() - player.getY());
             if ((dx > 1 || dy > 1) && entity.isInteractable()) {
-                sb.append(String.format("- %s: 移动到 (%d,%d) 可交互\n",
+                sb.append(String.format("%s: 移动到 (%d,%d) 可交互\n",
                     entity.getName(), entity.getX(), entity.getY()));
                 hasReachableTarget = true;
             }
         }
         if (!hasReachableTarget) {
-            sb.append("没有需要移动才能到达的目标\n");
+            sb.append("没有需要移动才能到达的目标");
         }
-        sb.append("\n");
+        return sb.toString();
     }
 
-    private void appendChatHistory(StringBuilder sb, List<ChatMessage> chatHistory) {
-        sb.append("--- 最近聊天 ---\n");
+    private String generateChatHistory(List<ChatMessage> chatHistory) {
+        StringBuilder sb = new StringBuilder();
         if (chatHistory != null && !chatHistory.isEmpty()) {
             int count = 0;
             for (ChatMessage msg : chatHistory) {
                 if (count >= 10) break;
-                String channelPrefix = "";
-                switch (msg.getChannelType()) {
-                    case WORLD: channelPrefix = "[世界]"; break;
-                    case MAP: channelPrefix = "[地图]"; break;
-                    case PARTY: channelPrefix = "[队伍]"; break;
-                    case PRIVATE: channelPrefix = "[私聊]"; break;
-                }
+                String channelPrefix = switch (msg.getChannelType()) {
+                    case WORLD -> "[世界]";
+                    case MAP -> "[地图]";
+                    case PARTY -> "[队伍]";
+                    case PRIVATE -> "[私聊]";
+                };
                 sb.append(String.format("%s %s: %s\n", channelPrefix, msg.getSenderNickname(), msg.getMessage()));
                 count++;
             }
         } else {
-            sb.append("(暂无聊天记录，使用 say 指令发送消息)\n");
+            sb.append("(暂无聊天记录，使用 say 指令发送消息)");
         }
-        sb.append("\n");
+        return sb.toString();
     }
 
-    private void appendAvailableCommands(StringBuilder sb) {
-        sb.append("--- 可用指令 ---\n");
-        sb.append("move [x] [y] - 移动到指定位置\n");
-        sb.append("inspect self - 查看自身详细状态\n");
-        sb.append("inspect [角色名] - 查看其他角色\n");
-        sb.append("interact [目标名] [选项] - 与实体交互\n");
-        sb.append("say [频道] [消息] - 聊天 (频道: world/map/party)\n");
-        sb.append("use [物品名] - 使用物品\n");
-        sb.append("equip [装备名] - 装备物品\n");
-        sb.append("attribute add [str/agi/int/vit] [数量] - 加属性点\n");
-        sb.append("wait [秒数] - 等待\n");
-        sb.append("leave - 下线\n");
+    private String generateAvailableCommands() {
+        return "inspect self - 查看自身状态\n" +
+            "inspect [角色名称] - 查看其他角色\n" +
+            "move [x] [y] - 移动到坐标\n" +
+            "interact [目标名称] [选项] - 与NPC/物体交互\n" +
+            "use [物品名称] - 使用消耗品/技能书\n" +
+            "equip [装备名称] - 装备物品\n" +
+            "attribute add [str/agi/int/vit] [数量] - 分配属性点（力量/敏捷/智力/体力）\n" +
+            "say [频道] [消息] - 聊天（频道：world/map/party）\n" +
+            "say to [玩家名称] [消息] - 私聊\n" +
+            "party kick [玩家名称] - 踢出队员（队长）\n" +
+            "party end - 解散队伍（队长）\n" +
+            "party leave - 离开队伍\n" +
+            "wait [秒数] - 等待（最多60秒）\n" +
+            "leave - 下线";
     }
 
     private List<String> getEntityInteractionOptions(MapEntity entity, Player viewer, GameMap map) {
@@ -375,29 +356,15 @@ public class MapWindowContentGenerator implements WindowContentGenerator {
     }
 
     private String getSlotName(Equipment.EquipmentSlot slot) {
-        switch (slot) {
-            case HEAD: return "头部";
-            case CHEST: return "上装";
-            case LEGS: return "下装";
-            case FEET: return "鞋子";
-            case LEFT_HAND: return "左手";
-            case RIGHT_HAND: return "右手";
-            case ACCESSORY1: return "饰品1";
-            case ACCESSORY2: return "饰品2";
-            default: return slot.name();
-        }
-    }
-
-    private String getRoleName(String roleId) {
-        if (roleId == null) return "未知";
-        RoleConfig roleConfig = configDataManager.getRole(roleId);
-        return roleConfig != null ? roleConfig.getName() : "未知";
-    }
-
-    private String getSkillName(String skillId) {
-        if (skillId == null) return "未知技能";
-        if ("basic_attack".equals(skillId)) return "普通攻击";
-        var skillConfig = configDataManager.getSkill(skillId);
-        return skillConfig != null ? skillConfig.getName() : skillId;
+        return switch (slot) {
+            case HEAD -> "头部";
+            case CHEST -> "上装";
+            case LEGS -> "下装";
+            case FEET -> "鞋子";
+            case LEFT_HAND -> "左手";
+            case RIGHT_HAND -> "右手";
+            case ACCESSORY1 -> "饰品1";
+            case ACCESSORY2 -> "饰品2";
+        };
     }
 }

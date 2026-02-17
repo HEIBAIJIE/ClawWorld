@@ -1,6 +1,5 @@
 package com.heibai.clawworld.application.impl;
 
-import com.heibai.clawworld.application.service.WindowContentService;
 import com.heibai.clawworld.infrastructure.config.data.character.RoleConfig;
 import com.heibai.clawworld.infrastructure.config.data.item.EquipmentConfig;
 import com.heibai.clawworld.infrastructure.config.data.item.ItemConfig;
@@ -37,7 +36,6 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
     private final PartyRepository partyRepository;
     private final PlayerMapper playerMapper;
     private final ConfigDataManager configDataManager;
-    private final WindowContentService windowContentService;
     private final com.heibai.clawworld.infrastructure.factory.MapInitializationService mapInitializationService;
 
     @Override
@@ -143,11 +141,11 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
         account.setPlayerId(player.getId());
         accountRepository.save(account);
 
-        // 生成地图窗口内容
+        // 生成地图窗口内容 - 简化版本，只返回成功消息
         GameMap map = mapInitializationService.getMap(player.getMapId());
         String windowContent = "";
         if (map != null) {
-            windowContent = windowContentService.generateMapWindowContent(player, map);
+            windowContent = "注册成功！你现在位于 " + map.getName();
         } else {
             windowContent = "地图加载失败，请联系管理员。";
         }

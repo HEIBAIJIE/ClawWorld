@@ -5,7 +5,7 @@ import com.heibai.clawworld.interfaces.dto.CommandRequest;
 import com.heibai.clawworld.interfaces.dto.CommandResponse;
 import com.heibai.clawworld.infrastructure.persistence.entity.AccountEntity;
 import com.heibai.clawworld.application.impl.AuthService;
-import com.heibai.clawworld.application.service.StateService;
+import com.heibai.clawworld.interfaces.log.UnifiedResponseGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,7 +24,7 @@ public class CommandController {
     private final CommandParser commandParser;
     private final CommandExecutor commandExecutor;
     private final AuthService authService;
-    private final StateService stateService;
+    private final UnifiedResponseGenerator responseGenerator;
 
     /**
      * 执行指令
@@ -42,6 +42,10 @@ public class CommandController {
         }
 
         AccountEntity accountEntity = account.get();
+
+        // 记录指令和时间戳
+        accountEntity.setLastCommand(request.getCommand());
+        accountEntity.setLastCommandTimestamp(System.currentTimeMillis());
 
         // 获取当前窗口状态
         String windowId = accountEntity.getCurrentWindowId();
@@ -75,44 +79,14 @@ public class CommandController {
                 );
             }
 
-            // 生成完整的响应文本（包含环境变化）
-            String responseText;
-
-            // 根据窗口类型生成状态信息
-            if (windowType == CommandContext.WindowType.MAP) {
-                // 地图窗口：包含指令结果 + 环境变化
-                responseText = stateService.generateMapState(accountEntity.getPlayerId(), result.getMessage());
-            } else if (windowType == CommandContext.WindowType.COMBAT) {
-                // 战斗窗口：包含指令结果 + 战斗状态
-                responseText = stateService.generateCombatState(
-                        accountEntity.getPlayerId(),
-                        windowId,
-                        result.getMessage()
-                );
-            } else if (windowType == CommandContext.WindowType.TRADE) {
-                // 交易窗口：包含指令结果 + 交易状态
-                responseText = stateService.generateTradeState(
-                        accountEntity.getPlayerId(),
-                        windowId,
-                        result.getMessage()
-                );
-            } else if (windowType == CommandContext.WindowType.SHOP) {
-                // 商店窗口：包含指令结果 + 商店状态
-                responseText = stateService.generateShopState(
-                        accountEntity.getPlayerId(),
-                        windowId,
-                        result.getMessage()
-                );
-            } else {
-                // 其他窗口（如注册窗口）：只返回指令结果
-                StringBuilder sb = new StringBuilder();
-                if (result.getWindowContent() != null && !result.getWindowContent().isEmpty()) {
-                    sb.append(result.getWindowContent());
-                    sb.append("\n\n");
-                }
-                sb.append(">>> ").append(result.getMessage());
-                responseText = sb.toString();
-            }
+            // 生成统一的日志格式响应
+            String responseText = responseGenerator.generateResponse(
+                accountEntity.getPlayerId(),
+                request.getCommand(),
+                result.getMessage(),
+                windowType,
+                result.getNewWindowType()
+            );
 
             // 返回结果
             if (result.isSuccess()) {
@@ -123,11 +97,19 @@ public class CommandController {
             }
 
         } catch (CommandParser.CommandParseException e) {
+            String errorResponse = responseGenerator.generateErrorResponse(
+                accountEntity.getPlayerId(),
+                "指令解析失败: " + e.getMessage()
+            );
             return ResponseEntity.badRequest()
-                    .body(CommandResponse.error("指令解析失败: " + e.getMessage()));
+                    .body(CommandResponse.error(errorResponse));
         } catch (Exception e) {
+            String errorResponse = responseGenerator.generateErrorResponse(
+                accountEntity.getPlayerId(),
+                "服务器内部错误: " + e.getMessage()
+            );
             return ResponseEntity.internalServerError()
-                    .body(CommandResponse.error("服务器内部错误: " + e.getMessage()));
+                    .body(CommandResponse.error(errorResponse));
         }
     }
 }

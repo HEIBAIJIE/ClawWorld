@@ -28,53 +28,193 @@ public class StateServiceImpl implements StateService {
     private final PlayerSessionService playerSessionService;
     private final com.heibai.clawworld.application.service.TradeService tradeService;
     private final com.heibai.clawworld.infrastructure.config.ConfigDataManager configDataManager;
+    private final com.heibai.clawworld.application.service.PartyService partyService;
+    private final com.heibai.clawworld.infrastructure.persistence.repository.TradeRepository tradeRepository;
 
     @Override
     public String generateMapState(String playerId, String commandResult) {
         StringBuilder state = new StringBuilder();
 
-        // 1. 指令执行结果
-        state.append(">>> ").append(commandResult).append("\n\n");
+        // 1. 获取账号信息
+        Optional<AccountEntity> accountOpt = accountRepository.findByPlayerId(playerId);
+        if (!accountOpt.isPresent()) {
+            state.append("服务端执行结果：").append(commandResult).append("\n\n");
+            state.append("=== 环境变化 ===\n");
+            state.append("无法获取玩家状态\n");
+            return state.toString();
+        }
+        AccountEntity account = accountOpt.get();
 
-        // 2. 获取上次状态时间戳
-        Long lastTimestamp = getLastStateTimestamp(playerId);
-        long currentTime = System.currentTimeMillis();
+        // 2. 显示上次指令（带时间戳）
+        if (account.getLastCommand() != null && account.getLastCommandTimestamp() != null) {
+            state.append(formatTimestamp(account.getLastCommandTimestamp()))
+                .append("你的指令：").append(account.getLastCommand()).append("\n\n");
+        }
 
-        // 3. 收集环境变化
+        // 3. 指令执行结果
+        state.append("服务端执行结果：").append(commandResult).append("\n\n");
+
+        // 4. 获取上次状态时间戳和实体快照
+        Long lastTimestamp = account.getLastStateTimestamp();
+        java.util.Map<String, AccountEntity.EntitySnapshot> lastSnapshot = account.getLastEntitySnapshot();
+        if (lastSnapshot == null) {
+            lastSnapshot = new java.util.HashMap<>();
+        }
+
+        // 5. 收集环境变化
         state.append("=== 环境变化 ===\n");
 
-        // 3.1 实体变化（特别是其他玩家的变化）
+        // 5.1 实体变化（精确追踪：新加入、离开、位置变化、交互选项变化）
         Player currentPlayer = playerSessionService.getPlayerState(playerId);
         if (currentPlayer != null && currentPlayer.getMapId() != null) {
             List<MapEntity> entitiesOnMap = mapEntityService.getMapEntities(currentPlayer.getMapId());
 
-            if (!entitiesOnMap.isEmpty()) {
-                state.append("\n【地图实体更新】\n");
-                boolean hasOtherPlayers = false;
-                for (MapEntity entity : entitiesOnMap) {
-                    // 不显示自己
-                    if (entity.getName().equals(currentPlayer.getName())) {
-                        continue;
-                    }
+            // 构建当前实体快照
+            java.util.Map<String, AccountEntity.EntitySnapshot> currentSnapshot = new java.util.HashMap<>();
+            java.util.Map<String, MapEntity> currentEntitiesMap = new java.util.HashMap<>();
 
-                    // 显示其他玩家的位置
-                    if ("PLAYER".equals(entity.getEntityType())) {
-                        state.append(String.format("- 玩家 %s 在 (%d,%d)\n",
-                            entity.getName(), entity.getX(), entity.getY()));
-                        hasOtherPlayers = true;
-                    }
+            for (MapEntity entity : entitiesOnMap) {
+                // 不追踪自己
+                if (entity.getName().equals(currentPlayer.getName())) {
+                    continue;
                 }
 
-                if (!hasOtherPlayers) {
-                    state.append("- 当前地图上没有其他玩家\n");
+                currentEntitiesMap.put(entity.getName(), entity);
+
+                AccountEntity.EntitySnapshot snapshot = new AccountEntity.EntitySnapshot();
+                snapshot.setX(entity.getX());
+                snapshot.setY(entity.getY());
+
+                // 获取交互选项
+                if (entity.isInteractable()) {
+                    List<String> options = getEntityInteractionOptionsForState(entity, currentPlayer);
+                    snapshot.setInteractionOptions(options);
+                } else {
+                    snapshot.setInteractionOptions(new java.util.ArrayList<>());
                 }
-            } else {
-                state.append("\n【地图实体更新】\n");
-                state.append("- 当前地图上没有其他玩家\n");
+
+                currentSnapshot.put(entity.getName(), snapshot);
             }
+
+            // 分析变化
+            java.util.List<String> newEntities = new java.util.ArrayList<>();
+            java.util.List<String> leftEntities = new java.util.ArrayList<>();
+            java.util.List<String> positionChanges = new java.util.ArrayList<>();
+            java.util.List<String> interactionChanges = new java.util.ArrayList<>();
+
+            // 检测新加入和变化的实体
+            for (java.util.Map.Entry<String, AccountEntity.EntitySnapshot> entry : currentSnapshot.entrySet()) {
+                String entityName = entry.getKey();
+                AccountEntity.EntitySnapshot currentSnap = entry.getValue();
+                AccountEntity.EntitySnapshot lastSnap = lastSnapshot.get(entityName);
+
+                if (lastSnap == null) {
+                    // 新实体
+                    MapEntity entity = currentEntitiesMap.get(entityName);
+                    String entityType = entity.getEntityType();
+                    if ("PLAYER".equals(entityType)) {
+                        newEntities.add(String.format("- 玩家 %s 加入了地图，位置 (%d,%d)",
+                            entityName, currentSnap.getX(), currentSnap.getY()));
+                    } else {
+                        newEntities.add(String.format("- %s %s 出现在 (%d,%d)",
+                            entityType, entityName, currentSnap.getX(), currentSnap.getY()));
+                    }
+                } else {
+                    // 检查位置变化
+                    if (currentSnap.getX() != lastSnap.getX() || currentSnap.getY() != lastSnap.getY()) {
+                        MapEntity entity = currentEntitiesMap.get(entityName);
+                        String entityType = entity.getEntityType();
+                        if ("PLAYER".equals(entityType)) {
+                            positionChanges.add(String.format("- 玩家 %s 移动到 (%d,%d)",
+                                entityName, currentSnap.getX(), currentSnap.getY()));
+                        } else {
+                            positionChanges.add(String.format("- %s 移动到 (%d,%d)",
+                                entityName, currentSnap.getX(), currentSnap.getY()));
+                        }
+                    }
+
+                    // 检查交互选项变化
+                    List<String> currentOptions = currentSnap.getInteractionOptions();
+                    List<String> lastOptions = lastSnap.getInteractionOptions();
+                    if (currentOptions == null) currentOptions = new java.util.ArrayList<>();
+                    if (lastOptions == null) lastOptions = new java.util.ArrayList<>();
+
+                    // 找出新增的交互选项
+                    List<String> addedOptions = new java.util.ArrayList<>(currentOptions);
+                    addedOptions.removeAll(lastOptions);
+
+                    // 找出移除的交互选项
+                    List<String> removedOptions = new java.util.ArrayList<>(lastOptions);
+                    removedOptions.removeAll(currentOptions);
+
+                    if (!addedOptions.isEmpty() || !removedOptions.isEmpty()) {
+                        StringBuilder change = new StringBuilder();
+                        change.append(String.format("- %s 的交互选项变化：", entityName));
+                        if (!addedOptions.isEmpty()) {
+                            change.append("新增[").append(String.join(", ", addedOptions)).append("]");
+                        }
+                        if (!removedOptions.isEmpty()) {
+                            if (!addedOptions.isEmpty()) change.append("，");
+                            change.append("移除[").append(String.join(", ", removedOptions)).append("]");
+                        }
+                        interactionChanges.add(change.toString());
+                    }
+                }
+            }
+
+            // 检测离开的实体
+            for (String entityName : lastSnapshot.keySet()) {
+                if (!currentSnapshot.containsKey(entityName)) {
+                    // 实体离开了
+                    leftEntities.add(String.format("- %s 离开了地图", entityName));
+                }
+            }
+
+            // 输出变化
+            boolean hasChanges = false;
+
+            if (!newEntities.isEmpty()) {
+                state.append("\n【新实体加入】\n");
+                for (String change : newEntities) {
+                    state.append(change).append("\n");
+                }
+                hasChanges = true;
+            }
+
+            if (!leftEntities.isEmpty()) {
+                state.append("\n【实体离开】\n");
+                for (String change : leftEntities) {
+                    state.append(change).append("\n");
+                }
+                hasChanges = true;
+            }
+
+            if (!positionChanges.isEmpty()) {
+                state.append("\n【位置变化】\n");
+                for (String change : positionChanges) {
+                    state.append(change).append("\n");
+                }
+                hasChanges = true;
+            }
+
+            if (!interactionChanges.isEmpty()) {
+                state.append("\n【交互选项变化】\n");
+                for (String change : interactionChanges) {
+                    state.append(change).append("\n");
+                }
+                hasChanges = true;
+            }
+
+            if (!hasChanges) {
+                state.append("\n【地图实体】\n");
+                state.append("- 没有实体变化\n");
+            }
+
+            // 保存当前快照
+            account.setLastEntitySnapshot(currentSnapshot);
         }
 
-        // 3.2 聊天消息变化
+        // 5.2 聊天消息变化
         List<ChatMessage> chatHistory = chatService.getChatHistory(playerId);
         if (chatHistory != null && !chatHistory.isEmpty()) {
             // 过滤出上次状态之后的新消息
@@ -96,10 +236,92 @@ public class StateServiceImpl implements StateService {
             state.append("- 没有新的聊天消息\n");
         }
 
-        // 4. 更新状态时间戳
-        updateLastStateTimestamp(playerId);
+        // 6. 更新状态时间戳
+        account.setLastStateTimestamp(System.currentTimeMillis());
+        accountRepository.save(account);
 
         return state.toString();
+    }
+
+    /**
+     * 获取实体的交互选项（用于状态追踪）
+     */
+    private List<String> getEntityInteractionOptionsForState(MapEntity entity, Player viewer) {
+        // 这里需要调用与 MapWindowContentGenerator 相同的逻辑
+        // 为了避免循环依赖，我们直接获取基础交互选项
+        com.heibai.clawworld.infrastructure.config.data.map.MapConfig mapConfig = configDataManager.getMap(viewer.getMapId());
+        if (mapConfig == null) {
+            return entity.getInteractionOptions();
+        }
+
+        List<String> options = new java.util.ArrayList<>(entity.getInteractionOptions(viewer.getFaction(), mapConfig.isSafe()));
+
+        // 如果是玩家，添加玩家特定的交互选项
+        if ("PLAYER".equals(entity.getEntityType()) && entity instanceof Player) {
+            Player targetPlayer = (Player) entity;
+            addPlayerSpecificOptionsForState(options, viewer, targetPlayer);
+        }
+
+        return options;
+    }
+
+    /**
+     * 添加玩家特定的交互选项（用于状态追踪）
+     */
+    private void addPlayerSpecificOptionsForState(List<String> options, Player viewer, Player target) {
+        // 组队相关选项
+        com.heibai.clawworld.domain.character.Party viewerParty = partyService.getPlayerParty(viewer.getId());
+        com.heibai.clawworld.domain.character.Party targetParty = partyService.getPlayerParty(target.getId());
+
+        if (targetParty == null || targetParty.isSolo()) {
+            options.add("邀请组队");
+        }
+
+        if (targetParty != null && targetParty.getPendingInvitations() != null) {
+            boolean hasInvitation = targetParty.getPendingInvitations().stream()
+                    .anyMatch(inv -> inv.getInviterId().equals(target.getId())
+                            && inv.getInviteeId().equals(viewer.getId())
+                            && !inv.isExpired());
+            if (hasInvitation) {
+                options.add("接受组队邀请");
+                options.add("拒绝组队邀请");
+            }
+        }
+
+        if (targetParty != null && !targetParty.isSolo()) {
+            options.add("请求加入队伍");
+        }
+
+        if (viewerParty != null && viewerParty.isLeader(viewer.getId()) && viewerParty.getPendingRequests() != null) {
+            boolean hasRequest = viewerParty.getPendingRequests().stream()
+                    .anyMatch(req -> req.getRequesterId().equals(target.getId()) && !req.isExpired());
+            if (hasRequest) {
+                options.add("接受组队请求");
+                options.add("拒绝组队请求");
+            }
+        }
+
+        // 交易相关选项
+        List<com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity> activeTrades =
+            tradeRepository.findActiveTradesByPlayerId(
+                com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity.TradeStatus.ACTIVE, viewer.getId());
+        List<com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity> pendingTrades =
+            tradeRepository.findActiveTradesByPlayerId(
+                com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity.TradeStatus.PENDING, viewer.getId());
+
+        if (activeTrades.isEmpty() && pendingTrades.isEmpty()) {
+            options.add("请求交易");
+        }
+
+        List<com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity> targetPendingTrades =
+            tradeRepository.findByStatusAndReceiverId(
+                com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity.TradeStatus.PENDING, viewer.getId());
+        boolean hasTradeRequest = targetPendingTrades.stream()
+                .anyMatch(t -> t.getInitiatorId().equals(target.getId()));
+        if (hasTradeRequest) {
+            options.add("接受交易请求");
+            options.add("拒绝交易请求");
+        }
     }
 
     @Override
@@ -275,7 +497,7 @@ public class StateServiceImpl implements StateService {
     }
 
     /**
-     * 格式化聊天消息
+     * 格式化聊天消息（带时间戳）
      */
     private String formatChatMessage(ChatMessage msg) {
         String channelPrefix;
@@ -296,6 +518,25 @@ public class StateServiceImpl implements StateService {
                 channelPrefix = "[未知]";
         }
 
-        return String.format("%s %s: %s", channelPrefix, msg.getSenderNickname(), msg.getMessage());
+        String timestamp = formatTimestamp(msg.getTimestamp());
+        return String.format("%s%s %s: %s", timestamp, channelPrefix, msg.getSenderNickname(), msg.getMessage());
+    }
+
+    /**
+     * 格式化时间戳为 [月日 时:分] 格式
+     */
+    private String formatTimestamp(Long timestamp) {
+        if (timestamp == null) {
+            return "";
+        }
+        java.time.Instant instant = java.time.Instant.ofEpochMilli(timestamp);
+        java.time.ZoneId zoneId = java.time.ZoneId.systemDefault();
+        java.time.LocalDateTime dateTime = java.time.LocalDateTime.ofInstant(instant, zoneId);
+
+        return String.format("[%d月%d日 %02d:%02d]",
+            dateTime.getMonthValue(),
+            dateTime.getDayOfMonth(),
+            dateTime.getHour(),
+            dateTime.getMinute());
     }
 }
