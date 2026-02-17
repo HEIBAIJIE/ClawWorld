@@ -180,7 +180,7 @@ const handleSendCommand = async () => {
     // 清空输入框
     commandInput.value = ''
   } catch (error) {
-    gameText.value += '\n错误: ' + (error.response?.data?.response || error.message || '网络错误')
+    gameText.value += (error.response?.data?.response || error.message || '网络错误')
   } finally {
     isWaiting.value = false
   }

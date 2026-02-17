@@ -192,6 +192,13 @@ public class AuthService {
     }
 
     /**
+     * 保存账号实体
+     */
+    public void saveAccount(AccountEntity account) {
+        accountRepository.save(account);
+    }
+
+    /**
      * 生成会话ID
      */
     private String generateSessionId() {

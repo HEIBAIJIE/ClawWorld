@@ -46,6 +46,12 @@ public class CommandController {
         // 记录指令和时间戳
         accountEntity.setLastCommand(request.getCommand());
         accountEntity.setLastCommandTimestamp(System.currentTimeMillis());
+        // 保存指令记录
+        authService.saveAccount(accountEntity);
+
+        // 重新获取账号信息，确保获取最新的窗口状态
+        account = authService.getAccountBySessionId(request.getSessionId());
+        accountEntity = account.get();
 
         // 获取当前窗口状态
         String windowId = accountEntity.getCurrentWindowId();

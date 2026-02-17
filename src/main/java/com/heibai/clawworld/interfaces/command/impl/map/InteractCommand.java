@@ -33,7 +33,7 @@ public class InteractCommand extends Command {
                 return CommandResult.successWithWindowChange(
                         result.getMessage(),
                         CommandContext.WindowType.valueOf(result.getNewWindowType()),
-                        "窗口已切换: " + result.getNewWindowType()
+                        result.getNewWindowId()
                 );
             } else {
                 return CommandResult.success(result.getMessage());

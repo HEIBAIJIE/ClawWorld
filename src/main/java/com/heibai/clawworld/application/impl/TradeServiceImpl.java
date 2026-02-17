@@ -320,8 +320,11 @@ public class TradeServiceImpl implements TradeService {
     @Override
     @Transactional
     public OperationResult setMoney(String tradeId, String playerId, int amount) {
+        log.info("设置交易金额请求: tradeId={}, playerId={}, amount={}", tradeId, playerId, amount);
+
         Optional<TradeEntity> tradeOpt = tradeRepository.findById(tradeId);
         if (tradeOpt.isEmpty()) {
+            log.warn("交易不存在: tradeId={}", tradeId);
             return OperationResult.error("交易不存在");
         }
 

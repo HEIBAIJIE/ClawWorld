@@ -321,12 +321,12 @@ public class StateServiceImpl implements StateService {
             options.add("请求交易");
         }
 
-        // 检查target是否收到了来自viewer的交易请求
-        List<com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity> targetPendingTrades =
+        // 检查viewer是否收到了来自target的交易请求
+        List<com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity> viewerPendingTrades =
             tradeRepository.findByStatusAndReceiverId(
-                com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity.TradeStatus.PENDING, target.getId());
-        boolean hasTradeRequest = targetPendingTrades.stream()
-                .anyMatch(t -> t.getInitiatorId().equals(viewer.getId()));
+                com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity.TradeStatus.PENDING, viewer.getId());
+        boolean hasTradeRequest = viewerPendingTrades.stream()
+                .anyMatch(t -> t.getInitiatorId().equals(target.getId()));
         if (hasTradeRequest) {
             options.add("接受交易请求");
             options.add("拒绝交易请求");

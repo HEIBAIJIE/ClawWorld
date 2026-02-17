@@ -354,7 +354,7 @@ public class MapEntityServiceImpl implements MapEntityService {
                 if (acceptTradeResult.isSuccess()) {
                     return InteractionResult.successWithWindowChange(
                         acceptTradeResult.getMessage(),
-                        acceptTradeResult.getTradeId(),
+                        acceptTradeResult.getWindowId(),
                         "TRADE"
                     );
                 } else {
