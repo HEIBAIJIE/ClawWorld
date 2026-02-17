@@ -79,9 +79,13 @@ public class CommandController {
                 );
             }
 
+            // 重新获取账号信息，以确保获取最新的playerId（特别是注册场景）
+            Optional<AccountEntity> updatedAccount = authService.getAccountBySessionId(request.getSessionId());
+            String playerId = updatedAccount.isPresent() ? updatedAccount.get().getPlayerId() : accountEntity.getPlayerId();
+
             // 生成统一的日志格式响应
             String responseText = responseGenerator.generateResponse(
-                accountEntity.getPlayerId(),
+                playerId,
                 request.getCommand(),
                 result.getMessage(),
                 windowType,
@@ -97,15 +101,23 @@ public class CommandController {
             }
 
         } catch (CommandParser.CommandParseException e) {
+            // 重新获取账号信息以获取最新的playerId
+            Optional<AccountEntity> updatedAccount = authService.getAccountBySessionId(request.getSessionId());
+            String playerId = updatedAccount.isPresent() ? updatedAccount.get().getPlayerId() : accountEntity.getPlayerId();
+
             String errorResponse = responseGenerator.generateErrorResponse(
-                accountEntity.getPlayerId(),
+                playerId,
                 "指令解析失败: " + e.getMessage()
             );
             return ResponseEntity.badRequest()
                     .body(CommandResponse.error(errorResponse));
         } catch (Exception e) {
+            // 重新获取账号信息以获取最新的playerId
+            Optional<AccountEntity> updatedAccount = authService.getAccountBySessionId(request.getSessionId());
+            String playerId = updatedAccount.isPresent() ? updatedAccount.get().getPlayerId() : accountEntity.getPlayerId();
+
             String errorResponse = responseGenerator.generateErrorResponse(
-                accountEntity.getPlayerId(),
+                playerId,
                 "服务器内部错误: " + e.getMessage()
             );
             return ResponseEntity.internalServerError()
