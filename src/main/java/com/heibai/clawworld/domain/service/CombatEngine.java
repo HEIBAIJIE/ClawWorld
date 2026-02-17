@@ -41,14 +41,22 @@ public class CombatEngine {
     // 每个战斗的回合等待器
     private final Map<String, CombatTurnWaiter> turnWaiters = new ConcurrentHashMap<>();
 
+    // 当前正在等待行动的角色（key: combatId, value: characterId）
+    // 用于防止行动条在等待玩家输入时继续推进
+    private final Map<String, String> waitingForAction = new ConcurrentHashMap<>();
+
+    // 玩家回合开始时间（key: combatId_characterId, value: timestamp）
+    // 用于实现10秒超时机制
+    private final Map<String, Long> playerTurnStartTime = new ConcurrentHashMap<>();
+
     // 伤害计算器
     private final CombatDamageCalculator damageCalculator = new CombatDamageCalculator();
 
     // 战利品计算器
     private final CombatRewardCalculator rewardCalculator = new CombatRewardCalculator();
 
-    // 敌人AI
-    private final EnemyAI enemyAI = new SimpleEnemyAI();
+    // 敌人AI（使用带配置的版本）
+    private final EnemyAI enemyAI;
 
     // 线程池，用于处理AI决策
     private final ExecutorService aiExecutor = Executors.newCachedThreadPool();
@@ -56,8 +64,12 @@ public class CombatEngine {
     // 配置数据管理器
     private final ConfigDataManager configDataManager;
 
+    // 玩家回合超时时间：10秒
+    private static final long PLAYER_TURN_TIMEOUT_MS = 10 * 1000;
+
     public CombatEngine(ConfigDataManager configDataManager) {
         this.configDataManager = configDataManager;
+        this.enemyAI = new SimpleEnemyAI(configDataManager);
     }
 
     /**
@@ -119,7 +131,7 @@ public class CombatEngine {
      *
      * 流程：
      * 1. 执行技能
-     * 2. 推进行动条
+     * 2. 清除等待状态，允许行动条继续推进
      * 3. 阻塞等待，直到又轮到该玩家或战斗结束
      * 4. 返回期间的所有战斗日志
      */
@@ -146,6 +158,10 @@ public class CombatEngine {
         if (!result.isSuccess()) {
             return result;
         }
+
+        // 清除等待状态，允许行动条继续推进
+        waitingForAction.remove(combatId);
+        playerTurnStartTime.remove(combatId + "_" + casterId);
 
         // 如果战斗已结束，直接返回
         if (result.isCombatEnded()) {
@@ -269,13 +285,13 @@ public class CombatEngine {
      * 执行对自身的技能
      */
     private void executeSelfSkill(CombatInstance combat, CombatCharacter caster, Skill skill, CombatActionResult result) {
-        result.addLog(caster.getName() + " 对自己使用了 " + skill.getName());
+        addBattleLog(combat, result, caster.getName() + " 对自己使用了 " + skill.getName());
 
         if (skill.getDamageType() == Skill.DamageType.NONE) {
             // 治疗或增益技能
             int healAmount = (int) (caster.getMagicAttack() * skill.getDamageMultiplier());
             caster.heal(healAmount);
-            result.addLog(caster.getName() + " 恢复了 " + healAmount + " 点生命值");
+            addBattleLog(combat, result, caster.getName() + " 恢复了 " + healAmount + " 点生命值");
         }
     }
 
@@ -285,17 +301,17 @@ public class CombatEngine {
     private void executeAllySingleSkill(CombatInstance combat, CombatCharacter caster, String targetId, Skill skill, CombatActionResult result) {
         CombatCharacter target = combat.findCharacter(targetId);
         if (target == null || !target.isAlive()) {
-            result.addLog("目标不存在或已死亡");
+            addBattleLog(combat, result, "目标不存在或已死亡");
             return;
         }
 
-        result.addLog(caster.getName() + " 对 " + target.getName() + " 使用了 " + skill.getName());
+        addBattleLog(combat, result, caster.getName() + " 对 " + target.getName() + " 使用了 " + skill.getName());
 
         if (skill.getDamageType() == Skill.DamageType.NONE) {
             // 治疗技能
             int healAmount = (int) (caster.getMagicAttack() * skill.getDamageMultiplier());
             target.heal(healAmount);
-            result.addLog(target.getName() + " 恢复了 " + healAmount + " 点生命值");
+            addBattleLog(combat, result, target.getName() + " 恢复了 " + healAmount + " 点生命值");
         }
     }
 
@@ -305,13 +321,13 @@ public class CombatEngine {
     private void executeAllyAllSkill(CombatInstance combat, CombatCharacter caster, Skill skill, CombatActionResult result) {
         List<CombatCharacter> allies = combat.getAliveCharactersInFaction(caster.getFactionId());
 
-        result.addLog(caster.getName() + " 使用了 " + skill.getName());
+        addBattleLog(combat, result, caster.getName() + " 使用了 " + skill.getName());
 
         for (CombatCharacter ally : allies) {
             if (skill.getDamageType() == Skill.DamageType.NONE) {
                 int healAmount = (int) (caster.getMagicAttack() * skill.getDamageMultiplier());
                 ally.heal(healAmount);
-                result.addLog(ally.getName() + " 恢复了 " + healAmount + " 点生命值");
+                addBattleLog(combat, result, ally.getName() + " 恢复了 " + healAmount + " 点生命值");
             }
         }
     }
@@ -322,11 +338,11 @@ public class CombatEngine {
     private void executeEnemySingleSkill(CombatInstance combat, CombatCharacter caster, String targetId, Skill skill, CombatActionResult result) {
         CombatCharacter target = combat.findCharacter(targetId);
         if (target == null || !target.isAlive()) {
-            result.addLog("目标不存在或已死亡");
+            addBattleLog(combat, result, "目标不存在或已死亡");
             return;
         }
 
-        result.addLog(caster.getName() + " 对 " + target.getName() + " 使用了 " + skill.getName());
+        addBattleLog(combat, result, caster.getName() + " 对 " + target.getName() + " 使用了 " + skill.getName());
 
         boolean isPhysical = skill.getDamageType() == Skill.DamageType.PHYSICAL;
         CombatDamageCalculator.DamageResult damageResult = damageCalculator.calculateDamage(
@@ -334,7 +350,7 @@ public class CombatEngine {
         );
 
         if (damageResult.isMissed()) {
-            result.addLog("攻击未命中！");
+            addBattleLog(combat, result, "攻击未命中！");
         } else {
             target.takeDamage(damageResult.getDamage());
             combat.recordDamage(caster.getFactionId(), target.getCharacterId(), damageResult.getDamage());
@@ -343,10 +359,10 @@ public class CombatEngine {
             if (damageResult.isCrit()) {
                 damageLog += "（暴击！）";
             }
-            result.addLog(damageLog);
+            addBattleLog(combat, result, damageLog);
 
             if (!target.isAlive()) {
-                result.addLog(target.getName() + " 被击败了！");
+                addBattleLog(combat, result, target.getName() + " 被击败了！");
             }
         }
     }
@@ -357,7 +373,7 @@ public class CombatEngine {
     private void executeEnemyAllSkill(CombatInstance combat, CombatCharacter caster, Skill skill, CombatActionResult result) {
         List<CombatCharacter> enemies = combat.getEnemyCharacters(caster.getFactionId());
 
-        result.addLog(caster.getName() + " 使用了 " + skill.getName());
+        addBattleLog(combat, result, caster.getName() + " 使用了 " + skill.getName());
 
         boolean isPhysical = skill.getDamageType() == Skill.DamageType.PHYSICAL;
 
@@ -367,7 +383,7 @@ public class CombatEngine {
             );
 
             if (damageResult.isMissed()) {
-                result.addLog("对 " + enemy.getName() + " 的攻击未命中！");
+                addBattleLog(combat, result, "对 " + enemy.getName() + " 的攻击未命中！");
             } else {
                 enemy.takeDamage(damageResult.getDamage());
                 combat.recordDamage(caster.getFactionId(), enemy.getCharacterId(), damageResult.getDamage());
@@ -376,13 +392,21 @@ public class CombatEngine {
                 if (damageResult.isCrit()) {
                     damageLog += "（暴击！）";
                 }
-                result.addLog(damageLog);
+                addBattleLog(combat, result, damageLog);
 
                 if (!enemy.isAlive()) {
-                    result.addLog(enemy.getName() + " 被击败了！");
+                    addBattleLog(combat, result, enemy.getName() + " 被击败了！");
                 }
             }
         }
+    }
+
+    /**
+     * 添加战斗日志（同时添加到战斗实例和结果中）
+     */
+    private void addBattleLog(CombatInstance combat, CombatActionResult result, String message) {
+        combat.addLog(message);
+        result.addLog(message);
     }
 
     /**
@@ -406,6 +430,10 @@ public class CombatEngine {
 
         // 跳过回合
         CombatActionResult result = skipTurnInternal(combat, characterId);
+
+        // 清除等待状态，允许行动条继续推进
+        waitingForAction.remove(combatId);
+        playerTurnStartTime.remove(combatId + "_" + characterId);
 
         if (result.isCombatEnded()) {
             return result;
@@ -459,6 +487,10 @@ public class CombatEngine {
             return CombatActionResult.error("角色不存在");
         }
 
+        // 清除等待状态
+        waitingForAction.remove(combatId);
+        playerTurnStartTime.remove(combatId + "_" + characterId);
+
         character.setDead(true);
         character.setCurrentHealth(0);
         combat.addLog(character.getName() + " 逃离了战斗");
@@ -486,6 +518,27 @@ public class CombatEngine {
                     continue;
                 }
 
+                String combatId = combat.getCombatId();
+
+                // 检查是否有角色正在等待行动
+                String waitingCharacterId = waitingForAction.get(combatId);
+                if (waitingCharacterId != null) {
+                    // 检查玩家回合是否超时
+                    String timeoutKey = combatId + "_" + waitingCharacterId;
+                    Long turnStartTime = playerTurnStartTime.get(timeoutKey);
+                    if (turnStartTime != null) {
+                        long elapsed = System.currentTimeMillis() - turnStartTime;
+                        if (elapsed >= PLAYER_TURN_TIMEOUT_MS) {
+                            // 玩家超时，跳过回合
+                            log.info("玩家 {} 在战斗 {} 中超时未行动（{}ms），回合空过",
+                                waitingCharacterId, combatId, elapsed);
+                            handlePlayerTimeout(combat, waitingCharacterId);
+                        }
+                    }
+                    // 有角色在等待行动，不推进行动条
+                    continue;
+                }
+
                 // 推进行动条
                 combat.advanceActionBars();
 
@@ -496,48 +549,89 @@ public class CombatEngine {
     }
 
     /**
+     * 处理玩家超时
+     */
+    private void handlePlayerTimeout(CombatInstance combat, String characterId) {
+        String combatId = combat.getCombatId();
+        String timeoutKey = combatId + "_" + characterId;
+
+        // 清除等待状态
+        waitingForAction.remove(combatId);
+        playerTurnStartTime.remove(timeoutKey);
+
+        // 跳过回合
+        CombatCharacter character = combat.findCharacter(characterId);
+        if (character != null) {
+            combat.addLog(character.getName() + " 超时未行动，回合空过");
+        }
+        combat.resetActionBar(characterId);
+
+        // 通知等待的玩家
+        CombatTurnWaiter waiter = turnWaiters.get(combatId);
+        if (waiter != null) {
+            waiter.notifyTurn(characterId);
+        }
+
+        // 检查战斗是否结束
+        checkAndFinishCombat(combat);
+    }
+
+    /**
      * 处理准备好行动的角色
-     * 注意：可能有多个角色同时准备好
+     * 注意：一次只处理一个角色，确保回合制正确执行
      */
     private void processReadyCharacters(CombatInstance combat) {
-        List<String> readyCharacterIds = combat.getReadyCharacterIds();
+        // 获取当前应该行动的角色（只取一个）
+        Optional<String> currentTurnOpt = combat.getCurrentTurnCharacterId();
 
-        if (readyCharacterIds.isEmpty()) {
+        if (currentTurnOpt.isEmpty()) {
             return;
         }
 
-        // 处理所有准备好的角色
-        for (String characterId : readyCharacterIds) {
-            CombatCharacter character = combat.findCharacter(characterId);
+        String characterId = currentTurnOpt.get();
+        String combatId = combat.getCombatId();
 
-            if (character == null || !character.isAlive()) {
-                // 角色不存在或已死亡，跳过回合
-                combat.addLog("角色 " + characterId + " 不存在或已死亡，跳过回合");
-                combat.resetActionBar(characterId);
-                continue;
-            }
+        // 检查是否已经在等待该角色行动
+        if (characterId.equals(waitingForAction.get(combatId))) {
+            return;
+        }
 
-            // 记录回合开始
-            combat.addLog("=== 轮到 " + character.getName() + " 的回合 ===");
+        CombatCharacter character = combat.findCharacter(characterId);
 
-            // 检查是否是敌人
-            if (character.isEnemy()) {
-                // 敌人自动执行AI决策
-                aiExecutor.submit(() -> executeEnemyAI(combat, character));
-            } else if (character.isPlayer()) {
-                // 玩家回合，通知等待的玩家
-                CombatTurnWaiter waiter = turnWaiters.get(combat.getCombatId());
-                if (waiter != null) {
-                    waiter.notifyTurn(characterId);
-                }
+        if (character == null || !character.isAlive()) {
+            // 角色不存在或已死亡，跳过回合
+            combat.addLog("角色 " + characterId + " 不存在或已死亡，跳过回合");
+            combat.resetActionBar(characterId);
+            return;
+        }
+
+        // 记录回合开始
+        combat.addLog("=== 轮到 " + character.getName() + " 的回合 ===");
+
+        // 标记该角色正在等待行动
+        waitingForAction.put(combatId, characterId);
+
+        // 检查是否是敌人
+        if (character.isEnemy()) {
+            // 敌人自动执行AI决策（同步执行，确保回合正确处理）
+            executeEnemyAI(combat, character);
+        } else if (character.isPlayer()) {
+            // 玩家回合，记录开始时间并通知等待的玩家
+            String timeoutKey = combatId + "_" + characterId;
+            playerTurnStartTime.put(timeoutKey, System.currentTimeMillis());
+
+            CombatTurnWaiter waiter = turnWaiters.get(combatId);
+            if (waiter != null) {
+                waiter.notifyTurn(characterId);
             }
         }
     }
 
     /**
-     * 执行敌人AI
+     * 执行敌人AI（同步执行）
      */
     private void executeEnemyAI(CombatInstance combat, CombatCharacter enemy) {
+        String combatId = combat.getCombatId();
         try {
             log.debug("敌人 {} 开始AI决策", enemy.getName());
 
@@ -555,6 +649,9 @@ public class CombatEngine {
             log.error("敌人AI执行失败", e);
             // 出错时跳过回合
             skipTurnInternal(combat, enemy.getCharacterId());
+        } finally {
+            // 清除等待状态
+            waitingForAction.remove(combatId);
         }
     }
 
@@ -565,6 +662,7 @@ public class CombatEngine {
      * - 玩家vs敌人超时：视同全部玩家死亡
      */
     private void handleCombatTimeout(CombatInstance combat) {
+        String combatId = combat.getCombatId();
         combat.setStatus(com.heibai.clawworld.domain.combat.Combat.CombatStatus.TIMEOUT);
         combat.addLog("战斗超时！");
 
@@ -589,15 +687,20 @@ public class CombatEngine {
             combat.addLog("PVP战斗超时，不分胜负");
         }
 
+        // 清除等待状态
+        waitingForAction.remove(combatId);
+        // 清除所有玩家的回合开始时间
+        playerTurnStartTime.keySet().removeIf(key -> key.startsWith(combatId + "_"));
+
         // 通知所有等待的玩家
-        CombatTurnWaiter waiter = turnWaiters.get(combat.getCombatId());
+        CombatTurnWaiter waiter = turnWaiters.get(combatId);
         if (waiter != null) {
             waiter.notifyAllWaiting();
         }
 
-        activeCombats.remove(combat.getCombatId());
-        turnWaiters.remove(combat.getCombatId());
-        log.info("战斗超时: combatId={}, type={}", combat.getCombatId(), combat.getCombatType());
+        activeCombats.remove(combatId);
+        turnWaiters.remove(combatId);
+        log.info("战斗超时: combatId={}, type={}", combatId, combat.getCombatType());
     }
 
     /**
@@ -605,6 +708,7 @@ public class CombatEngine {
      */
     private boolean checkAndFinishCombat(CombatInstance combat) {
         if (combat.isFinished()) {
+            String combatId = combat.getCombatId();
             combat.setStatus(com.heibai.clawworld.domain.combat.Combat.CombatStatus.FINISHED);
 
             Optional<CombatParty> winner = combat.getWinner();
@@ -615,15 +719,20 @@ public class CombatEngine {
                 combat.addLog("战斗平局！");
             }
 
+            // 清除等待状态
+            waitingForAction.remove(combatId);
+            // 清除所有玩家的回合开始时间
+            playerTurnStartTime.keySet().removeIf(key -> key.startsWith(combatId + "_"));
+
             // 通知所有等待的玩家
-            CombatTurnWaiter waiter = turnWaiters.get(combat.getCombatId());
+            CombatTurnWaiter waiter = turnWaiters.get(combatId);
             if (waiter != null) {
-                waiter.notifyAll();
+                waiter.notifyAllWaiting();
             }
 
-            activeCombats.remove(combat.getCombatId());
-            turnWaiters.remove(combat.getCombatId());
-            log.info("战斗结束: combatId={}", combat.getCombatId());
+            activeCombats.remove(combatId);
+            turnWaiters.remove(combatId);
+            log.info("战斗结束: combatId={}", combatId);
             return true;
         }
 

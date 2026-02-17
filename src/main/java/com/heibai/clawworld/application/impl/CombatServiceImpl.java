@@ -241,6 +241,17 @@ public class CombatServiceImpl implements CombatService {
             }
             combatEngine.addPartyToCombat(combatId, enemyFaction, enemyCombatChars);
 
+            // 更新所有参战玩家的战斗状态
+            for (Player player : attackerParty) {
+                Optional<PlayerEntity> playerEntityOpt = playerRepository.findById(player.getId());
+                if (playerEntityOpt.isPresent()) {
+                    PlayerEntity playerEntity = playerEntityOpt.get();
+                    playerEntity.setInCombat(true);
+                    playerEntity.setCombatId(combatId);
+                    playerRepository.save(playerEntity);
+                }
+            }
+
             log.info("发起PVE战斗: combatId={}, attackerId={}, enemyName={}, mapId={}, enemyCount={}",
                 combatId, attackerId, enemyDisplayName, mapId, enemyCombatChars.size());
 
@@ -296,7 +307,43 @@ public class CombatServiceImpl implements CombatService {
             // 如果skillName就是技能ID，直接使用；否则需要从配置中查找
             String skillId = findSkillIdByName(skillName);
 
-            CombatEngine.CombatActionResult result = combatEngine.executeSkillWithWait(combatId, playerId, skillId, null);
+            // 获取战斗实例
+            Optional<CombatInstance> combatOpt = combatEngine.getCombat(combatId);
+            if (combatOpt.isEmpty()) {
+                return ActionResult.error("战斗不存在");
+            }
+            CombatInstance combat = combatOpt.get();
+
+            // 获取技能配置，判断是否需要目标
+            String targetId = null;
+            var skillConfig = configDataManager.getSkill(skillId);
+
+            // 如果是单体攻击技能（普通攻击或其他单体技能），自动选择一个敌方目标
+            boolean needsTarget = false;
+            if (skillConfig != null) {
+                String targetType = skillConfig.getTargetType();
+                needsTarget = "ENEMY_SINGLE".equals(targetType) || "ALLY_SINGLE".equals(targetType);
+            } else if ("basic_attack".equals(skillId) || "普通攻击".equals(skillId) || "普通攻击".equals(skillName)) {
+                // 普通攻击默认需要目标
+                needsTarget = true;
+            }
+
+            if (needsTarget) {
+                // 获取玩家角色
+                CombatCharacter caster = combat.findCharacter(playerId);
+                if (caster == null) {
+                    return ActionResult.error("施法者不存在");
+                }
+
+                // 自动选择一个敌方目标（选择第一个存活的敌人）
+                List<CombatCharacter> enemies = combat.getEnemyCharacters(caster.getFactionId());
+                if (enemies.isEmpty()) {
+                    return ActionResult.error("没有可攻击的目标");
+                }
+                targetId = enemies.get(0).getCharacterId();
+            }
+
+            CombatEngine.CombatActionResult result = combatEngine.executeSkillWithWait(combatId, playerId, skillId, targetId);
 
             if (!result.isSuccess()) {
                 return ActionResult.error(result.getMessage());

@@ -29,14 +29,20 @@ public class CastCommand extends Command {
                 .castSkill(combatId, context.getPlayerId(), skillName);
 
         if (result.isSuccess()) {
+            // 构建包含战斗日志的完整消息
+            String fullMessage = result.getMessage();
+            if (result.getBattleLog() != null && !result.getBattleLog().isEmpty()) {
+                fullMessage = result.getMessage() + "\n" + result.getBattleLog();
+            }
+
             if (result.isCombatEnded()) {
                 return CommandResult.successWithWindowChange(
-                        result.getMessage(),
+                        fullMessage,
                         CommandContext.WindowType.MAP,
                         "战斗已结束，返回地图"
                 );
             } else {
-                return CommandResult.success(result.getMessage());
+                return CommandResult.success(fullMessage);
             }
         } else {
             return CommandResult.error(result.getMessage());

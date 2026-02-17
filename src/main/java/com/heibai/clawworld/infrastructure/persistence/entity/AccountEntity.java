@@ -55,6 +55,9 @@ public class AccountEntity {
     // EntitySnapshot包含：位置(x,y)和交互选项列表
     private java.util.Map<String, EntitySnapshot> lastEntitySnapshot;
 
+    // 上次获取的战斗日志序列号（用于增量获取战斗日志）
+    private Integer lastCombatLogSequence;
+
     @Data
     public static class EntitySnapshot {
         private int x;

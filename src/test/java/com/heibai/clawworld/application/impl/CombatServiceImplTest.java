@@ -154,13 +154,43 @@ class CombatServiceImplTest {
     @Test
     @DisplayName("释放技能 - 成功")
     void testCastSkill_Success() {
+        // 创建战斗实例
+        CombatInstance combat = new CombatInstance("combat123", "test_map");
+
+        // 添加玩家角色
+        com.heibai.clawworld.domain.combat.CombatCharacter playerChar = new com.heibai.clawworld.domain.combat.CombatCharacter();
+        playerChar.setCharacterId("player1");
+        playerChar.setName("攻击者");
+        playerChar.setFactionId("FACTION_A");
+        playerChar.setMaxHealth(100);
+        playerChar.setCurrentHealth(100);
+
+        // 添加敌人角色
+        com.heibai.clawworld.domain.combat.CombatCharacter enemyChar = new com.heibai.clawworld.domain.combat.CombatCharacter();
+        enemyChar.setCharacterId("enemy1");
+        enemyChar.setName("敌人");
+        enemyChar.setFactionId("FACTION_B");
+        enemyChar.setMaxHealth(50);
+        enemyChar.setCurrentHealth(50);
+
+        com.heibai.clawworld.domain.combat.CombatParty playerParty = new com.heibai.clawworld.domain.combat.CombatParty("FACTION_A");
+        playerParty.addCharacter(playerChar);
+        combat.addParty("FACTION_A", playerParty);
+
+        com.heibai.clawworld.domain.combat.CombatParty enemyParty = new com.heibai.clawworld.domain.combat.CombatParty("FACTION_B");
+        enemyParty.addCharacter(enemyChar);
+        combat.addParty("FACTION_B", enemyParty);
+
+        when(combatEngine.getCombat("combat123")).thenReturn(Optional.of(combat));
+
         CombatEngine.CombatActionResult actionResult = new CombatEngine.CombatActionResult();
         actionResult.setSuccess(true);
         actionResult.setMessage("技能释放成功");
         actionResult.setBattleLog(new ArrayList<>());
         actionResult.setCombatEnded(false);
 
-        when(combatEngine.executeSkillWithWait(eq("combat123"), eq("player1"), anyString(), isNull()))
+        // 由于会自动选择目标，所以targetId不再是null
+        when(combatEngine.executeSkillWithWait(eq("combat123"), eq("player1"), anyString(), anyString()))
             .thenReturn(actionResult);
 
         CombatService.ActionResult result = combatService.castSkill("combat123", "player1", "火球术");

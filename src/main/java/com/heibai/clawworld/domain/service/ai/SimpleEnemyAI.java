@@ -24,8 +24,8 @@ public class SimpleEnemyAI implements EnemyAI {
     private final Random random = new Random();
     private final ConfigDataManager configDataManager;
 
-    // 普通攻击技能ID
-    private static final String BASIC_ATTACK_SKILL_ID = "普通攻击";
+    // 普通攻击技能ID（与CombatEngine中的识别保持一致）
+    private static final String BASIC_ATTACK_SKILL_ID = "basic_attack";
 
     public SimpleEnemyAI() {
         this.configDataManager = null; // 默认构造函数，用于不需要配置的场景

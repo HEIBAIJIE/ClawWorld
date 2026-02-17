@@ -101,14 +101,24 @@ public class UnifiedResponseGenerator {
                 builder.addState("指令响应", commandResult);
             }
         } else if (actualCurrentWindowType == CommandContext.WindowType.COMBAT) {
-            // 战斗窗口：生成战斗状态
+            // 战斗窗口：生成战斗状态（增量日志）
             // 只有当 playerId 不为 null 时才调用，避免 findById(null) 异常
             if (playerId != null) {
                 Player player = playerSessionService.getPlayerState(playerId);
                 if (player != null && player.getCombatId() != null) {
                     com.heibai.clawworld.domain.combat.Combat combat = combatService.getCombatState(player.getCombatId());
                     if (combat != null) {
-                        combatWindowLogGenerator.generateCombatStateLogs(builder, combat, playerId, commandResult);
+                        // 获取上次的日志序列号
+                        int lastLogSequence = account != null && account.getLastCombatLogSequence() != null
+                            ? account.getLastCombatLogSequence() : 0;
+                        // 生成增量日志并获取新的序列号
+                        int newLogSequence = combatWindowLogGenerator.generateCombatStateLogs(
+                            builder, combat, playerId, commandResult, lastLogSequence);
+                        // 保存新的序列号
+                        if (account != null && newLogSequence > lastLogSequence) {
+                            account.setLastCombatLogSequence(newLogSequence);
+                            // 稍后统一保存
+                        }
                     } else {
                         builder.addState("指令响应", commandResult);
                     }
@@ -318,6 +328,24 @@ public class UnifiedResponseGenerator {
                 com.heibai.clawworld.domain.combat.Combat combat = combatService.getCombatState(player.getCombatId());
                 if (combat != null) {
                     combatWindowLogGenerator.generateCombatWindowLogs(builder, combat, playerId);
+                    // 进入战斗窗口时，重置日志序列号为0，这样第一次获取状态时会获取所有日志
+                    // 但由于窗口内容已经显示了初始状态，所以设置为当前最大序列号
+                    Optional<AccountEntity> accountOpt = accountRepository.findByPlayerId(playerId);
+                    if (accountOpt.isPresent()) {
+                        AccountEntity account = accountOpt.get();
+                        // 获取当前最大日志序列号
+                        int maxSequence = 0;
+                        if (combat.getCombatLog() != null) {
+                            for (String log : combat.getCombatLog()) {
+                                int seq = parseLogSequence(log);
+                                if (seq > maxSequence) {
+                                    maxSequence = seq;
+                                }
+                            }
+                        }
+                        account.setLastCombatLogSequence(maxSequence);
+                        accountRepository.save(account);
+                    }
                 }
             } else {
                 builder.addWindow("战斗窗口", "战斗窗口已打开");
@@ -333,6 +361,25 @@ public class UnifiedResponseGenerator {
             } else {
                 builder.addWindow("商店窗口", "商店窗口已打开");
             }
+        }
+    }
+
+    /**
+     * 解析日志序列号
+     * 日志格式为 "[#序号] 内容"
+     */
+    private int parseLogSequence(String log) {
+        if (log == null || !log.startsWith("[#")) {
+            return 0;
+        }
+        int endIndex = log.indexOf(']');
+        if (endIndex <= 2) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(log.substring(2, endIndex));
+        } catch (NumberFormatException e) {
+            return 0;
         }
     }
 
