@@ -9,6 +9,7 @@ import com.heibai.clawworld.infrastructure.factory.MapInitializationService;
 import com.heibai.clawworld.infrastructure.persistence.entity.AccountEntity;
 import com.heibai.clawworld.infrastructure.persistence.entity.PartyEntity;
 import com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity;
+import com.heibai.clawworld.infrastructure.persistence.mapper.ConfigMapper;
 import com.heibai.clawworld.infrastructure.persistence.mapper.PlayerMapper;
 import com.heibai.clawworld.infrastructure.persistence.repository.AccountRepository;
 import com.heibai.clawworld.infrastructure.persistence.repository.PartyRepository;
@@ -42,6 +43,9 @@ class PlayerSessionServiceImplTest {
 
     @Mock
     private PlayerMapper playerMapper;
+
+    @Mock
+    private ConfigMapper configMapper;
 
     @Mock
     private ConfigDataManager configDataManager;
@@ -115,7 +119,7 @@ class PlayerSessionServiceImplTest {
         when(partyRepository.save(any(PartyEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(accountRepository.save(any(AccountEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(playerMapper.toEntity(any(Player.class))).thenReturn(testPlayer);
-        when(playerStatsService.convertRoleConfigToRole(any(RoleConfig.class))).thenReturn(new Role());
+        when(configMapper.toDomain(any(RoleConfig.class))).thenReturn(new Role());
 
         // Mock map and window content
         GameMap mockMap = new GameMap();

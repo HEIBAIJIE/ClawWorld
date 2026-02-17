@@ -7,12 +7,12 @@ import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.character.Role;
 import com.heibai.clawworld.domain.item.Equipment;
 import com.heibai.clawworld.domain.item.Item;
-import com.heibai.clawworld.domain.item.Rarity;
 import com.heibai.clawworld.domain.map.GameMap;
 import com.heibai.clawworld.domain.service.PlayerStatsService;
 import com.heibai.clawworld.infrastructure.persistence.entity.AccountEntity;
 import com.heibai.clawworld.infrastructure.persistence.entity.PartyEntity;
 import com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity;
+import com.heibai.clawworld.infrastructure.persistence.mapper.ConfigMapper;
 import com.heibai.clawworld.infrastructure.persistence.mapper.PlayerMapper;
 import com.heibai.clawworld.infrastructure.persistence.repository.AccountRepository;
 import com.heibai.clawworld.infrastructure.persistence.repository.PartyRepository;
@@ -36,6 +36,7 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
     private final PlayerRepository playerRepository;
     private final PartyRepository partyRepository;
     private final PlayerMapper playerMapper;
+    private final ConfigMapper configMapper;
     private final ConfigDataManager configDataManager;
     private final PlayerStatsService playerStatsService;
     private final com.heibai.clawworld.infrastructure.factory.MapInitializationService mapInitializationService;
@@ -94,7 +95,7 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
         player.setGold(100);
 
         // 应用职业基础属性（使用领域服务）
-        Role role = playerStatsService.convertRoleConfigToRole(roleConfig);
+        Role role = configMapper.toDomain(roleConfig);
         playerStatsService.recalculateStats(player, role);
 
         // 初始化当前生命和法力
@@ -175,7 +176,7 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
                 Equipment.EquipmentSlot slot = Equipment.EquipmentSlot.valueOf(entry.getKey());
                 EquipmentConfig config = configDataManager.getEquipment(entry.getValue().getEquipmentId());
                 if (config != null) {
-                    Equipment eq = convertEquipmentConfigToEquipment(config);
+                    Equipment eq = configMapper.toDomain(config);
                     eq.setInstanceNumber(entry.getValue().getInstanceNumber());
                     equipment.put(slot, eq);
                 }
@@ -190,13 +191,13 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
                 if ("ITEM".equals(slotData.getType())) {
                     ItemConfig itemConfig = configDataManager.getItem(slotData.getItemId());
                     if (itemConfig != null) {
-                        Item item = convertItemConfigToItem(itemConfig);
+                        Item item = configMapper.toDomain(itemConfig);
                         inventory.add(Player.InventorySlot.forItem(item, slotData.getQuantity()));
                     }
                 } else if ("EQUIPMENT".equals(slotData.getType())) {
                     EquipmentConfig eqConfig = configDataManager.getEquipment(slotData.getItemId());
                     if (eqConfig != null) {
-                        Equipment eq = convertEquipmentConfigToEquipment(eqConfig);
+                        Equipment eq = configMapper.toDomain(eqConfig);
                         eq.setInstanceNumber(slotData.getEquipmentInstanceNumber());
                         inventory.add(Player.InventorySlot.forEquipment(eq));
                     }
@@ -549,50 +550,5 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
         }
 
         return OperationResult.success("等待 " + seconds + " 秒完成");
-    }
-
-    /**
-     * 转换ItemConfig到Item领域对象
-     */
-    private Item convertItemConfigToItem(ItemConfig config) {
-        Item item = new Item();
-        item.setId(config.getId());
-        item.setName(config.getName());
-        item.setDescription(config.getDescription());
-        item.setType(Item.ItemType.valueOf(config.getType()));
-        item.setMaxStack(config.getMaxStack());
-        item.setBasePrice(config.getBasePrice());
-        item.setEffect(config.getEffect());
-        item.setEffectValue(config.getEffectValue());
-        return item;
-    }
-
-    /**
-     * 转换EquipmentConfig到Equipment领域对象
-     */
-    private Equipment convertEquipmentConfigToEquipment(EquipmentConfig config) {
-        Equipment equipment = new Equipment();
-        equipment.setId(config.getId());
-        equipment.setName(config.getName());
-        equipment.setDescription(config.getDescription());
-        equipment.setType(Item.ItemType.EQUIPMENT);
-        equipment.setMaxStack(1);
-        equipment.setBasePrice(config.getBasePrice());
-        equipment.setSlot(Equipment.EquipmentSlot.valueOf(config.getSlot()));
-        equipment.setRarity(Rarity.valueOf(config.getRarity()));
-        equipment.setStrength(config.getStrength());
-        equipment.setAgility(config.getAgility());
-        equipment.setIntelligence(config.getIntelligence());
-        equipment.setVitality(config.getVitality());
-        equipment.setPhysicalAttack(config.getPhysicalAttack());
-        equipment.setPhysicalDefense(config.getPhysicalDefense());
-        equipment.setMagicAttack(config.getMagicAttack());
-        equipment.setMagicDefense(config.getMagicDefense());
-        equipment.setSpeed(config.getSpeed());
-        equipment.setCritRate(config.getCritRate());
-        equipment.setCritDamage(config.getCritDamage());
-        equipment.setHitRate(config.getHitRate());
-        equipment.setDodgeRate(config.getDodgeRate());
-        return equipment;
     }
 }

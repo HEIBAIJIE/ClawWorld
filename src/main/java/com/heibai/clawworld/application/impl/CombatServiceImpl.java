@@ -7,7 +7,6 @@ import com.heibai.clawworld.domain.service.CombatEngine;
 import com.heibai.clawworld.domain.service.PlayerLevelService;
 import com.heibai.clawworld.domain.combat.CombatInstance;
 import com.heibai.clawworld.infrastructure.config.data.map.MapConfig;
-import com.heibai.clawworld.domain.character.Character;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.combat.Combat;
 import com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity;
@@ -17,7 +16,8 @@ import com.heibai.clawworld.infrastructure.persistence.repository.PlayerReposito
 import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
 import com.heibai.clawworld.application.service.CombatService;
 import com.heibai.clawworld.application.service.PlayerSessionService;
-import com.heibai.clawworld.infrastructure.persistence.mapper.PlayerMapper;
+import com.heibai.clawworld.infrastructure.persistence.mapper.CombatMapper;
+import com.heibai.clawworld.infrastructure.persistence.mapper.ConfigMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,9 +36,10 @@ public class CombatServiceImpl implements CombatService {
 
     private final CombatEngine combatEngine;
     private final ConfigDataManager configDataManager;
+    private final ConfigMapper configMapper;
+    private final CombatMapper combatMapper;
     private final PlayerSessionService playerSessionService;
     private final PlayerRepository playerRepository;
-    private final PlayerMapper playerMapper;
     private final PlayerLevelService playerLevelService;
     private final WindowStateService windowStateService;
     private final AccountRepository accountRepository;
@@ -89,13 +90,13 @@ public class CombatServiceImpl implements CombatService {
 
             // 添加攻击方到战斗
             List<CombatCharacter> attackerCombatChars = attackerParty.stream()
-                .map(this::convertToCombatCharacter)
+                .map(combatMapper::toCombatCharacter)
                 .collect(Collectors.toList());
             combatEngine.addPartyToCombat(combatId, attacker.getFaction(), attackerCombatChars);
 
             // 添加防守方到战斗
             List<CombatCharacter> targetCombatChars = targetParty.stream()
-                .map(this::convertToCombatCharacter)
+                .map(combatMapper::toCombatCharacter)
                 .collect(Collectors.toList());
             combatEngine.addPartyToCombat(combatId, target.getFaction(), targetCombatChars);
 
@@ -182,7 +183,7 @@ public class CombatServiceImpl implements CombatService {
                     // 将玩家加入现有战斗
                     List<Player> attackerParty = collectPartyMembers(attacker);
                     List<CombatCharacter> attackerCombatChars = attackerParty.stream()
-                        .map(this::convertToCombatCharacter)
+                        .map(combatMapper::toCombatCharacter)
                         .collect(Collectors.toList());
                     combatEngine.addPartyToCombat(existingCombatId, attacker.getFaction(), attackerCombatChars);
 
@@ -225,7 +226,7 @@ public class CombatServiceImpl implements CombatService {
 
             // 添加攻击方（玩家）到战斗
             List<CombatCharacter> attackerCombatChars = attackerParty.stream()
-                .map(this::convertToCombatCharacter)
+                .map(combatMapper::toCombatCharacter)
                 .collect(Collectors.toList());
             combatEngine.addPartyToCombat(combatId, attacker.getFaction(), attackerCombatChars);
 
@@ -234,7 +235,7 @@ public class CombatServiceImpl implements CombatService {
             for (var enemy : enemiesAtPosition) {
                 var config = configDataManager.getEnemy(enemy.getTemplateId());
                 if (config != null) {
-                    CombatCharacter combatChar = convertEnemyToCombatCharacter(enemy, config);
+                    CombatCharacter combatChar = combatMapper.toCombatCharacter(enemy, config);
                     enemyCombatChars.add(combatChar);
 
                     // 更新敌人状态为战斗中
@@ -264,44 +265,6 @@ public class CombatServiceImpl implements CombatService {
             log.error("发起PVE战斗失败", e);
             return CombatResult.error("发起战斗失败: " + e.getMessage());
         }
-    }
-
-    /**
-     * 将敌人实例转换为战斗角色
-     */
-    private CombatCharacter convertEnemyToCombatCharacter(
-            com.heibai.clawworld.infrastructure.persistence.entity.EnemyInstanceEntity enemy,
-            com.heibai.clawworld.infrastructure.config.data.character.EnemyConfig config) {
-        CombatCharacter combatChar = new CombatCharacter();
-        combatChar.setCharacterId(enemy.getId());
-        combatChar.setCharacterType("ENEMY");
-        combatChar.setName(enemy.getDisplayName());
-        combatChar.setFactionId("enemy_" + enemy.getTemplateId());
-        combatChar.setMaxHealth(config.getHealth());
-        combatChar.setCurrentHealth(enemy.getCurrentHealth());
-        combatChar.setMaxMana(config.getMana());
-        combatChar.setCurrentMana(enemy.getCurrentMana());
-        combatChar.setPhysicalAttack(config.getPhysicalAttack());
-        combatChar.setPhysicalDefense(config.getPhysicalDefense());
-        combatChar.setMagicAttack(config.getMagicAttack());
-        combatChar.setMagicDefense(config.getMagicDefense());
-        combatChar.setSpeed(config.getSpeed());
-        combatChar.setCritRate(config.getCritRate());
-        combatChar.setCritDamage(config.getCritDamage());
-        combatChar.setHitRate(config.getHitRate());
-        combatChar.setDodgeRate(config.getDodgeRate());
-
-        // 解析敌人技能
-        List<String> skillIds = new ArrayList<>();
-        if (config.getSkills() != null && !config.getSkills().isEmpty()) {
-            String[] skills = config.getSkills().split(",");
-            for (String skill : skills) {
-                skillIds.add(skill.trim());
-            }
-        }
-        combatChar.setSkillIds(skillIds);
-
-        return combatChar;
     }
 
     @Override
@@ -550,40 +513,6 @@ public class CombatServiceImpl implements CombatService {
     }
 
     /**
-     * 将领域角色转换为战斗角色
-     */
-    private CombatCharacter convertToCombatCharacter(Character character) {
-        CombatCharacter combatChar = new CombatCharacter();
-        combatChar.setCharacterId(character.getId());
-        combatChar.setCharacterType(character.getEntityType());
-        combatChar.setName(character.getName());
-        combatChar.setFactionId(character.getFaction());
-        combatChar.setMaxHealth(character.getMaxHealth());
-        combatChar.setCurrentHealth(character.getCurrentHealth());
-        combatChar.setMaxMana(character.getMaxMana());
-        combatChar.setCurrentMana(character.getCurrentMana());
-        combatChar.setPhysicalAttack(character.getPhysicalAttack());
-        combatChar.setPhysicalDefense(character.getPhysicalDefense());
-        combatChar.setMagicAttack(character.getMagicAttack());
-        combatChar.setMagicDefense(character.getMagicDefense());
-        combatChar.setSpeed(character.getSpeed());
-        combatChar.setCritRate(character.getCritRate());
-        combatChar.setCritDamage(character.getCritDamage());
-        combatChar.setHitRate(character.getHitRate());
-        combatChar.setDodgeRate(character.getDodgeRate());
-        combatChar.setSkillIds(character.getSkills() != null ? new ArrayList<>(character.getSkills()) : new ArrayList<>());
-
-        // 设置队长标记（用于战利品分配）
-        if (character instanceof Player) {
-            Player player = (Player) character;
-            combatChar.setPartyLeader(player.isPartyLeader());
-            combatChar.setPartyId(player.getPartyId());
-        }
-
-        return combatChar;
-    }
-
-    /**
      * 根据技能名称查找技能ID
      * 如果名称本身就是ID，直接返回；否则从配置中查找
      */
@@ -680,78 +609,69 @@ public class CombatServiceImpl implements CombatService {
 
         // 为每个玩家分配经验和金钱
         for (String playerId : distribution.getPlayerIds()) {
-            Optional<PlayerEntity> playerOpt = playerRepository.findById(playerId);
-            if (playerOpt.isPresent()) {
-                PlayerEntity playerEntity = playerOpt.get();
-
+            Player player = playerSessionService.getPlayerState(playerId);
+            if (player != null) {
                 // 每个玩家都获得全部经验
                 if (distribution.getTotalExperience() > 0) {
-                    // 转换为领域对象处理升级
-                    Player player = playerMapper.toDomain(playerEntity);
                     boolean leveledUp = playerLevelService.addExperienceAndCheckLevelUp(player, distribution.getTotalExperience());
                     log.debug("玩家 {} 获得经验: {}", player.getName(), distribution.getTotalExperience());
 
                     if (leveledUp) {
                         log.info("玩家 {} 升级到 {} 级！", player.getName(), player.getLevel());
                     }
-
-                    // 将领域对象的变更同步回实体
-                    playerEntity = playerMapper.toEntity(player);
                 }
 
                 // 金钱平分
                 if (distribution.getGoldPerPlayer() > 0) {
-                    int currentGold = playerEntity.getGold();
-                    playerEntity.setGold(currentGold + distribution.getGoldPerPlayer());
-                    log.debug("玩家 {} 获得金钱: {}", playerEntity.getName(), distribution.getGoldPerPlayer());
+                    player.setGold(player.getGold() + distribution.getGoldPerPlayer());
+                    log.debug("玩家 {} 获得金钱: {}", player.getName(), distribution.getGoldPerPlayer());
                 }
 
-                playerRepository.save(playerEntity);
+                // 保存玩家状态
+                playerSessionService.savePlayerState(player);
             }
         }
 
         // 物品归队长
         if (distribution.getItems() != null && !distribution.getItems().isEmpty() && distribution.getLeaderId() != null) {
-            Optional<PlayerEntity> leaderOpt = playerRepository.findById(distribution.getLeaderId());
-            if (leaderOpt.isPresent()) {
-                PlayerEntity leader = leaderOpt.get();
-
-                // 获取队长的背包
-                List<PlayerEntity.InventorySlotData> inventory = leader.getInventory();
-                if (inventory == null) {
-                    inventory = new ArrayList<>();
-                }
-
+            Player leader = playerSessionService.getPlayerState(distribution.getLeaderId());
+            if (leader != null) {
                 for (String itemId : distribution.getItems()) {
-                    // 检查是否已有该物品
+                    // 检查是否已有该物品（只对普通物品堆叠）
                     boolean found = false;
-                    for (var slot : inventory) {
-                        if (itemId.equals(slot.getItemId())) {
-                            slot.setQuantity(slot.getQuantity() + 1);
-                            found = true;
-                            break;
+                    if (configDataManager.getEquipment(itemId) == null) {
+                        // 普通物品可以堆叠
+                        for (Player.InventorySlot slot : leader.getInventory()) {
+                            if (slot.isItem() && slot.getItem().getId().equals(itemId)) {
+                                slot.setQuantity(slot.getQuantity() + 1);
+                                found = true;
+                                break;
+                            }
                         }
                     }
 
-                    // 如果没有，添加新的物品槽
-                    if (!found && inventory.size() < 50) {
-                        PlayerEntity.InventorySlotData newSlot = new PlayerEntity.InventorySlotData();
-                        newSlot.setItemId(itemId);
-                        newSlot.setQuantity(1);
-                        // 判断物品类型
-                        if (configDataManager.getEquipment(itemId) != null) {
-                            newSlot.setType("EQUIPMENT");
+                    // 如果没有找到或是装备，添加新的物品槽
+                    if (!found && leader.getInventory().size() < 50) {
+                        var eqConfig = configDataManager.getEquipment(itemId);
+                        if (eqConfig != null) {
+                            // 装备需要生成实例编号
+                            // TODO: 实现装备实例编号生成逻辑
+                            leader.getInventory().add(Player.InventorySlot.forEquipment(
+                                configMapper.toDomain(eqConfig)));
                         } else {
-                            newSlot.setType("ITEM");
+                            var itemConfig = configDataManager.getItem(itemId);
+                            if (itemConfig != null) {
+                                leader.getInventory().add(Player.InventorySlot.forItem(
+                                    configMapper.toDomain(itemConfig), 1));
+                            }
                         }
-                        inventory.add(newSlot);
                     }
 
                     log.debug("队长 {} 获得物品: {}", leader.getName(), itemId);
                 }
 
-                leader.setInventory(inventory);
-                playerRepository.save(leader);
+                // 保存队长状态
+                playerSessionService.savePlayerState(leader);
             }
         }
 

@@ -3,10 +3,13 @@ package com.heibai.clawworld.application.impl;
 import com.heibai.clawworld.application.service.CombatService;
 import com.heibai.clawworld.application.service.PlayerSessionService;
 import com.heibai.clawworld.domain.character.Player;
+import com.heibai.clawworld.domain.combat.CombatCharacter;
 import com.heibai.clawworld.domain.combat.CombatInstance;
 import com.heibai.clawworld.domain.service.CombatEngine;
 import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
 import com.heibai.clawworld.infrastructure.config.data.map.MapConfig;
+import com.heibai.clawworld.infrastructure.persistence.mapper.CombatMapper;
+import com.heibai.clawworld.infrastructure.persistence.mapper.ConfigMapper;
 import com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +35,12 @@ class CombatServiceImplTest {
 
     @Mock
     private ConfigDataManager configDataManager;
+
+    @Mock
+    private ConfigMapper configMapper;
+
+    @Mock
+    private CombatMapper combatMapper;
 
     @Mock
     private PlayerSessionService playerSessionService;
@@ -78,6 +87,18 @@ class CombatServiceImplTest {
         when(configDataManager.getMap("test_map")).thenReturn(mapConfig);
         when(playerRepository.findAll()).thenReturn(new ArrayList<>());
         when(combatEngine.createCombat("test_map")).thenReturn("combat123");
+
+        // Mock combatMapper to return a CombatCharacter for any Player
+        CombatCharacter attackerCombatChar = new CombatCharacter();
+        attackerCombatChar.setCharacterId("player1");
+        attackerCombatChar.setFactionId("FACTION_A");
+
+        CombatCharacter targetCombatChar = new CombatCharacter();
+        targetCombatChar.setCharacterId("player2");
+        targetCombatChar.setFactionId("FACTION_B");
+
+        when(combatMapper.toCombatCharacter(attacker)).thenReturn(attackerCombatChar);
+        when(combatMapper.toCombatCharacter(target)).thenReturn(targetCombatChar);
 
         CombatService.CombatResult result = combatService.initiateCombat("player1", "player2");
 

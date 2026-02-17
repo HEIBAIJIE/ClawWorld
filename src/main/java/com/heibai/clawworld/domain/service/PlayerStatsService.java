@@ -5,6 +5,7 @@ import com.heibai.clawworld.domain.character.Role;
 import com.heibai.clawworld.domain.item.Equipment;
 import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
 import com.heibai.clawworld.infrastructure.config.data.character.RoleConfig;
+import com.heibai.clawworld.infrastructure.persistence.mapper.ConfigMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +27,7 @@ import org.springframework.stereotype.Service;
 public class PlayerStatsService {
 
     private final ConfigDataManager configDataManager;
+    private final ConfigMapper configMapper;
 
     /**
      * 重新计算玩家的所有属性
@@ -165,7 +167,7 @@ public class PlayerStatsService {
     public void recalculateStats(Player player) {
         RoleConfig roleConfig = configDataManager.getRole(player.getRoleId());
         if (roleConfig != null) {
-            Role role = convertRoleConfigToRole(roleConfig);
+            Role role = configMapper.toDomain(roleConfig);
             recalculateStats(player, role);
         }
     }
@@ -178,42 +180,6 @@ public class PlayerStatsService {
      */
     public Role getRole(String roleId) {
         RoleConfig roleConfig = configDataManager.getRole(roleId);
-        if (roleConfig == null) {
-            return null;
-        }
-        return convertRoleConfigToRole(roleConfig);
-    }
-
-    /**
-     * 转换RoleConfig到Role领域对象
-     */
-    public Role convertRoleConfigToRole(RoleConfig config) {
-        Role role = new Role();
-        role.setId(config.getId());
-        role.setName(config.getName());
-        role.setDescription(config.getDescription());
-        role.setBaseHealth(config.getBaseHealth());
-        role.setBaseMana(config.getBaseMana());
-        role.setBasePhysicalAttack(config.getBasePhysicalAttack());
-        role.setBasePhysicalDefense(config.getBasePhysicalDefense());
-        role.setBaseMagicAttack(config.getBaseMagicAttack());
-        role.setBaseMagicDefense(config.getBaseMagicDefense());
-        role.setBaseSpeed(config.getBaseSpeed());
-        role.setBaseCritRate(config.getBaseCritRate());
-        role.setBaseCritDamage(config.getBaseCritDamage());
-        role.setBaseHitRate(config.getBaseHitRate());
-        role.setBaseDodgeRate(config.getBaseDodgeRate());
-        role.setHealthPerLevel(config.getHealthPerLevel());
-        role.setManaPerLevel(config.getManaPerLevel());
-        role.setPhysicalAttackPerLevel(config.getPhysicalAttackPerLevel());
-        role.setPhysicalDefensePerLevel(config.getPhysicalDefensePerLevel());
-        role.setMagicAttackPerLevel(config.getMagicAttackPerLevel());
-        role.setMagicDefensePerLevel(config.getMagicDefensePerLevel());
-        role.setSpeedPerLevel(config.getSpeedPerLevel());
-        role.setCritRatePerLevel(config.getCritRatePerLevel());
-        role.setCritDamagePerLevel(config.getCritDamagePerLevel());
-        role.setHitRatePerLevel(config.getHitRatePerLevel());
-        role.setDodgeRatePerLevel(config.getDodgeRatePerLevel());
-        return role;
+        return configMapper.toDomain(roleConfig);
     }
 }
