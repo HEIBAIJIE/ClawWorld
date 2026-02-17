@@ -26,7 +26,7 @@ class MongoConnectionTest {
             String dbName = mongoTemplate.getDb().getName();
             assertNotNull(dbName);
             log.info("✓ 成功连接到MongoDB数据库: {}", dbName);
-            assertEquals("clawworld", dbName);
+            assertEquals("clawworld_test", dbName);
 
             // 获取集合列表
             var collections = mongoTemplate.getDb().listCollectionNames();

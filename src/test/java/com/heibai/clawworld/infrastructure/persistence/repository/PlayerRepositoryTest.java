@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.mongodb.test.autoconfigure.DataMongoTest;
+import org.springframework.test.context.TestPropertySource;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 使用内嵌MongoDB进行测试，不依赖CSV配置数据
  */
 @DataMongoTest
+@TestPropertySource(properties = "spring.data.mongodb.uri=mongodb://localhost:27017/clawworld_test")
 class PlayerRepositoryTest {
 
     @Autowired

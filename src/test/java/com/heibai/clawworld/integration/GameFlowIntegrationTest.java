@@ -8,6 +8,7 @@ import com.heibai.clawworld.infrastructure.persistence.repository.PlayerReposito
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.TestPropertySource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -16,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 测试从注册到游戏的完整流程
  */
 @SpringBootTest
+@TestPropertySource(properties = "spring.data.mongodb.uri=mongodb://localhost:27017/clawworld_test")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DisplayName("游戏流程集成测试")
 class GameFlowIntegrationTest {
