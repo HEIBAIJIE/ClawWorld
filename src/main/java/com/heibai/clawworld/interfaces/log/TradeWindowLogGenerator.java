@@ -62,7 +62,7 @@ public class TradeWindowLogGenerator {
         generateTradeStatus(builder, trade, playerId);
 
         // 2. 指令响应
-        builder.addState("指令响应", commandResult + "执行完毕，" + commandResult);
+        builder.addState("指令响应", commandResult);
     }
 
     /**

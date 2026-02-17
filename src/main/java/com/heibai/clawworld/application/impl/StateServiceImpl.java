@@ -61,10 +61,18 @@ public class StateServiceImpl implements StateService {
             lastSnapshot = new java.util.HashMap<>();
         }
 
-        // 5. 收集环境变化
+        // 5. 检查窗口变化
+        String currentWindowType = account.getCurrentWindowType();
+        if (currentWindowType != null && !"MAP".equals(currentWindowType)) {
+            state.append("=== 窗口变化 ===\n");
+            state.append("你的窗口已切换到").append(getWindowTypeName(currentWindowType)).append("\n");
+            state.append("请使用对应窗口的指令进行操作\n\n");
+        }
+
+        // 6. 收集环境变化
         state.append("=== 环境变化 ===\n");
 
-        // 5.1 实体变化（精确追踪：新加入、离开、位置变化、交互选项变化）
+        // 6.1 实体变化（精确追踪：新加入、离开、位置变化、交互选项变化）
         Player currentPlayer = playerSessionService.getPlayerState(playerId);
         if (currentPlayer != null && currentPlayer.getMapId() != null) {
             List<MapEntity> entitiesOnMap = mapEntityService.getMapEntities(currentPlayer.getMapId());
@@ -214,7 +222,7 @@ public class StateServiceImpl implements StateService {
             account.setLastEntitySnapshot(currentSnapshot);
         }
 
-        // 5.2 聊天消息变化
+        // 6.2 聊天消息变化
         List<ChatMessage> chatHistory = chatService.getChatHistory(playerId);
         if (chatHistory != null && !chatHistory.isEmpty()) {
             // 过滤出上次状态之后的新消息
@@ -236,7 +244,7 @@ public class StateServiceImpl implements StateService {
             state.append("- 没有新的聊天消息\n");
         }
 
-        // 6. 更新状态时间戳
+        // 7. 更新状态时间戳
         account.setLastStateTimestamp(System.currentTimeMillis());
         accountRepository.save(account);
 
@@ -313,11 +321,12 @@ public class StateServiceImpl implements StateService {
             options.add("请求交易");
         }
 
+        // 检查target是否收到了来自viewer的交易请求
         List<com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity> targetPendingTrades =
             tradeRepository.findByStatusAndReceiverId(
-                com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity.TradeStatus.PENDING, viewer.getId());
+                com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity.TradeStatus.PENDING, target.getId());
         boolean hasTradeRequest = targetPendingTrades.stream()
-                .anyMatch(t -> t.getInitiatorId().equals(target.getId()));
+                .anyMatch(t -> t.getInitiatorId().equals(viewer.getId()));
         if (hasTradeRequest) {
             options.add("接受交易请求");
             options.add("拒绝交易请求");
@@ -538,5 +547,22 @@ public class StateServiceImpl implements StateService {
             dateTime.getDayOfMonth(),
             dateTime.getHour(),
             dateTime.getMinute());
+    }
+
+    /**
+     * 获取窗口类型名称
+     */
+    private String getWindowTypeName(String windowType) {
+        if (windowType == null) {
+            return "未知窗口";
+        }
+        return switch (windowType) {
+            case "MAP" -> "地图窗口";
+            case "COMBAT" -> "战斗窗口";
+            case "TRADE" -> "交易窗口";
+            case "SHOP" -> "商店窗口";
+            case "REGISTER" -> "注册窗口";
+            default -> "未知窗口";
+        };
     }
 }

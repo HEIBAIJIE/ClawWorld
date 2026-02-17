@@ -333,11 +333,16 @@ public class MapEntityServiceImpl implements MapEntityService {
                 com.heibai.clawworld.application.service.TradeService.TradeResult tradeRequestResult =
                     tradeService.requestTrade(playerId, targetName);
                 if (tradeRequestResult.isSuccess()) {
-                    return InteractionResult.successWithWindowChange(
-                        tradeRequestResult.getMessage(),
-                        tradeRequestResult.getTradeId(),
-                        "TRADE"
-                    );
+                    // 发起交易请求时不切换窗口，等待对方接受
+                    if (tradeRequestResult.getWindowId() != null) {
+                        return InteractionResult.successWithWindowChange(
+                            tradeRequestResult.getMessage(),
+                            tradeRequestResult.getWindowId(),
+                            "TRADE"
+                        );
+                    } else {
+                        return InteractionResult.success(tradeRequestResult.getMessage());
+                    }
                 } else {
                     return InteractionResult.error(tradeRequestResult.getMessage());
                 }

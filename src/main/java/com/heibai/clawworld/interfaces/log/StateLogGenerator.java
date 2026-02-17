@@ -97,7 +97,7 @@ public class StateLogGenerator {
         generateChatChangeLogs(builder, playerId, lastTimestamp);
 
         // 4. 指令响应（放在最后）
-        builder.addState("指令响应", commandResult + "执行完毕，" + commandResult);
+        builder.addState("指令响应", commandResult);
 
         // 5. 更新状态时间戳
         account.setLastStateTimestamp(System.currentTimeMillis());
@@ -284,10 +284,11 @@ public class StateLogGenerator {
             options.add("请求交易");
         }
 
+        // 检查target是否收到了来自viewer的交易请求
         List<TradeEntity> targetPendingTrades = tradeRepository.findByStatusAndReceiverId(
-                TradeEntity.TradeStatus.PENDING, viewer.getId());
+                TradeEntity.TradeStatus.PENDING, target.getId());
         boolean hasTradeRequest = targetPendingTrades.stream()
-                .anyMatch(t -> t.getInitiatorId().equals(target.getId()));
+                .anyMatch(t -> t.getInitiatorId().equals(viewer.getId()));
         if (hasTradeRequest) {
             options.add("接受交易请求");
             options.add("拒绝交易请求");

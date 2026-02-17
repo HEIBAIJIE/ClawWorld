@@ -74,7 +74,7 @@ public class CommandController {
             if (result.isWindowChanged()) {
                 authService.updateWindowState(
                         request.getSessionId(),
-                        result.getNewWindowType() != null ? result.getNewWindowType().name() : null,
+                        result.getWindowContent(),
                         result.getNewWindowType() != null ? result.getNewWindowType().name() : null
                 );
             }

@@ -153,11 +153,11 @@ public class TradeServiceImpl implements TradeService {
         if (initiatorAccountOpt.isPresent()) {
             com.heibai.clawworld.infrastructure.persistence.entity.AccountEntity account = initiatorAccountOpt.get();
             account.setCurrentWindowType("TRADE");
-            account.setCurrentWindowId("trade_window_" + tradeEntity.getId());
+            account.setCurrentWindowId(tradeEntity.getId());
             accountRepository.save(account);
         }
 
-        String windowId = "trade_window_" + tradeEntity.getId();
+        String windowId = tradeEntity.getId();
 
         log.info("接受交易: tradeId={}, playerId={}", tradeEntity.getId(), playerId);
 
