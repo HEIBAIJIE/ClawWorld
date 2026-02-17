@@ -1,4 +1,4 @@
-package com.heibai.clawworld.interfaces.command.impl.player;
+package com.heibai.clawworld.interfaces.command.impl.map;
 
 import com.heibai.clawworld.application.service.PlayerSessionService;
 import com.heibai.clawworld.interfaces.command.Command;
