@@ -52,18 +52,34 @@ public class CombatCharacter {
 
     // 状态
     private boolean isDead;
+    private boolean retreated; // 是否已撤退
 
     public CombatCharacter() {
         this.skillIds = new ArrayList<>();
         this.skillCooldowns = new HashMap<>();
         this.isDead = false;
+        this.retreated = false;
     }
 
     /**
-     * 检查是否存活
+     * 检查是否存活（撤退的角色视为不存活）
      */
     public boolean isAlive() {
-        return !isDead && currentHealth > 0;
+        return !isDead && !retreated && currentHealth > 0;
+    }
+
+    /**
+     * 检查是否已撤退
+     */
+    public boolean isRetreated() {
+        return retreated;
+    }
+
+    /**
+     * 设置撤退状态
+     */
+    public void setRetreated(boolean retreated) {
+        this.retreated = retreated;
     }
 
     /**

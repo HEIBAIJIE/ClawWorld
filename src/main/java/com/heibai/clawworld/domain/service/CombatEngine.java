@@ -487,7 +487,12 @@ public class CombatEngine {
     }
 
     /**
-     * 逃离战斗
+     * 撤退（主动退出战斗）
+     * 根据设计文档：
+     * - 只有PVE战斗（有敌人参与）才能撤退
+     * - PVP战斗（纯玩家之间）不能撤退
+     * - 撤退保留当前生命、法力等，无法获得战利品
+     * - 敌人如果没有其他交战对象，状态应当自动重置
      */
     public CombatActionResult forfeit(String combatId, String characterId) {
         CombatInstance combat = activeCombats.get(combatId);
@@ -495,18 +500,32 @@ public class CombatEngine {
             return CombatActionResult.error("战斗不存在");
         }
 
+        // 检查战斗类型，只有PVE战斗才能撤退
+        if (combat.getCombatType() != CombatInstance.CombatType.PVE) {
+            return CombatActionResult.error("PVP战斗中不能撤退");
+        }
+
         CombatCharacter character = combat.findCharacter(characterId);
         if (character == null) {
             return CombatActionResult.error("角色不存在");
         }
 
-        character.setDead(true);
-        character.setCurrentHealth(0);
-        combat.addLog(character.getName() + " 逃离了战斗");
+        // 只有玩家可以撤退
+        if (!character.isPlayer()) {
+            return CombatActionResult.error("只有玩家可以撤退");
+        }
 
-        CombatActionResult result = CombatActionResult.success("逃离战斗");
+        // 撤退：标记为已撤退，但不设置死亡，保留当前生命和法力
+        character.setRetreated(true);
+        combat.addLog(character.getName() + " 撤退了");
 
-        List<String> endLogs = finishCombat(combat);
+        // 从行动条中移除该角色
+        combat.getActionBar().remove(characterId);
+
+        CombatActionResult result = CombatActionResult.success("撤退成功");
+
+        // 检查战斗是否结束
+        List<String> endLogs = finishCombatWithRetreat(combat);
         if (endLogs != null) {
             result.setCombatEnded(true);
             for (String log : endLogs) {
@@ -515,6 +534,79 @@ public class CombatEngine {
         }
 
         return result;
+    }
+
+    /**
+     * 结束战斗（考虑撤退情况，仅用于PVE战斗）
+     * PVE战斗结束条件：所有玩家全灭/撤退，或敌人被消灭
+     * 如果所有玩家都撤退了，敌人状态应该重置
+     */
+    private List<String> finishCombatWithRetreat(CombatInstance combat) {
+        // 检查是否所有玩家都撤退或死亡
+        boolean allPlayersGone = true;
+        for (CombatParty party : combat.getParties().values()) {
+            for (CombatCharacter character : party.getCharacters()) {
+                if (character.isPlayer() && character.isAlive() && !character.isRetreated()) {
+                    allPlayersGone = false;
+                    break;
+                }
+            }
+            if (!allPlayersGone) break;
+        }
+
+        if (allPlayersGone) {
+            // 所有玩家都撤退或死亡，敌人获胜，重置敌人状态
+            combat.addLog("所有玩家已撤退，战斗结束");
+
+            // 标记敌人需要重置状态（不是被击败）
+            combat.setEnemiesNeedReset(true);
+
+            String combatId = combat.getCombatId();
+            combat.setStatus(com.heibai.clawworld.domain.combat.Combat.CombatStatus.FINISHED);
+
+            // 创建空的战利品分配（撤退的玩家不获得战利品）
+            CombatInstance.RewardDistribution distribution = new CombatInstance.RewardDistribution();
+            distribution.setEnemiesNeedReset(true);
+
+            // 收集需要重置状态的敌人
+            for (CombatParty party : combat.getParties().values()) {
+                for (CombatCharacter character : party.getCharacters()) {
+                    if (character.isEnemy() && character.getEnemyMapId() != null && character.getEnemyInstanceId() != null) {
+                        distribution.getEnemiesToReset().add(new CombatInstance.EnemyToReset(
+                            character.getEnemyMapId(), character.getEnemyInstanceId()));
+                    }
+                }
+            }
+
+            // 保存所有玩家的最终状态
+            for (CombatParty party : combat.getParties().values()) {
+                for (CombatCharacter character : party.getCharacters()) {
+                    if (character.isPlayer()) {
+                        distribution.getPlayerFinalStates().put(
+                            character.getCharacterId(),
+                            new CombatInstance.PlayerFinalState(character.getCurrentHealth(), character.getCurrentMana())
+                        );
+                    }
+                }
+            }
+            combat.setRewardDistribution(distribution);
+            rewardDistributionCache.put(combatId, distribution);
+
+            // 通知所有等待的玩家
+            CombatTurnWaiter waiter = turnWaiters.get(combatId);
+            if (waiter != null) {
+                waiter.notifyAllWaiting();
+            }
+
+            activeCombats.remove(combatId);
+            turnWaiters.remove(combatId);
+            log.info("战斗结束（所有玩家撤退）: combatId={}", combatId);
+
+            return List.of("战斗结束，所有玩家已撤退");
+        }
+
+        // 检查常规战斗结束条件
+        return finishCombat(combat);
     }
 
     /**

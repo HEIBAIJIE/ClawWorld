@@ -12,6 +12,7 @@ import com.heibai.clawworld.domain.combat.Combat;
 import com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity;
 import com.heibai.clawworld.infrastructure.persistence.repository.AccountRepository;
 import com.heibai.clawworld.infrastructure.persistence.repository.EnemyInstanceRepository;
+import com.heibai.clawworld.infrastructure.persistence.repository.PartyRepository;
 import com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository;
 import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
 import com.heibai.clawworld.application.service.CombatService;
@@ -44,6 +45,7 @@ public class CombatServiceImpl implements CombatService {
     private final WindowStateService windowStateService;
     private final AccountRepository accountRepository;
     private final EnemyInstanceRepository enemyInstanceRepository;
+    private final PartyRepository partyRepository;
 
     @Override
     public CombatResult initiateCombat(String attackerId, String targetId) {
@@ -113,23 +115,31 @@ public class CombatServiceImpl implements CombatService {
     }
 
     /**
-     * 收集同格子同阵营的队伍成员
+     * 收集同地图的队伍成员
+     * 根据设计文档：只有在同一地图的队友才能参战
+     * 如果玩家有队伍，收集同地图的队友；如果没有队伍，只返回玩家自己
      */
     private List<Player> collectPartyMembers(Player player) {
         List<Player> partyMembers = new ArrayList<>();
         partyMembers.add(player);
 
-        // 查找同一地图、同一格子、同一阵营的其他玩家
-        List<PlayerEntity> playersOnMap = playerRepository.findAll().stream()
-            .filter(p -> p.getCurrentMapId() != null && p.getCurrentMapId().equals(player.getMapId()))
-            .filter(p -> p.getX() == player.getX() && p.getY() == player.getY())
-            .filter(p -> !p.getId().equals(player.getId()))
-            .collect(Collectors.toList());
+        // 如果玩家有队伍，收集同地图的队友
+        if (player.getPartyId() != null) {
+            Optional<com.heibai.clawworld.infrastructure.persistence.entity.PartyEntity> partyOpt =
+                partyRepository.findById(player.getPartyId());
 
-        for (PlayerEntity entity : playersOnMap) {
-            Player otherPlayer = playerSessionService.getPlayerState(entity.getId());
-            if (otherPlayer != null && otherPlayer.getFaction().equals(player.getFaction())) {
-                partyMembers.add(otherPlayer);
+            if (partyOpt.isPresent()) {
+                com.heibai.clawworld.infrastructure.persistence.entity.PartyEntity party = partyOpt.get();
+                for (String memberId : party.getMemberIds()) {
+                    if (!memberId.equals(player.getId())) {
+                        Player member = playerSessionService.getPlayerState(memberId);
+                        // 只收集同地图的队友
+                        if (member != null && member.getMapId() != null
+                            && member.getMapId().equals(player.getMapId())) {
+                            partyMembers.add(member);
+                        }
+                    }
+                }
             }
         }
 
@@ -187,8 +197,30 @@ public class CombatServiceImpl implements CombatService {
                         .collect(Collectors.toList());
                     combatEngine.addPartyToCombat(existingCombatId, attacker.getFaction(), attackerCombatChars);
 
-                    log.info("玩家加入现有战斗: combatId={}, attackerId={}, enemyName={}",
-                        existingCombatId, attackerId, enemyDisplayName);
+                    // 更新所有参战玩家的战斗状态并切换窗口
+                    List<com.heibai.clawworld.domain.window.WindowTransition> transitions = new ArrayList<>();
+                    for (Player player : attackerParty) {
+                        Optional<PlayerEntity> playerEntityOpt = playerRepository.findById(player.getId());
+                        if (playerEntityOpt.isPresent()) {
+                            PlayerEntity playerEntity = playerEntityOpt.get();
+                            playerEntity.setInCombat(true);
+                            playerEntity.setCombatId(existingCombatId);
+                            playerRepository.save(playerEntity);
+
+                            // 为所有参战玩家添加窗口切换
+                            String currentWindow = windowStateService.getCurrentWindowType(player.getId());
+                            transitions.add(com.heibai.clawworld.domain.window.WindowTransition.of(
+                                player.getId(), currentWindow, "COMBAT", existingCombatId));
+                        }
+                    }
+
+                    // 批量切换所有参战玩家的窗口状态
+                    if (!transitions.isEmpty()) {
+                        windowStateService.transitionWindows(transitions);
+                    }
+
+                    log.info("玩家加入现有战斗: combatId={}, attackerId={}, enemyName={}, partySize={}",
+                        existingCombatId, attackerId, enemyDisplayName, attackerParty.size());
 
                     return CombatResult.success(existingCombatId, existingCombatId, "加入战斗");
                 }
@@ -246,7 +278,8 @@ public class CombatServiceImpl implements CombatService {
             }
             combatEngine.addPartyToCombat(combatId, enemyFaction, enemyCombatChars);
 
-            // 更新所有参战玩家的战斗状态
+            // 更新所有参战玩家的战斗状态并切换窗口
+            List<com.heibai.clawworld.domain.window.WindowTransition> transitions = new ArrayList<>();
             for (Player player : attackerParty) {
                 Optional<PlayerEntity> playerEntityOpt = playerRepository.findById(player.getId());
                 if (playerEntityOpt.isPresent()) {
@@ -254,11 +287,24 @@ public class CombatServiceImpl implements CombatService {
                     playerEntity.setInCombat(true);
                     playerEntity.setCombatId(combatId);
                     playerRepository.save(playerEntity);
+
+                    // 为所有参战玩家添加窗口切换
+                    String currentWindow = windowStateService.getCurrentWindowType(player.getId());
+                    transitions.add(com.heibai.clawworld.domain.window.WindowTransition.of(
+                        player.getId(), currentWindow, "COMBAT", combatId));
                 }
             }
 
-            log.info("发起PVE战斗: combatId={}, attackerId={}, enemyName={}, mapId={}, enemyCount={}",
-                combatId, attackerId, enemyDisplayName, mapId, enemyCombatChars.size());
+            // 批量切换所有参战玩家的窗口状态
+            if (!transitions.isEmpty()) {
+                boolean success = windowStateService.transitionWindows(transitions);
+                if (!success) {
+                    log.warn("部分玩家窗口状态切换失败: combatId={}", combatId);
+                }
+            }
+
+            log.info("发起PVE战斗: combatId={}, attackerId={}, enemyName={}, mapId={}, enemyCount={}, partySize={}",
+                combatId, attackerId, enemyDisplayName, mapId, enemyCombatChars.size(), attackerParty.size());
 
             return CombatResult.success(combatId, combatId, "战斗开始");
         } catch (Exception e) {
@@ -622,13 +668,17 @@ public class CombatServiceImpl implements CombatService {
 
             // 处理战利品分配
             if (distribution != null) {
-                distributeRewards(distribution);
+                // 如果敌人需要重置状态（所有玩家撤退的情况）
+                if (distribution.isEnemiesNeedReset()) {
+                    resetEnemyStates(distribution);
+                } else {
+                    distributeRewards(distribution);
+                    // 更新被击败敌人的状态
+                    updateDefeatedEnemies(distribution);
+                }
 
                 // 同步玩家的战斗后状态（生命和法力）
                 syncPlayerFinalStates(distribution);
-
-                // 更新被击败敌人的状态
-                updateDefeatedEnemies(distribution);
             }
 
             // 从数据库中查找所有combatId匹配的玩家
@@ -666,6 +716,30 @@ public class CombatServiceImpl implements CombatService {
             }
         } catch (Exception e) {
             log.error("处理战斗结束窗口转换失败: combatId={}", combatId, e);
+        }
+    }
+
+    /**
+     * 重置敌人状态（所有玩家撤退时调用）
+     * 敌人不死亡，只是退出战斗状态
+     */
+    private void resetEnemyStates(CombatInstance.RewardDistribution distribution) {
+        if (distribution == null || distribution.getEnemiesToReset() == null) {
+            return;
+        }
+
+        for (CombatInstance.EnemyToReset enemyToReset : distribution.getEnemiesToReset()) {
+            Optional<com.heibai.clawworld.infrastructure.persistence.entity.EnemyInstanceEntity> enemyOpt =
+                enemyInstanceRepository.findByMapIdAndInstanceId(enemyToReset.getMapId(), enemyToReset.getInstanceId());
+
+            if (enemyOpt.isPresent()) {
+                var enemy = enemyOpt.get();
+                // 只重置战斗状态，不设置死亡
+                enemy.setInCombat(false);
+                enemy.setCombatId(null);
+                enemyInstanceRepository.save(enemy);
+                log.debug("敌人 {} 状态已重置（玩家撤退）", enemy.getDisplayName());
+            }
         }
     }
 

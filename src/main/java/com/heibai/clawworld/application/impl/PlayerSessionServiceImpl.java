@@ -14,6 +14,7 @@ import com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity;
 import com.heibai.clawworld.infrastructure.persistence.mapper.ConfigMapper;
 import com.heibai.clawworld.infrastructure.persistence.mapper.PlayerMapper;
 import com.heibai.clawworld.infrastructure.persistence.repository.AccountRepository;
+import com.heibai.clawworld.infrastructure.persistence.repository.PartyRepository;
 import com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository;
 import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
 import com.heibai.clawworld.application.service.PlayerSessionService;
@@ -32,6 +33,7 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
 
     private final AccountRepository accountRepository;
     private final PlayerRepository playerRepository;
+    private final PartyRepository partyRepository;
     private final PlayerMapper playerMapper;
     private final ConfigMapper configMapper;
     private final ConfigDataManager configDataManager;
@@ -187,6 +189,15 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
             }
         }
         player.setInventory(inventory);
+
+        // 如果玩家有队伍，设置为队伍的阵营
+        if (entity.getPartyId() != null) {
+            Optional<com.heibai.clawworld.infrastructure.persistence.entity.PartyEntity> partyOpt =
+                partyRepository.findById(entity.getPartyId());
+            if (partyOpt.isPresent()) {
+                player.setFaction(partyOpt.get().getFaction());
+            }
+        }
 
         return player;
     }

@@ -10,6 +10,7 @@ import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
 import com.heibai.clawworld.infrastructure.config.data.map.MapConfig;
 import com.heibai.clawworld.infrastructure.persistence.mapper.CombatMapper;
 import com.heibai.clawworld.infrastructure.persistence.mapper.ConfigMapper;
+import com.heibai.clawworld.infrastructure.persistence.repository.PartyRepository;
 import com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,6 +49,9 @@ class CombatServiceImplTest {
     @Mock
     private PlayerRepository playerRepository;
 
+    @Mock
+    private PartyRepository partyRepository;
+
     @InjectMocks
     private CombatServiceImpl combatService;
 
@@ -85,7 +89,7 @@ class CombatServiceImplTest {
         when(playerSessionService.getPlayerState("player1")).thenReturn(attacker);
         when(playerSessionService.getPlayerState("player2")).thenReturn(target);
         when(configDataManager.getMap("test_map")).thenReturn(mapConfig);
-        when(playerRepository.findAll()).thenReturn(new ArrayList<>());
+        // attacker没有队伍，所以不需要mock partyRepository
         when(combatEngine.createCombat("test_map")).thenReturn("combat123");
 
         // Mock combatMapper to return a CombatCharacter for any Player

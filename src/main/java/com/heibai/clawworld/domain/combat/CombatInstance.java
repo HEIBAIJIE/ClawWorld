@@ -43,6 +43,9 @@ public class CombatInstance {
     // 战利品分配结果（战斗结束时填充）
     private RewardDistribution rewardDistribution;
 
+    // 敌人是否需要重置状态（所有玩家撤退时为true）
+    private boolean enemiesNeedReset;
+
     // 战斗超时时间（10分钟）
     private static final long COMBAT_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -443,12 +446,29 @@ public class CombatInstance {
         private List<String> playerIds;           // 所有获得奖励的玩家ID
         private Map<String, PlayerFinalState> playerFinalStates; // 玩家战斗结束时的状态
         private List<DefeatedEnemy> defeatedEnemies; // 被击败的敌人列表
+        private boolean enemiesNeedReset;         // 敌人是否需要重置状态（所有玩家撤退时为true）
+        private List<EnemyToReset> enemiesToReset; // 需要重置状态的敌人列表
 
         public RewardDistribution() {
             this.items = new ArrayList<>();
             this.playerIds = new ArrayList<>();
             this.playerFinalStates = new HashMap<>();
             this.defeatedEnemies = new ArrayList<>();
+            this.enemiesToReset = new ArrayList<>();
+        }
+    }
+
+    /**
+     * 需要重置状态的敌人信息
+     */
+    @Data
+    public static class EnemyToReset {
+        private String mapId;
+        private String instanceId;
+
+        public EnemyToReset(String mapId, String instanceId) {
+            this.mapId = mapId;
+            this.instanceId = instanceId;
         }
     }
 
