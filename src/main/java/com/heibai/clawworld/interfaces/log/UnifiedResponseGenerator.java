@@ -161,11 +161,15 @@ public class UnifiedResponseGenerator {
         }
 
         // 3. 如果窗口发生变化，添加窗口变化日志和新窗口内容
-        if (newWindowType != null && newWindowType != currentWindowType) {
-            String windowChangeMsg = String.format("你已经从%s切换到%s",
-                getWindowTypeName(currentWindowType),
-                getWindowTypeName(newWindowType));
-            builder.addState("窗口变化", windowChangeMsg);
+        // 注意：即使窗口类型相同（如传送时 MAP -> MAP），只要 newWindowType 不为 null，
+        // 也需要刷新窗口内容，因为可能是地图变化了
+        if (newWindowType != null) {
+            if (newWindowType != currentWindowType) {
+                String windowChangeMsg = String.format("你已经从%s切换到%s",
+                    getWindowTypeName(currentWindowType),
+                    getWindowTypeName(newWindowType));
+                builder.addState("窗口变化", windowChangeMsg);
+            }
 
             // 生成新窗口的内容
             // 只有当 playerId 不为 null 时才调用，避免 findById(null) 异常

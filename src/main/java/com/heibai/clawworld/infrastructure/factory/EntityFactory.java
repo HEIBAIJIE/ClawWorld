@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -196,8 +197,22 @@ public class EntityFactory {
         // 设置连接的传送点ID列表
         waypoint.setConnectedWaypointIds(template.getConnectedWaypointIds());
 
-        log.debug("Created Waypoint instance: {} at ({}, {}) on map {}",
-                waypoint.getName(), waypoint.getX(), waypoint.getY(), mapId);
+        // 生成连接传送点的显示名称列表（格式：地图名·传送点名）
+        List<String> displayNames = new ArrayList<>();
+        if (template.getConnectedWaypointIds() != null) {
+            for (String connectedWpId : template.getConnectedWaypointIds()) {
+                var connectedWp = configDataManager.getWaypoint(connectedWpId);
+                if (connectedWp != null) {
+                    var connectedMap = configDataManager.getMap(connectedWp.getMapId());
+                    String mapName = connectedMap != null ? connectedMap.getName() : connectedWp.getMapId();
+                    displayNames.add(mapName + "·" + connectedWp.getName());
+                }
+            }
+        }
+        waypoint.setConnectedWaypointDisplayNames(displayNames);
+
+        log.debug("Created Waypoint instance: {} at ({}, {}) on map {}, connected to: {}",
+                waypoint.getName(), waypoint.getX(), waypoint.getY(), mapId, displayNames);
 
         return waypoint;
     }

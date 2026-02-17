@@ -236,6 +236,11 @@ public class MapEntityServiceImpl implements MapEntityService {
 
         PlayerEntity player = playerOpt.get();
 
+        // 处理传送选项（格式：传送到地图名·传送点名）
+        if (option.startsWith("传送到")) {
+            return handleTeleport(player, targetName, option);
+        }
+
         // 根据交互选项处理不同的交互
         switch (option.toLowerCase()) {
             case "inspect":
@@ -271,8 +276,8 @@ public class MapEntityServiceImpl implements MapEntityService {
 
             case "teleport":
             case "传送":
-                // 传送交互
-                return InteractionResult.success("传送到 " + targetName);
+                // 旧的传送交互（不应该再被使用）
+                return InteractionResult.error("请使用具体的传送选项，如：传送到城镇广场·城镇入口");
 
             case "loot":
             case "拾取":
@@ -459,6 +464,110 @@ public class MapEntityServiceImpl implements MapEntityService {
         }
 
         return true;
+    }
+
+    /**
+     * 处理传送交互
+     * @param player 玩家实体
+     * @param waypointName 传送点名称
+     * @param option 传送选项（格式：传送到地图名·传送点名）
+     * @return 交互结果
+     */
+    private InteractionResult handleTeleport(PlayerEntity player, String waypointName, String option) {
+        // 解析目标：传送到地图名·传送点名
+        String targetDisplayName = option.substring("传送到".length());
+
+        // 查找当前传送点
+        var currentWaypointConfig = findWaypointByName(player.getCurrentMapId(), waypointName);
+        if (currentWaypointConfig == null) {
+            return InteractionResult.error("找不到传送点: " + waypointName);
+        }
+
+        // 检查玩家是否在传送点附近（九宫格范围内）
+        int dx = Math.abs(player.getX() - currentWaypointConfig.getX());
+        int dy = Math.abs(player.getY() - currentWaypointConfig.getY());
+        if (dx > 1 || dy > 1) {
+            return InteractionResult.error("你不在传送点附近，请先移动到传送点");
+        }
+
+        // 查找目标传送点
+        var targetWaypointConfig = findWaypointByDisplayName(targetDisplayName, currentWaypointConfig.getConnectedWaypointIds());
+        if (targetWaypointConfig == null) {
+            return InteractionResult.error("无法传送到: " + targetDisplayName + "，该目的地不在可传送列表中");
+        }
+
+        // 获取目标地图配置
+        var targetMapConfig = configDataManager.getMap(targetWaypointConfig.getMapId());
+        if (targetMapConfig == null) {
+            return InteractionResult.error("目标地图不存在: " + targetWaypointConfig.getMapId());
+        }
+
+        // 执行传送：更新玩家位置和地图
+        String oldMapId = player.getCurrentMapId();
+        player.setCurrentMapId(targetWaypointConfig.getMapId());
+        player.setX(targetWaypointConfig.getX());
+        player.setY(targetWaypointConfig.getY());
+
+        // 如果传送到安全区，恢复生命和法力
+        if (targetMapConfig.isSafe()) {
+            player.setCurrentHealth(player.getMaxHealth());
+            player.setCurrentMana(player.getMaxMana());
+        }
+
+        playerRepository.save(player);
+
+        // 构建传送成功消息
+        String message = String.format("传送成功！从 %s 传送到 %s·%s (位置: %d, %d)",
+            oldMapId, targetMapConfig.getName(), targetWaypointConfig.getName(),
+            targetWaypointConfig.getX(), targetWaypointConfig.getY());
+
+        if (targetMapConfig.isSafe()) {
+            message += "\n【安全区域】生命和法力已恢复";
+        }
+
+        // 返回窗口变化，触发地图窗口刷新
+        return InteractionResult.successWithWindowChange(
+            message,
+            "map_" + targetWaypointConfig.getMapId(),
+            "MAP"
+        );
+    }
+
+    /**
+     * 根据名称查找地图上的传送点配置
+     */
+    private com.heibai.clawworld.infrastructure.config.data.map.WaypointConfig findWaypointByName(String mapId, String waypointName) {
+        for (var wp : configDataManager.getAllWaypoints()) {
+            if (wp.getMapId().equals(mapId) && wp.getName().equals(waypointName)) {
+                return wp;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 根据显示名称（地图名·传送点名）查找传送点配置
+     * @param displayName 显示名称（格式：地图名·传送点名）
+     * @param connectedWaypointIds 允许的传送点ID列表
+     */
+    private com.heibai.clawworld.infrastructure.config.data.map.WaypointConfig findWaypointByDisplayName(
+            String displayName, java.util.List<String> connectedWaypointIds) {
+        if (connectedWaypointIds == null || connectedWaypointIds.isEmpty()) {
+            return null;
+        }
+
+        for (String wpId : connectedWaypointIds) {
+            var wp = configDataManager.getWaypoint(wpId);
+            if (wp != null) {
+                var mapConfig = configDataManager.getMap(wp.getMapId());
+                String mapName = mapConfig != null ? mapConfig.getName() : wp.getMapId();
+                String wpDisplayName = mapName + "·" + wp.getName();
+                if (wpDisplayName.equals(displayName)) {
+                    return wp;
+                }
+            }
+        }
+        return null;
     }
 
     /**

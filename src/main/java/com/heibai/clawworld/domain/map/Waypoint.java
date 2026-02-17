@@ -3,7 +3,7 @@ package com.heibai.clawworld.domain.map;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -17,6 +17,12 @@ public class Waypoint extends MapEntity {
      * 可以传送到的其他传送点ID列表
      */
     private List<String> connectedWaypointIds;
+
+    /**
+     * 连接的传送点显示信息列表（格式：地图名·传送点名）
+     * 由外部服务设置，用于生成交互选项
+     */
+    private List<String> connectedWaypointDisplayNames;
 
     @Override
     public boolean isPassable() {
@@ -35,6 +41,15 @@ public class Waypoint extends MapEntity {
 
     @Override
     public List<String> getInteractionOptions() {
-        return Arrays.asList("传送");
+        // 如果有连接的传送点显示名称，生成具体的传送选项
+        if (connectedWaypointDisplayNames != null && !connectedWaypointDisplayNames.isEmpty()) {
+            List<String> options = new ArrayList<>();
+            for (String displayName : connectedWaypointDisplayNames) {
+                options.add("传送到" + displayName);
+            }
+            return options;
+        }
+        // 如果没有设置显示名称，返回空列表（不应该发生）
+        return new ArrayList<>();
     }
 }
