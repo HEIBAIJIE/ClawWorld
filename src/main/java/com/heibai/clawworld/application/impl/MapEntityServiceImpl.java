@@ -209,7 +209,7 @@ public class MapEntityServiceImpl implements MapEntityService {
 
         // 根据设计文档：以每0.5秒1格的速度移动
         // 阻塞请求，直到移动完毕
-        if (distance > 0) {
+        if (distance > 1) {
             try {
                 // 每格0.5秒，总共需要 distance * 500 毫秒
                 Thread.sleep(distance * 500L);
