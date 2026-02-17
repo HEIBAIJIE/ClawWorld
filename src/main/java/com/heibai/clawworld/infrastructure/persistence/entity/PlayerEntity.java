@@ -88,6 +88,12 @@ public class PlayerEntity {
     private boolean inCombat;
     private String combatId;
 
+    // 交易状态
+    private String tradeId;
+
+    // 商店状态
+    private String currentShopId;
+
     /**
      * 装备栏数据
      */

@@ -75,6 +75,109 @@ body {
   line-height: 1.6;
 }
 
+/* 日志行样式 */
+.log-line {
+  margin: 2px 0;
+  padding: 2px 0;
+  line-height: 1.6;
+}
+
+/* 来源标签样式 */
+.log-source {
+  font-weight: bold;
+  padding: 1px 4px;
+  border-radius: 2px;
+  margin-right: 2px;
+}
+
+.log-source-server {
+  color: #4CAF50;
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.log-source-client {
+  color: #2196F3;
+  background-color: rgba(33, 150, 243, 0.1);
+}
+
+/* 时间标签样式 */
+.log-time {
+  color: #888;
+  font-size: 11px;
+  margin-right: 2px;
+}
+
+/* 类型标签样式 */
+.log-type {
+  font-weight: bold;
+  padding: 1px 4px;
+  border-radius: 2px;
+  margin-right: 2px;
+}
+
+.log-type-background {
+  color: #9C27B0;
+  background-color: rgba(156, 39, 176, 0.1);
+}
+
+.log-type-window {
+  color: #FF9800;
+  background-color: rgba(255, 152, 0, 0.1);
+}
+
+.log-type-state {
+  color: #00BCD4;
+  background-color: rgba(0, 188, 212, 0.1);
+}
+
+.log-type-command {
+  color: #2196F3;
+  background-color: rgba(33, 150, 243, 0.1);
+}
+
+/* 子类型标签样式 */
+.log-subtype {
+  padding: 1px 4px;
+  border-radius: 2px;
+  margin-right: 4px;
+}
+
+.log-subtype-env {
+  color: #FFC107;
+  background-color: rgba(255, 193, 7, 0.1);
+}
+
+.log-subtype-response {
+  color: #4CAF50;
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.log-subtype-window-change {
+  color: #FF5722;
+  background-color: rgba(255, 87, 34, 0.1);
+}
+
+/* 日志内容样式 */
+.log-content {
+  color: #e0e0e0;
+}
+
+/* 用户输入样式 */
+.user-input {
+  color: #64B5F6;
+  font-weight: bold;
+  margin: 4px 0;
+  padding: 4px 8px;
+  background-color: rgba(33, 150, 243, 0.05);
+  border-left: 3px solid #2196F3;
+}
+
+/* 普通文本样式 */
+.plain-text {
+  color: #d0d0d0;
+  margin: 2px 0;
+}
+
 .command-section {
   background-color: #2a2a2a;
   border: 1px solid #444;

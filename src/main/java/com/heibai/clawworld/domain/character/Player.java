@@ -42,6 +42,12 @@ public class Player extends Character {
     private String partyId;
     private boolean isPartyLeader;
 
+    // 交易状态
+    private String tradeId;
+
+    // 商店状态
+    private String currentShopId;
+
     /**
      * 从职业配置初始化基础属性
      * 在创建玩家或升级时调用

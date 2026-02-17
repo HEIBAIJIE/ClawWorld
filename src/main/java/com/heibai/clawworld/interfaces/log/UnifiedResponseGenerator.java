@@ -36,6 +36,9 @@ public class UnifiedResponseGenerator {
     private final CombatWindowLogGenerator combatWindowLogGenerator;
     private final TradeWindowLogGenerator tradeWindowLogGenerator;
     private final ShopWindowLogGenerator shopWindowLogGenerator;
+    private final com.heibai.clawworld.application.service.CombatService combatService;
+    private final com.heibai.clawworld.application.service.TradeService tradeService;
+    private final com.heibai.clawworld.application.service.ShopService shopService;
 
     /**
      * 生成完整的响应（包含客户端指令日志 + 状态日志 + 可选的窗口日志）
@@ -70,16 +73,44 @@ public class UnifiedResponseGenerator {
             stateLogGenerator.generateMapStateLogs(builder, playerId, commandResult);
         } else if (currentWindowType == CommandContext.WindowType.COMBAT) {
             // 战斗窗口：生成战斗状态
-            // TODO: 需要从战斗系统获取战斗日志
-            builder.addState("指令响应", commandResult + "执行完毕，" + commandResult);
+            Player player = playerSessionService.getPlayerState(playerId);
+            if (player != null && player.getCombatId() != null) {
+                com.heibai.clawworld.domain.combat.Combat combat = combatService.getCombatState(player.getCombatId());
+                if (combat != null) {
+                    combatWindowLogGenerator.generateCombatStateLogs(builder, combat, playerId, commandResult);
+                } else {
+                    builder.addState("指令响应", commandResult);
+                }
+            } else {
+                builder.addState("指令响应", commandResult);
+            }
         } else if (currentWindowType == CommandContext.WindowType.TRADE) {
             // 交易窗口：生成交易状态
-            // TODO: 需要从交易系统获取交易状态
-            builder.addState("指令响应", commandResult + "执行完毕，" + commandResult);
+            Player player = playerSessionService.getPlayerState(playerId);
+            if (player != null && player.getTradeId() != null) {
+                com.heibai.clawworld.domain.trade.Trade trade = tradeService.getTradeState(player.getTradeId());
+                if (trade != null) {
+                    tradeWindowLogGenerator.generateTradeStateLogs(builder, trade, playerId, commandResult);
+                } else {
+                    builder.addState("指令响应", commandResult);
+                }
+            } else {
+                builder.addState("指令响应", commandResult);
+            }
         } else if (currentWindowType == CommandContext.WindowType.SHOP) {
             // 商店窗口：生成商店状态
-            // TODO: 需要从商店系统获取商店状态
-            builder.addState("指令响应", commandResult + "执行完毕，" + commandResult);
+            Player player = playerSessionService.getPlayerState(playerId);
+            if (player != null && player.getCurrentShopId() != null) {
+                com.heibai.clawworld.application.service.ShopService.ShopInfo shopInfo =
+                    shopService.getShopInfo(player.getCurrentShopId());
+                if (shopInfo != null) {
+                    shopWindowLogGenerator.generateShopStateLogs(builder, shopInfo, player, commandResult);
+                } else {
+                    builder.addState("指令响应", commandResult);
+                }
+            } else {
+                builder.addState("指令响应", commandResult);
+            }
         } else {
             // 其他窗口：只返回指令响应
             builder.addState("指令响应", commandResult);
@@ -151,16 +182,41 @@ public class UnifiedResponseGenerator {
             }
         } else if (windowType == CommandContext.WindowType.TRADE) {
             // 生成交易窗口内容
-            // TODO: 需要获取交易对象和对方玩家信息
-            builder.addWindow("交易窗口", "交易窗口已打开");
+            if (player.getTradeId() != null) {
+                com.heibai.clawworld.domain.trade.Trade trade = tradeService.getTradeState(player.getTradeId());
+                if (trade != null) {
+                    Player otherPlayer = null;
+                    String otherPlayerId = trade.getInitiatorId().equals(playerId) ?
+                        trade.getReceiverId() : trade.getInitiatorId();
+                    if (otherPlayerId != null) {
+                        otherPlayer = playerSessionService.getPlayerState(otherPlayerId);
+                    }
+                    tradeWindowLogGenerator.generateTradeWindowLogs(builder, trade, player, otherPlayer);
+                }
+            } else {
+                builder.addWindow("交易窗口", "交易窗口已打开");
+            }
         } else if (windowType == CommandContext.WindowType.COMBAT) {
             // 生成战斗窗口内容
-            // TODO: 需要获取战斗对象
-            builder.addWindow("战斗窗口", "战斗窗口已打开");
+            if (player.getCombatId() != null) {
+                com.heibai.clawworld.domain.combat.Combat combat = combatService.getCombatState(player.getCombatId());
+                if (combat != null) {
+                    combatWindowLogGenerator.generateCombatWindowLogs(builder, combat, playerId);
+                }
+            } else {
+                builder.addWindow("战斗窗口", "战斗窗口已打开");
+            }
         } else if (windowType == CommandContext.WindowType.SHOP) {
             // 生成商店窗口内容
-            // TODO: 需要获取商店对象
-            builder.addWindow("商店窗口", "商店窗口已打开");
+            if (player.getCurrentShopId() != null) {
+                com.heibai.clawworld.application.service.ShopService.ShopInfo shopInfo =
+                    shopService.getShopInfo(player.getCurrentShopId());
+                if (shopInfo != null) {
+                    shopWindowLogGenerator.generateShopWindowLogs(builder, shopInfo, player);
+                }
+            } else {
+                builder.addWindow("商店窗口", "商店窗口已打开");
+            }
         }
     }
 

@@ -124,6 +124,12 @@ public class PlayerMapper {
         entity.setInCombat(player.isInCombat());
         entity.setCombatId(player.getCombatId());
 
+        // 交易状态
+        entity.setTradeId(player.getTradeId());
+
+        // 商店状态
+        entity.setCurrentShopId(player.getCurrentShopId());
+
         return entity;
     }
 
@@ -206,6 +212,12 @@ public class PlayerMapper {
         player.setInCombat(entity.isInCombat());
         player.setCombatId(entity.getCombatId());
         player.setCombatStartTime(entity.isInCombat() ? System.currentTimeMillis() : null);
+
+        // 交易状态
+        player.setTradeId(entity.getTradeId());
+
+        // 商店状态
+        player.setCurrentShopId(entity.getCurrentShopId());
 
         return player;
     }

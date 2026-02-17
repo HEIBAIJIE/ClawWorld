@@ -1,9 +1,6 @@
 package com.heibai.clawworld.interfaces.log;
 
-import com.heibai.clawworld.domain.character.NpcShopInstance;
 import com.heibai.clawworld.domain.character.Player;
-import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
-import com.heibai.clawworld.infrastructure.config.data.character.NpcConfig;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,27 +11,23 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ShopWindowLogGenerator {
 
-    private final ConfigDataManager configDataManager;
-
     /**
      * 生成商店窗口日志
      */
-    public void generateShopWindowLogs(GameLogBuilder builder, NpcShopInstance shop, Player player) {
-        // 获取NPC配置
-        NpcConfig npcConfig = configDataManager.getNpc(shop.getNpcId());
-        String npcName = npcConfig != null ? npcConfig.getName() : "商店";
-
+    public void generateShopWindowLogs(GameLogBuilder builder,
+                                      com.heibai.clawworld.application.service.ShopService.ShopInfo shop,
+                                      Player player) {
         // 1. 商店基本信息
-        builder.addWindow("商店窗口", String.format("商店：%s", npcName));
+        builder.addWindow("商店窗口", String.format("商店：%s", shop.getNpcName()));
 
         // 2. 商店出售的商品
         StringBuilder sellItems = new StringBuilder();
         sellItems.append("出售商品：\n");
         if (shop.getItems() != null && !shop.getItems().isEmpty()) {
-            for (NpcShopInstance.ShopItem item : shop.getItems()) {
-                String itemName = getItemName(item.getItemId());
-                sellItems.append(String.format("- %s  库存:%d\n",
-                    itemName,
+            for (com.heibai.clawworld.application.service.ShopService.ShopInfo.ShopItemInfo item : shop.getItems()) {
+                sellItems.append(String.format("- %s  价格:%d  库存:%d\n",
+                    item.getItemName(),
+                    item.getPrice(),
                     item.getCurrentQuantity()));
             }
         } else {
@@ -45,11 +38,7 @@ public class ShopWindowLogGenerator {
         // 3. 商店收购信息
         StringBuilder buyInfo = new StringBuilder();
         buyInfo.append("收购信息：\n");
-        if (npcConfig != null) {
-            buyInfo.append("商店收购物品\n");
-        } else {
-            buyInfo.append("(不收购物品)\n");
-        }
+        buyInfo.append("商店收购物品\n");
         builder.addWindow("商店窗口", buyInfo.toString());
 
         // 4. 玩家资产
@@ -70,14 +59,19 @@ public class ShopWindowLogGenerator {
     /**
      * 生成商店状态日志
      */
-    public void generateShopStateLogs(GameLogBuilder builder, NpcShopInstance shop, Player player, String commandResult) {
+    public void generateShopStateLogs(GameLogBuilder builder,
+                                     com.heibai.clawworld.application.service.ShopService.ShopInfo shop,
+                                     Player player,
+                                     String commandResult) {
         // 1. 商店库存变化
         if (shop.getItems() != null && !shop.getItems().isEmpty()) {
             StringBuilder stockChanges = new StringBuilder();
             stockChanges.append("商店库存：\n");
-            for (NpcShopInstance.ShopItem item : shop.getItems()) {
-                String itemName = getItemName(item.getItemId());
-                stockChanges.append(String.format("- %s  库存:%d\n", itemName, item.getCurrentQuantity()));
+            for (com.heibai.clawworld.application.service.ShopService.ShopInfo.ShopItemInfo item : shop.getItems()) {
+                stockChanges.append(String.format("- %s  价格:%d  库存:%d\n",
+                    item.getItemName(),
+                    item.getPrice(),
+                    item.getCurrentQuantity()));
             }
             builder.addState("库存变化", stockChanges.toString());
         }
@@ -88,21 +82,6 @@ public class ShopWindowLogGenerator {
             player.getInventory() != null ? player.getInventory().size() : 0));
 
         // 3. 指令响应
-        builder.addState("指令响应", commandResult + "执行完毕，" + commandResult);
-    }
-
-    /**
-     * 获取物品名称
-     */
-    private String getItemName(String itemId) {
-        var itemConfig = configDataManager.getItem(itemId);
-        if (itemConfig != null) {
-            return itemConfig.getName();
-        }
-        var equipConfig = configDataManager.getEquipment(itemId);
-        if (equipConfig != null) {
-            return equipConfig.getName();
-        }
-        return itemId;
+        builder.addState("指令响应", commandResult);
     }
 }

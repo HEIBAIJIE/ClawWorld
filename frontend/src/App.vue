@@ -45,7 +45,7 @@
       <!-- 游戏文本框 -->
       <div class="game-content-wrapper">
         <div class="game-content">
-          <pre class="game-text">{{ gameText }}</pre>
+          <div class="game-text" v-html="formattedGameText"></div>
         </div>
         <div class="token-counter">
           <span class="token-label">约</span>
@@ -206,4 +206,76 @@ const tokenCount = computed(() => {
 const formattedTokenCount = computed(() => {
   return formatTokenCount(tokenCount.value)
 })
+
+// 格式化游戏文本，添加颜色和高亮
+const formattedGameText = computed(() => {
+  if (!gameText.value) return ''
+
+  // 将文本按行分割
+  const lines = gameText.value.split('\n')
+  const formattedLines = lines.map(line => {
+    // 解析日志格式: [来源][时间][类型][子类型]内容
+    const logPattern = /^\[([^\]]+)\]\[([^\]]+)\]\[([^\]]+)\]\[([^\]]+)\](.*)$/
+    const match = line.match(logPattern)
+
+    if (match) {
+      const [, source, time, type, subType, content] = match
+
+      // 根据来源设置颜色
+      let sourceClass = 'log-source'
+      if (source === '服务器') {
+        sourceClass += ' log-source-server'
+      } else if (source === '客户端') {
+        sourceClass += ' log-source-client'
+      }
+
+      // 根据类型设置颜色
+      let typeClass = 'log-type'
+      if (type === '背景') {
+        typeClass += ' log-type-background'
+      } else if (type === '窗口') {
+        typeClass += ' log-type-window'
+      } else if (type === '状态') {
+        typeClass += ' log-type-state'
+      } else if (type === '指令') {
+        typeClass += ' log-type-command'
+      }
+
+      // 根据子类型设置颜色
+      let subTypeClass = 'log-subtype'
+      if (subType === '环境变化') {
+        subTypeClass += ' log-subtype-env'
+      } else if (subType === '指令响应') {
+        subTypeClass += ' log-subtype-response'
+      } else if (subType === '窗口变化') {
+        subTypeClass += ' log-subtype-window-change'
+      }
+
+      return `<div class="log-line">` +
+        `<span class="${sourceClass}">[${source}]</span>` +
+        `<span class="log-time">[${time}]</span>` +
+        `<span class="${typeClass}">[${type}]</span>` +
+        `<span class="${subTypeClass}">[${subType}]</span>` +
+        `<span class="log-content">${escapeHtml(content)}</span>` +
+        `</div>`
+    }
+
+    // 如果不是日志格式，检查是否是用户输入
+    if (line.startsWith('> ')) {
+      return `<div class="user-input">${escapeHtml(line)}</div>`
+    }
+
+    // 普通文本
+    return `<div class="plain-text">${escapeHtml(line)}</div>`
+  })
+
+  return formattedLines.join('')
+})
+
+// HTML转义函数
+function escapeHtml(text) {
+  const div = document.createElement('div')
+  div.textContent = text
+  return div.innerHTML
+}
 </script>
