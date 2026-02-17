@@ -22,7 +22,7 @@ public class CombatWindowLogGenerator {
 
     /**
      * 生成战斗窗口日志（进入战斗时显示）
-     * 根据设计文档，战斗窗口需要返回：
+     * 根据设计文档，战斗窗口需要返回���
      * （1）当前战斗一共有哪些方，有哪些角色
      * （2）这些角色的属性、状态等基础信息
      * （3）当前行动条顺序
@@ -68,7 +68,7 @@ public class CombatWindowLogGenerator {
         }
         builder.addWindow("角色状态", participantsStatus.toString().trim());
 
-        // 4. 行动条顺序
+        // 4. 行动条顺序（使用百分比显示）
         StringBuilder turnOrder = new StringBuilder();
         turnOrder.append("【行动条】\n");
         if (combat.getActionBar() != null && !combat.getActionBar().isEmpty()) {
@@ -80,24 +80,32 @@ public class CombatWindowLogGenerator {
                 if (playerId != null && playerId.equals(entry.getCharacterId())) {
                     marker = " ← 你";
                 }
+                // 将进度转换为百分比（10000为100%）
+                double percent = entry.getProgress() / 100.0;
                 if (i == 0) {
-                    turnOrder.append(String.format("→ %d. %s (进度:%d)%s\n", i + 1, characterName, entry.getProgress(), marker));
+                    turnOrder.append(String.format("→ %d. %s (%.1f%%)%s\n", i + 1, characterName, percent, marker));
                 } else {
-                    turnOrder.append(String.format("  %d. %s (进度:%d)%s\n", i + 1, characterName, entry.getProgress(), marker));
+                    turnOrder.append(String.format("  %d. %s (%.1f%%)%s\n", i + 1, characterName, percent, marker));
                 }
             }
         }
         builder.addWindow("行动条", turnOrder.toString().trim());
 
-        // 5. 当前玩家的技能
+        // 5. 当前玩家的技能（去重）
         StringBuilder skills = new StringBuilder();
         skills.append("【你的技能】\n");
         // 从玩家状态获取技能列表
         Player player = playerSessionService.getPlayerState(playerId);
+        java.util.Set<String> addedSkills = new java.util.HashSet<>();
         if (player != null && player.getSkills() != null && !player.getSkills().isEmpty()) {
             for (String skillId : player.getSkills()) {
+                // 跳过普通攻击，最后统一添加
+                if ("basic_attack".equals(skillId) || "普通攻击".equals(skillId)) {
+                    continue;
+                }
                 var skillConfig = configDataManager.getSkill(skillId);
-                if (skillConfig != null) {
+                if (skillConfig != null && !addedSkills.contains(skillConfig.getName())) {
+                    addedSkills.add(skillConfig.getName());
                     skills.append("- ").append(skillConfig.getName());
                     skills.append(" (消耗:").append(skillConfig.getManaCost()).append("MP");
                     if (skillConfig.getCooldown() > 0) {
@@ -107,7 +115,7 @@ public class CombatWindowLogGenerator {
                 }
             }
         }
-        // 普通攻击总是可用
+        // 普通攻击总是可用，放在最后
         skills.append("- 普通攻击 (消耗:0MP, 无CD)\n");
         builder.addWindow("技能列表", skills.toString().trim());
 
@@ -144,31 +152,30 @@ public class CombatWindowLogGenerator {
      */
     public int generateCombatStateLogs(GameLogBuilder builder, Combat combat, String playerId,
                                        String commandResult, int lastLogSequence) {
-        // 1. 指令响应
-        builder.addState("指令响应", commandResult);
+        // 1. 指令响应（不再单独添加，因为战斗日志中已经包含了行动信息）
+        // 只有当没有新的战斗日志时才显示指令响应
+        boolean hasNewLogs = false;
 
-        // 2. 增量战斗日志
+        // 2. 增量战斗日志（每条日志单独作为一条状态日志）
         int currentMaxSequence = lastLogSequence;
         if (combat.getCombatLog() != null && !combat.getCombatLog().isEmpty()) {
-            // 解析日志获取序列号并过滤增量日志
-            StringBuilder battleLog = new StringBuilder();
-            boolean hasNewLogs = false;
             for (String log : combat.getCombatLog()) {
                 // 日志格式为 "[#序号] 内容"
                 int sequence = parseLogSequence(log);
                 if (sequence > lastLogSequence) {
-                    if (!hasNewLogs) {
-                        hasNewLogs = true;
-                    }
-                    battleLog.append(log).append("\n");
+                    hasNewLogs = true;
+                    // 每条战斗日志单独添加，这样每条都会有完整的格式
+                    builder.addState("战斗日志", log);
                     if (sequence > currentMaxSequence) {
                         currentMaxSequence = sequence;
                     }
                 }
             }
-            if (hasNewLogs) {
-                builder.addState("战斗日志", battleLog.toString().trim());
-            }
+        }
+
+        // 如果没有新的战斗日志，显示指令响应
+        if (!hasNewLogs) {
+            builder.addState("指令响应", commandResult);
         }
 
         // 3. 角色状态
@@ -191,7 +198,7 @@ public class CombatWindowLogGenerator {
         }
         builder.addState("角色状态", statusChanges.toString().trim());
 
-        // 4. 行动条更新
+        // 4. 行动条更新（使用百分比显示）
         if (combat.getActionBar() != null && !combat.getActionBar().isEmpty()) {
             StringBuilder turnOrderUpdate = new StringBuilder();
             int displayCount = Math.min(5, combat.getActionBar().size());
@@ -202,10 +209,12 @@ public class CombatWindowLogGenerator {
                 if (playerId != null && playerId.equals(entry.getCharacterId())) {
                     marker = " ← 你";
                 }
+                // 将进度转换为百分比（10000为100%）
+                double percent = entry.getProgress() / 100.0;
                 if (i == 0) {
-                    turnOrderUpdate.append(String.format("→ %d. %s (进度:%d)%s\n", i + 1, characterName, entry.getProgress(), marker));
+                    turnOrderUpdate.append(String.format("→ %d. %s (%.1f%%)%s\n", i + 1, characterName, percent, marker));
                 } else {
-                    turnOrderUpdate.append(String.format("  %d. %s (进度:%d)%s\n", i + 1, characterName, entry.getProgress(), marker));
+                    turnOrderUpdate.append(String.format("  %d. %s (%.1f%%)%s\n", i + 1, characterName, percent, marker));
                 }
             }
             builder.addState("行动条", turnOrderUpdate.toString().trim());

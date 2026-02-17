@@ -746,6 +746,60 @@ public class CombatEngine {
      */
     private void handleCombatRewards(CombatInstance combat, CombatParty winner) {
         log.info("战斗 {} 的胜利方 {} 获得战利品", combat.getCombatId(), winner.getFactionId());
+
+        // 计算并记录战利品
+        int totalExp = 0;
+        int totalGold = 0;
+        List<String> droppedItems = new ArrayList<>();
+
+        // 遍历所有被击败的敌人，计算战利品
+        for (CombatParty party : combat.getParties().values()) {
+            if (party.getFactionId().equals(winner.getFactionId())) {
+                continue; // 跳过胜利方
+            }
+            for (CombatCharacter character : party.getCharacters()) {
+                if (!character.isAlive() && character.isEnemy()) {
+                    // 计算这个敌人的战利品
+                    CombatRewardCalculator.CombatReward reward = rewardCalculator.calculateEnemyReward(character, winner.getFactionId());
+                    totalExp += reward.getExperience();
+                    totalGold += reward.getGold();
+                    if (reward.getItems() != null) {
+                        droppedItems.addAll(reward.getItems());
+                    }
+                }
+            }
+        }
+
+        // 添加战利品日志
+        StringBuilder rewardLog = new StringBuilder();
+        rewardLog.append("=== 战利品 ===");
+        combat.addLog(rewardLog.toString());
+
+        if (totalExp > 0) {
+            combat.addLog("获得经验: " + totalExp);
+        }
+        if (totalGold > 0) {
+            combat.addLog("获得金钱: " + totalGold);
+        }
+        if (!droppedItems.isEmpty()) {
+            for (String itemId : droppedItems) {
+                // 尝试获取物品名称
+                String itemName = itemId;
+                if (configDataManager != null) {
+                    var itemConfig = configDataManager.getItem(itemId);
+                    if (itemConfig != null) {
+                        itemName = itemConfig.getName();
+                    } else {
+                        var equipConfig = configDataManager.getEquipment(itemId);
+                        if (equipConfig != null) {
+                            itemName = equipConfig.getName();
+                        }
+                    }
+                }
+                combat.addLog("获得物品: " + itemName);
+            }
+        }
+
         // 战利品信息已经在CombatInstance中记录，这里不需要额外处理
         // 实际的物品分配和持久化将在战斗结算后由CombatService处理
     }

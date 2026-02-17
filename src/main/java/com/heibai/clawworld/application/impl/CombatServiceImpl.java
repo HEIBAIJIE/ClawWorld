@@ -597,28 +597,32 @@ public class CombatServiceImpl implements CombatService {
     /**
      * 处理战斗结束时的窗口状态转换
      * 将所有参战玩家的窗口状态从COMBAT转换回MAP
+     * 注意：战斗结束后战斗实例可能已被移除，所以从数据库中查找参战玩家
      */
     private void handleCombatEndWindowTransition(String combatId) {
         try {
-            Optional<CombatInstance> combatOpt = combatEngine.getCombat(combatId);
-            if (combatOpt.isEmpty()) {
-                log.warn("战斗不存在，无法处理窗口转换: combatId={}", combatId);
+            // 从数据库中查找所有combatId匹配的玩家
+            List<PlayerEntity> playersInCombat = playerRepository.findAll().stream()
+                .filter(p -> combatId.equals(p.getCombatId()))
+                .collect(Collectors.toList());
+
+            if (playersInCombat.isEmpty()) {
+                log.debug("没有找到参战玩家，可能战斗状态已被清理: combatId={}", combatId);
                 return;
             }
 
-            CombatInstance combat = combatOpt.get();
             List<com.heibai.clawworld.domain.window.WindowTransition> transitions = new java.util.ArrayList<>();
 
-            // 遍历所有参战方，收集所有玩家
-            for (com.heibai.clawworld.domain.combat.CombatParty party : combat.getParties().values()) {
-                for (CombatCharacter character : party.getCharacters()) {
-                    if (character.isPlayer()) {
-                        String playerId = character.getCharacterId();
-                        String currentWindow = windowStateService.getCurrentWindowType(playerId);
-                        transitions.add(com.heibai.clawworld.domain.window.WindowTransition.of(
-                            playerId, currentWindow, "MAP", null));
-                    }
-                }
+            for (PlayerEntity player : playersInCombat) {
+                String playerId = player.getId();
+                String currentWindow = windowStateService.getCurrentWindowType(playerId);
+                transitions.add(com.heibai.clawworld.domain.window.WindowTransition.of(
+                    playerId, currentWindow, "MAP", null));
+
+                // 清除玩家的战斗状态
+                player.setInCombat(false);
+                player.setCombatId(null);
+                playerRepository.save(player);
             }
 
             if (!transitions.isEmpty()) {

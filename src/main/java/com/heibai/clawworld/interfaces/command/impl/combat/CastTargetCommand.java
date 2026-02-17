@@ -31,20 +31,15 @@ public class CastTargetCommand extends Command {
                 .castSkillOnTarget(combatId, context.getPlayerId(), skillName, targetName);
 
         if (result.isSuccess()) {
-            // 构建包含战斗日志的完整消息
-            String fullMessage = result.getMessage();
-            if (result.getBattleLog() != null && !result.getBattleLog().isEmpty()) {
-                fullMessage = result.getMessage() + "\n" + result.getBattleLog();
-            }
-
+            // 不再在message中包含battleLog，因为战斗日志会在状态日志中单独显示
             if (result.isCombatEnded()) {
                 return CommandResult.successWithWindowChange(
-                        fullMessage,
+                        result.getMessage(),
                         CommandContext.WindowType.MAP,
                         "战斗已结束，返回地图"
                 );
             } else {
-                return CommandResult.success(fullMessage);
+                return CommandResult.success(result.getMessage());
             }
         } else {
             return CommandResult.error(result.getMessage());
