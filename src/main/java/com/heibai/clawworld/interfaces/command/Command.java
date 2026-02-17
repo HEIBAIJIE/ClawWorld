@@ -40,6 +40,7 @@ public abstract class Command {
 
         // 地图窗口
         INSPECT_SELF,
+        INSPECT_ITEM,
         SAY,
         SAY_TO,
         INTERACT,

@@ -42,4 +42,12 @@ public interface CharacterInfoService {
      * 生成查看自己的完整信息（包含背包）
      */
     String generateSelfInfo(Player player);
+
+    /**
+     * 生成物品详情信息
+     * @param playerId 玩家ID（用于检查背包中的物品）
+     * @param itemName 物品名称
+     * @return 物品详情，如果物品不存在返回null
+     */
+    String generateItemInfo(String playerId, String itemName);
 }

@@ -369,16 +369,91 @@ public class CombatServiceImpl implements CombatService {
 
     @Override
     public ActionResult useItem(String combatId, String playerId, String itemName) {
-        // 实现使用物品逻辑
-        // 根据设计文档：战斗中可以使用物品（如生命药剂、法力药剂）
-        // 需要：
-        // 1. 从��家背包中查找物品
-        // 2. 检查物品是否可在战斗中使用
-        // 3. 应用物品效果（恢复生命/法力等）
-        // 4. 减少物品数量
-        // 注意：物品的持久化在战斗结算后进行
-        log.warn("战斗中使用物品功能尚未完全实现: {}", itemName);
-        return ActionResult.success("使用物品: " + itemName, "");
+        try {
+            Optional<CombatInstance> combatOpt = combatEngine.getCombat(combatId);
+            if (combatOpt.isEmpty()) {
+                return ActionResult.error("战斗不存在");
+            }
+            CombatInstance combat = combatOpt.get();
+
+            Optional<String> currentTurn = combat.getCurrentTurnCharacterId();
+            if (currentTurn.isEmpty() || !currentTurn.get().equals(playerId)) {
+                return ActionResult.error("还未轮到你的回合");
+            }
+
+            CombatCharacter combatChar = combat.findCharacter(playerId);
+            if (combatChar == null || !combatChar.isAlive()) {
+                return ActionResult.error("角色不存在或已死亡");
+            }
+
+            Player player = playerSessionService.getPlayerState(playerId);
+            if (player == null) {
+                return ActionResult.error("玩家不存在");
+            }
+
+            Player.InventorySlot targetSlot = null;
+            for (Player.InventorySlot slot : player.getInventory()) {
+                if (slot.isItem() && slot.getItem().getName().equals(itemName)) {
+                    targetSlot = slot;
+                    break;
+                }
+            }
+
+            if (targetSlot == null) {
+                return ActionResult.error("物品不存在: " + itemName);
+            }
+
+            com.heibai.clawworld.domain.item.Item item = targetSlot.getItem();
+            if (item.getEffect() == null) {
+                return ActionResult.error("该物品无法使用");
+            }
+
+            if (item.getType() != com.heibai.clawworld.domain.item.Item.ItemType.CONSUMABLE) {
+                return ActionResult.error("只有消耗品可以在战斗中使用");
+            }
+
+            String resultMessage;
+            switch (item.getEffect()) {
+                case "HEAL_HP":
+                    int hpRestore = item.getEffectValue() != null ? item.getEffectValue() : 0;
+                    int newHp = Math.min(combatChar.getCurrentHealth() + hpRestore, combatChar.getMaxHealth());
+                    int actualHp = newHp - combatChar.getCurrentHealth();
+                    combatChar.setCurrentHealth(newHp);
+                    resultMessage = String.format("%s 使用了 %s，恢复了 %d 点生命值 (当前: %d/%d)",
+                        combatChar.getName(), itemName, actualHp, newHp, combatChar.getMaxHealth());
+                    break;
+                case "HEAL_MP":
+                    int mpRestore = item.getEffectValue() != null ? item.getEffectValue() : 0;
+                    int newMp = Math.min(combatChar.getCurrentMana() + mpRestore, combatChar.getMaxMana());
+                    int actualMp = newMp - combatChar.getCurrentMana();
+                    combatChar.setCurrentMana(newMp);
+                    resultMessage = String.format("%s 使用了 %s，恢复了 %d 点法力值 (当前: %d/%d)",
+                        combatChar.getName(), itemName, actualMp, newMp, combatChar.getMaxMana());
+                    break;
+                default:
+                    return ActionResult.error("该物品无法在战斗中使用");
+            }
+
+            combat.addLog(resultMessage);
+
+            targetSlot.setQuantity(targetSlot.getQuantity() - 1);
+            if (targetSlot.getQuantity() <= 0) {
+                player.getInventory().remove(targetSlot);
+            }
+            playerSessionService.savePlayerState(player);
+
+            combat.resetActionBar(playerId);
+
+            if (combat.isFinished()) {
+                handleCombatEndWindowTransition(combatId);
+                return ActionResult.combatEnded("战斗结束", resultMessage);
+            }
+
+            return ActionResult.success(resultMessage, resultMessage);
+        } catch (Exception e) {
+            log.error("战斗中使用物品失败", e);
+            return ActionResult.error("使用物品失败: " + e.getMessage());
+        }
     }
 
     @Override

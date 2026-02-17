@@ -2,11 +2,14 @@ package com.heibai.clawworld.application.impl;
 
 import com.heibai.clawworld.application.service.CharacterInfoService;
 import com.heibai.clawworld.application.service.PartyService;
+import com.heibai.clawworld.application.service.PlayerSessionService;
 import com.heibai.clawworld.domain.character.Party;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.item.Equipment;
 import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
 import com.heibai.clawworld.infrastructure.config.data.character.RoleConfig;
+import com.heibai.clawworld.infrastructure.config.data.item.EquipmentConfig;
+import com.heibai.clawworld.infrastructure.config.data.item.ItemConfig;
 import com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity;
 import com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository;
 import lombok.RequiredArgsConstructor;
@@ -232,6 +235,177 @@ public class CharacterInfoServiceImpl implements CharacterInfoService {
             case RIGHT_HAND -> "右手";
             case ACCESSORY1 -> "饰品1";
             case ACCESSORY2 -> "饰品2";
+        };
+    }
+
+    @Override
+    public String generateItemInfo(String playerId, String itemName) {
+        // 首先尝试从配置中查找普通物品
+        ItemConfig itemConfig = configDataManager.getItemByName(itemName);
+        if (itemConfig != null) {
+            return generateItemConfigInfo(itemConfig);
+        }
+
+        // 尝试查找装备（支持带实例编号的名称，如"铁剑#1"）
+        EquipmentConfig equipmentConfig = configDataManager.getEquipmentByName(itemName);
+        if (equipmentConfig != null) {
+            return generateEquipmentConfigInfo(equipmentConfig);
+        }
+
+        return null;
+    }
+
+    /**
+     * 生成普通物品的详细信息
+     */
+    private String generateItemConfigInfo(ItemConfig item) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("=== 物品详情 ===\n");
+        sb.append("名称: ").append(item.getName()).append("\n");
+        sb.append("类型: ").append(getItemTypeName(item.getType())).append("\n");
+        sb.append("描述: ").append(item.getDescription()).append("\n");
+        sb.append("价格: ").append(item.getBasePrice()).append(" 金币\n");
+        sb.append("最大堆叠: ").append(item.getMaxStack()).append("\n");
+
+        // 显示物品效果
+        if (item.getEffect() != null && !item.getEffect().isEmpty()) {
+            sb.append("效果: ").append(getEffectDescription(item.getEffect(), item.getEffectValue()));
+        } else {
+            sb.append("效果: 无");
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * 生成装备的详细信息
+     */
+    private String generateEquipmentConfigInfo(EquipmentConfig eq) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("=== 装备详情 ===\n");
+        sb.append("名称: ").append(eq.getName()).append("\n");
+        sb.append("稀有度: ").append(getRarityName(eq.getRarity())).append("\n");
+        sb.append("装备位置: ").append(getSlotNameFromString(eq.getSlot())).append("\n");
+        sb.append("描述: ").append(eq.getDescription()).append("\n");
+        sb.append("价格: ").append(eq.getBasePrice()).append(" 金币\n");
+
+        // 属性加成
+        sb.append("\n--- 属性加成 ---\n");
+        boolean hasBonus = false;
+
+        // 四维属性
+        if (eq.getStrength() > 0) {
+            sb.append("力量 +").append(eq.getStrength()).append("\n");
+            hasBonus = true;
+        }
+        if (eq.getAgility() > 0) {
+            sb.append("敏捷 +").append(eq.getAgility()).append("\n");
+            hasBonus = true;
+        }
+        if (eq.getIntelligence() > 0) {
+            sb.append("智力 +").append(eq.getIntelligence()).append("\n");
+            hasBonus = true;
+        }
+        if (eq.getVitality() > 0) {
+            sb.append("体力 +").append(eq.getVitality()).append("\n");
+            hasBonus = true;
+        }
+
+        // 战斗属性
+        if (eq.getPhysicalAttack() > 0) {
+            sb.append("物理攻击 +").append(eq.getPhysicalAttack()).append("\n");
+            hasBonus = true;
+        }
+        if (eq.getPhysicalDefense() > 0) {
+            sb.append("物理防御 +").append(eq.getPhysicalDefense()).append("\n");
+            hasBonus = true;
+        }
+        if (eq.getMagicAttack() > 0) {
+            sb.append("法术攻击 +").append(eq.getMagicAttack()).append("\n");
+            hasBonus = true;
+        }
+        if (eq.getMagicDefense() > 0) {
+            sb.append("法术防御 +").append(eq.getMagicDefense()).append("\n");
+            hasBonus = true;
+        }
+        if (eq.getSpeed() > 0) {
+            sb.append("速度 +").append(eq.getSpeed()).append("\n");
+            hasBonus = true;
+        }
+        if (eq.getCritRate() > 0) {
+            sb.append("暴击率 +").append(String.format("%.1f%%", eq.getCritRate() * 100)).append("\n");
+            hasBonus = true;
+        }
+        if (eq.getCritDamage() > 0) {
+            sb.append("暴击伤害 +").append(String.format("%.1f%%", eq.getCritDamage() * 100)).append("\n");
+            hasBonus = true;
+        }
+        if (eq.getHitRate() > 0) {
+            sb.append("命中率 +").append(String.format("%.1f%%", eq.getHitRate() * 100)).append("\n");
+            hasBonus = true;
+        }
+        if (eq.getDodgeRate() > 0) {
+            sb.append("闪避率 +").append(String.format("%.1f%%", eq.getDodgeRate() * 100)).append("\n");
+            hasBonus = true;
+        }
+
+        if (!hasBonus) {
+            sb.append("无属性加成");
+        }
+
+        return sb.toString();
+    }
+
+    private String getItemTypeName(String type) {
+        if (type == null) return "未知";
+        return switch (type) {
+            case "CONSUMABLE" -> "消耗品";
+            case "MATERIAL" -> "材料";
+            case "QUEST" -> "任务物品";
+            case "SKILL_BOOK" -> "技能书";
+            case "EQUIPMENT" -> "装备";
+            case "OTHER" -> "其他";
+            default -> type;
+        };
+    }
+
+    private String getEffectDescription(String effect, Integer effectValue) {
+        if (effect == null) return "无";
+        String value = effectValue != null ? String.valueOf(effectValue) : "?";
+        return switch (effect) {
+            case "HEAL_HP" -> "恢复 " + value + " 点生命值";
+            case "HEAL_MP" -> "恢复 " + value + " 点法力值";
+            case "LEARN_SKILL" -> "学习技能";
+            case "RESET_ATTRIBUTES" -> "重置所有属性点";
+            default -> effect + (effectValue != null ? " (" + value + ")" : "");
+        };
+    }
+
+    private String getRarityName(String rarity) {
+        if (rarity == null) return "普通";
+        return switch (rarity) {
+            case "COMMON" -> "普通";
+            case "EXCELLENT" -> "优秀";
+            case "RARE" -> "稀有";
+            case "EPIC" -> "史诗";
+            case "LEGENDARY" -> "传说";
+            case "MYTHIC" -> "神话";
+            default -> rarity;
+        };
+    }
+
+    private String getSlotNameFromString(String slot) {
+        if (slot == null) return "未知";
+        return switch (slot) {
+            case "HEAD" -> "头部";
+            case "CHEST" -> "上装";
+            case "LEGS" -> "下装";
+            case "FEET" -> "鞋子";
+            case "LEFT_HAND" -> "左手";
+            case "RIGHT_HAND" -> "右手";
+            case "ACCESSORY1" -> "饰品1";
+            case "ACCESSORY2" -> "饰品2";
+            default -> slot;
         };
     }
 }

@@ -142,6 +142,19 @@ class MapEntityServiceImplTest {
         // Arrange
         when(playerRepository.findById("player1")).thenReturn(Optional.of(testPlayer));
 
+        // Mock NPC shop instance
+        var npcShopInstance = new com.heibai.clawworld.infrastructure.persistence.entity.NpcShopInstanceEntity();
+        npcShopInstance.setNpcId("npc1");
+        npcShopInstance.setMapId("map1");
+        when(npcShopInstanceRepository.findByMapId("map1")).thenReturn(java.util.List.of(npcShopInstance));
+
+        // Mock NPC config
+        var npcConfig = new com.heibai.clawworld.infrastructure.config.data.character.NpcConfig();
+        npcConfig.setId("npc1");
+        npcConfig.setName("npc1");
+        npcConfig.setHasShop(true);
+        when(configDataManager.getNpc("npc1")).thenReturn(npcConfig);
+
         // Act
         MapEntityService.InteractionResult result = mapEntityService.interact("player1", "npc1", "shop");
 

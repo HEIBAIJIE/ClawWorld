@@ -41,6 +41,12 @@ public class Npc extends Character {
         return options;
     }
 
+    @Override
+    public List<String> getInteractionOptions(String viewerFaction, boolean isMapSafe) {
+        // NPC的交互选项不受阵营和地图安全性影响
+        return getInteractionOptions();
+    }
+
     @Data
     public static class Shop {
         private List<ShopItem> items;

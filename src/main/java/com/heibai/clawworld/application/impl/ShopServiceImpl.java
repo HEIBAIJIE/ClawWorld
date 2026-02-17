@@ -1,5 +1,6 @@
 package com.heibai.clawworld.application.impl;
 
+import com.heibai.clawworld.application.service.PlayerSessionService;
 import com.heibai.clawworld.application.service.ShopService;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.item.Item;
@@ -30,19 +31,18 @@ public class ShopServiceImpl implements ShopService {
 
     private final PlayerRepository playerRepository;
     private final PlayerMapper playerMapper;
+    private final PlayerSessionService playerSessionService;
     private final NpcShopInstanceRepository npcShopInstanceRepository;
     private final ConfigDataManager configDataManager;
 
     @Override
     @Transactional
     public OperationResult buyItem(String playerId, String shopId, String itemName, int quantity) {
-        // 1. 获取玩家信息
-        Optional<PlayerEntity> playerOpt = playerRepository.findById(playerId);
-        if (!playerOpt.isPresent()) {
+        // 1. 获取玩家信息（使用PlayerSessionService获取完整状态，包含背包）
+        Player player = playerSessionService.getPlayerState(playerId);
+        if (player == null) {
             return OperationResult.error("玩家不存在");
         }
-        PlayerEntity playerEntity = playerOpt.get();
-        Player player = playerMapper.toDomain(playerEntity);
 
         // 2. 获取商店实例
         Optional<NpcShopInstanceEntity> shopOpt = npcShopInstanceRepository.findByNpcId(shopId);
@@ -57,8 +57,9 @@ public class ShopServiceImpl implements ShopService {
             return OperationResult.error("该NPC没有商店");
         }
 
-        // 4. 查找物品配置
-        ItemConfig itemConfig = configDataManager.getItem(itemName);
+        // 4. 查找物品配置（先按名称查找，再按ID查找）
+        ItemConfig itemConfigByName = configDataManager.getItemByName(itemName);
+        final ItemConfig itemConfig = itemConfigByName != null ? itemConfigByName : configDataManager.getItem(itemName);
         if (itemConfig == null) {
             return OperationResult.error("物品不存在: " + itemName);
         }
@@ -154,13 +155,11 @@ public class ShopServiceImpl implements ShopService {
     @Override
     @Transactional
     public OperationResult sellItem(String playerId, String shopId, String itemName, int quantity) {
-        // 1. 获取玩家信息
-        Optional<PlayerEntity> playerOpt = playerRepository.findById(playerId);
-        if (!playerOpt.isPresent()) {
+        // 1. 获取玩家信息（使用PlayerSessionService获取完整状态，包含背包）
+        Player player = playerSessionService.getPlayerState(playerId);
+        if (player == null) {
             return OperationResult.error("玩家不存在");
         }
-        PlayerEntity playerEntity = playerOpt.get();
-        Player player = playerMapper.toDomain(playerEntity);
 
         // 2. 获取商店实例
         Optional<NpcShopInstanceEntity> shopOpt = npcShopInstanceRepository.findByNpcId(shopId);
@@ -175,8 +174,9 @@ public class ShopServiceImpl implements ShopService {
             return OperationResult.error("该NPC没有商店");
         }
 
-        // 4. 查找物品配置
-        ItemConfig itemConfig = configDataManager.getItem(itemName);
+        // 4. 查找物品配置（先按名称查找，再按ID查找）
+        ItemConfig itemConfigByName = configDataManager.getItemByName(itemName);
+        final ItemConfig itemConfig = itemConfigByName != null ? itemConfigByName : configDataManager.getItem(itemName);
         if (itemConfig == null) {
             return OperationResult.error("物品不存在: " + itemName);
         }
@@ -279,6 +279,7 @@ public class ShopServiceImpl implements ShopService {
                 ShopInfo.ShopItemInfo itemInfo = new ShopInfo.ShopItemInfo();
                 itemInfo.setItemId(item.getId());
                 itemInfo.setItemName(item.getName());
+                itemInfo.setDescription(item.getDescription());
                 itemInfo.setPrice(item.getBasePrice());
                 itemInfo.setMaxQuantity(itemConfig.getQuantity());
                 itemInfo.setCurrentQuantity(shopItem != null ? shopItem.getCurrentQuantity() : 0);

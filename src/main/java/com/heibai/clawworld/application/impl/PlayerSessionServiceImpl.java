@@ -229,16 +229,26 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
             return OperationResult.error("该物品无法使用");
         }
 
+        String resultMessage = null;
+
         switch (item.getEffect()) {
-            case "restore_health":
+            case "HEAL_HP":
                 int healthRestore = item.getEffectValue() != null ? item.getEffectValue() : 0;
-                player.setCurrentHealth(Math.min(player.getCurrentHealth() + healthRestore, player.getMaxHealth()));
+                int newHealth = Math.min(player.getCurrentHealth() + healthRestore, player.getMaxHealth());
+                int actualHealthRestored = newHealth - player.getCurrentHealth();
+                player.setCurrentHealth(newHealth);
+                resultMessage = String.format("使用 %s，恢复了 %d 点生命值 (当前: %d/%d)",
+                    itemName, actualHealthRestored, player.getCurrentHealth(), player.getMaxHealth());
                 break;
-            case "restore_mana":
+            case "HEAL_MP":
                 int manaRestore = item.getEffectValue() != null ? item.getEffectValue() : 0;
-                player.setCurrentMana(Math.min(player.getCurrentMana() + manaRestore, player.getMaxMana()));
+                int newMana = Math.min(player.getCurrentMana() + manaRestore, player.getMaxMana());
+                int actualManaRestored = newMana - player.getCurrentMana();
+                player.setCurrentMana(newMana);
+                resultMessage = String.format("使用 %s，恢复了 %d 点法力值 (当前: %d/%d)",
+                    itemName, actualManaRestored, player.getCurrentMana(), player.getMaxMana());
                 break;
-            case "learn_skill":
+            case "LEARN_SKILL":
                 // 学习技能书
                 if (item.getType() == Item.ItemType.SKILL_BOOK) {
                     String skillId = item.getId().replace("skill_book_", "");
@@ -249,9 +259,10 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
                         return OperationResult.error("技能栏已满");
                     }
                     player.getSkills().add(skillId);
+                    resultMessage = "学习技能成功: " + skillId;
                 }
                 break;
-            case "reset_attributes":
+            case "RESET_ATTRIBUTES":
                 // 洗点
                 int totalPoints = player.getStrength() + player.getAgility() +
                                  player.getIntelligence() + player.getVitality();
@@ -263,6 +274,7 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
 
                 // 重新计算属性（使用领域服务）
                 playerStatsService.recalculateStats(player);
+                resultMessage = String.format("重置属性点成功，获得 %d 个可分配属性点", totalPoints);
                 break;
             default:
                 return OperationResult.error("未知的物品效果");
@@ -278,7 +290,7 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
         PlayerEntity entity = playerMapper.toEntity(player);
         playerRepository.save(entity);
 
-        return OperationResult.success("使用物品成功: " + itemName);
+        return OperationResult.success(resultMessage != null ? resultMessage : "使用物品成功: " + itemName);
     }
 
     @Override

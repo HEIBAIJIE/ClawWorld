@@ -90,7 +90,12 @@ public class CommandParser {
                             .rawCommand(rawCommand)
                             .build();
                 } else {
-                    throw new CommandParseException("inspect 指令只支持 'self' 参数，查看其他角色请使用 interact [角色名称] 查看");
+                    // inspect [物品名称] - 查看物品详情
+                    String inspectItemName = extractItemName(rawCommand, "inspect");
+                    return InspectItemCommand.builder()
+                            .itemName(inspectItemName)
+                            .rawCommand(rawCommand)
+                            .build();
                 }
 
             case "say":

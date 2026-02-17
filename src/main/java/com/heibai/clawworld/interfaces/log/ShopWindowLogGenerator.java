@@ -25,8 +25,9 @@ public class ShopWindowLogGenerator {
         sellItems.append("出售商品：\n");
         if (shop.getItems() != null && !shop.getItems().isEmpty()) {
             for (com.heibai.clawworld.application.service.ShopService.ShopInfo.ShopItemInfo item : shop.getItems()) {
-                sellItems.append(String.format("- %s  价格:%d  库存:%d\n",
+                sellItems.append(String.format("- %s (%s)  价格:%d  库存:%d\n",
                     item.getItemName(),
+                    item.getDescription(),
                     item.getPrice(),
                     item.getCurrentQuantity()));
             }
@@ -68,8 +69,9 @@ public class ShopWindowLogGenerator {
             StringBuilder stockChanges = new StringBuilder();
             stockChanges.append("商店库存：\n");
             for (com.heibai.clawworld.application.service.ShopService.ShopInfo.ShopItemInfo item : shop.getItems()) {
-                stockChanges.append(String.format("- %s  价格:%d  库存:%d\n",
+                stockChanges.append(String.format("- %s (%s)  价格:%d  库存:%d\n",
                     item.getItemName(),
+                    item.getDescription(),
                     item.getPrice(),
                     item.getCurrentQuantity()));
             }

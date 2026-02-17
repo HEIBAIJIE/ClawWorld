@@ -290,12 +290,23 @@ public class MapEntityServiceImpl implements MapEntityService {
 
             case "shop":
             case "商店":
-                // 商店交互
-                return InteractionResult.successWithWindowChange(
-                        "打开商店",
-                        "shop_" + targetName,
-                        "SHOP"
-                );
+                // 商店交互 - 查找NPC并打开商店
+                List<com.heibai.clawworld.infrastructure.persistence.entity.NpcShopInstanceEntity> npcsForShop =
+                    npcShopInstanceRepository.findByMapId(player.getCurrentMapId());
+                for (var npcShop : npcsForShop) {
+                    var npcConfig = configDataManager.getNpc(npcShop.getNpcId());
+                    if (npcConfig != null && npcConfig.getName().equals(targetName) && npcConfig.isHasShop()) {
+                        // 设置玩家当前商店ID
+                        player.setCurrentShopId(npcShop.getNpcId());
+                        playerRepository.save(player);
+                        return InteractionResult.successWithWindowChange(
+                                "打开商店",
+                                npcShop.getNpcId(),
+                                "SHOP"
+                        );
+                    }
+                }
+                return InteractionResult.error("找不到商店: " + targetName);
 
             case "teleport":
             case "传送":

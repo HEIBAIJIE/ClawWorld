@@ -75,6 +75,7 @@ public interface ShopService {
         public static class ShopItemInfo {
             private String itemId;
             private String itemName;
+            private String description;
             private int price;
             private int maxQuantity;
             private int currentQuantity;

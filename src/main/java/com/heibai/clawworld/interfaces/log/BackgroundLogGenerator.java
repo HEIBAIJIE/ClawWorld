@@ -110,7 +110,11 @@ public class BackgroundLogGenerator {
             "trade money [金额] - 设置金额\n" +
             "trade lock - 锁定\n" +
             "trade confirm - 确认交易\n" +
-            "trade end - 取消交易";
+            "trade end - 取消交易\n" +
+            "5、商店窗口\n" +
+            "shop buy [物品名称] [数量] - 购买商品\n" +
+            "shop sell [物品名称] [数量] - 出售物品\n" +
+            "shop leave - 离开商店";
     }
 
     /**

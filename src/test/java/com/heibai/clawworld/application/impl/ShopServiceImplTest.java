@@ -1,5 +1,6 @@
 package com.heibai.clawworld.application.impl;
 
+import com.heibai.clawworld.application.service.PlayerSessionService;
 import com.heibai.clawworld.application.service.ShopService;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.item.Item;
@@ -39,6 +40,9 @@ class ShopServiceImplTest {
 
     @Mock
     private PlayerMapper playerMapper;
+
+    @Mock
+    private PlayerSessionService playerSessionService;
 
     @Mock
     private NpcShopInstanceRepository npcShopInstanceRepository;
@@ -99,8 +103,7 @@ class ShopServiceImplTest {
     @DisplayName("购买物品 - 成功")
     void testBuyItem_Success() {
         // Arrange
-        when(playerRepository.findById("player1")).thenReturn(Optional.of(playerEntity));
-        when(playerMapper.toDomain(playerEntity)).thenReturn(player);
+        when(playerSessionService.getPlayerState("player1")).thenReturn(player);
         when(npcShopInstanceRepository.findByNpcId("merchant_john")).thenReturn(Optional.of(shop));
         when(configDataManager.getNpc("merchant_john")).thenReturn(npcConfig);
         when(configDataManager.getItem("生命药剂")).thenReturn(itemConfig);
@@ -122,7 +125,7 @@ class ShopServiceImplTest {
     @DisplayName("购买物品 - 玩家不存在")
     void testBuyItem_PlayerNotFound() {
         // Arrange
-        when(playerRepository.findById("player1")).thenReturn(Optional.empty());
+        when(playerSessionService.getPlayerState("player1")).thenReturn(null);
 
         // Act
         ShopService.OperationResult result = shopService.buyItem("player1", "merchant_john", "生命药剂", 5);
@@ -137,8 +140,7 @@ class ShopServiceImplTest {
     @DisplayName("购买物品 - 商店不存在")
     void testBuyItem_ShopNotFound() {
         // Arrange
-        when(playerRepository.findById("player1")).thenReturn(Optional.of(playerEntity));
-        when(playerMapper.toDomain(playerEntity)).thenReturn(player);
+        when(playerSessionService.getPlayerState("player1")).thenReturn(player);
         when(npcShopInstanceRepository.findByNpcId("merchant_john")).thenReturn(Optional.empty());
 
         // Act
@@ -153,8 +155,7 @@ class ShopServiceImplTest {
     @DisplayName("购买物品 - 物品不存在")
     void testBuyItem_ItemNotFound() {
         // Arrange
-        when(playerRepository.findById("player1")).thenReturn(Optional.of(playerEntity));
-        when(playerMapper.toDomain(playerEntity)).thenReturn(player);
+        when(playerSessionService.getPlayerState("player1")).thenReturn(player);
         when(npcShopInstanceRepository.findByNpcId("merchant_john")).thenReturn(Optional.of(shop));
         when(configDataManager.getNpc("merchant_john")).thenReturn(npcConfig);
         when(configDataManager.getItem("不存在的物品")).thenReturn(null);
@@ -171,8 +172,7 @@ class ShopServiceImplTest {
     @DisplayName("购买物品 - 库存不足")
     void testBuyItem_InsufficientStock() {
         // Arrange
-        when(playerRepository.findById("player1")).thenReturn(Optional.of(playerEntity));
-        when(playerMapper.toDomain(playerEntity)).thenReturn(player);
+        when(playerSessionService.getPlayerState("player1")).thenReturn(player);
         when(npcShopInstanceRepository.findByNpcId("merchant_john")).thenReturn(Optional.of(shop));
         when(configDataManager.getNpc("merchant_john")).thenReturn(npcConfig);
         when(configDataManager.getItem("生命药剂")).thenReturn(itemConfig);
@@ -190,8 +190,7 @@ class ShopServiceImplTest {
     void testBuyItem_InsufficientGold() {
         // Arrange
         player.setGold(100); // 只有100金币
-        when(playerRepository.findById("player1")).thenReturn(Optional.of(playerEntity));
-        when(playerMapper.toDomain(playerEntity)).thenReturn(player);
+        when(playerSessionService.getPlayerState("player1")).thenReturn(player);
         when(npcShopInstanceRepository.findByNpcId("merchant_john")).thenReturn(Optional.of(shop));
         when(configDataManager.getNpc("merchant_john")).thenReturn(npcConfig);
         when(configDataManager.getItem("生命药剂")).thenReturn(itemConfig);
@@ -215,8 +214,7 @@ class ShopServiceImplTest {
             player.getInventory().add(Player.InventorySlot.forItem(item, 1));
         }
 
-        when(playerRepository.findById("player1")).thenReturn(Optional.of(playerEntity));
-        when(playerMapper.toDomain(playerEntity)).thenReturn(player);
+        when(playerSessionService.getPlayerState("player1")).thenReturn(player);
         when(npcShopInstanceRepository.findByNpcId("merchant_john")).thenReturn(Optional.of(shop));
         when(configDataManager.getNpc("merchant_john")).thenReturn(npcConfig);
         when(configDataManager.getItem("生命药剂")).thenReturn(itemConfig);
@@ -233,7 +231,7 @@ class ShopServiceImplTest {
     @DisplayName("出售物品 - 玩家不存在")
     void testSellItem_PlayerNotFound() {
         // Arrange
-        when(playerRepository.findById("player1")).thenReturn(Optional.empty());
+        when(playerSessionService.getPlayerState("player1")).thenReturn(null);
 
         // Act
         ShopService.OperationResult result = shopService.sellItem("player1", "merchant_john", "生命药剂", 5);

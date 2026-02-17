@@ -193,6 +193,7 @@ public class MapWindowLogGenerator {
 
     private String generateAvailableCommands() {
         return "inspect self - 查看自身状态\n" +
+            "inspect [物品名称] - 查看物品详情（效果、价格等）\n" +
             "move [x] [y] - 移动到坐标\n" +
             "interact [目标名称] [选项] - 与NPC/物体交互\n" +
             "use [物品名称] - 使用消耗品/技能书\n" +

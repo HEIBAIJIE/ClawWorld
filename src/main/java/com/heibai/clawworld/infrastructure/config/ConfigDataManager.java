@@ -132,6 +132,32 @@ public class ConfigDataManager {
         return itemConfigLoader.getItem(id);
     }
 
+    /**
+     * 通过物品名称查找物品配置
+     * @param name 物品名称
+     * @return 物品配置，如果未找到返回null
+     */
+    public ItemConfig getItemByName(String name) {
+        return itemConfigLoader.getAllItems().values().stream()
+            .filter(item -> item.getName().equals(name))
+            .findFirst()
+            .orElse(null);
+    }
+
+    /**
+     * 通过装备名称查找装备配置
+     * @param name 装备名称（不含实例编号，如"铁剑"而非"铁剑#1"）
+     * @return 装备配置，如果未找到返回null
+     */
+    public EquipmentConfig getEquipmentByName(String name) {
+        // 去除实例编号（如果有的话）
+        String baseName = name.contains("#") ? name.substring(0, name.indexOf("#")) : name;
+        return itemConfigLoader.getAllEquipment().values().stream()
+            .filter(eq -> eq.getName().equals(baseName))
+            .findFirst()
+            .orElse(null);
+    }
+
     public EquipmentConfig getEquipment(String id) {
         return itemConfigLoader.getEquipment(id);
     }
