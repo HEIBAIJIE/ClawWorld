@@ -86,7 +86,7 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
         player.setAgility(0);
         player.setIntelligence(0);
         player.setVitality(0);
-        player.setFreeAttributePoints(0);
+        player.setFreeAttributePoints(5); // 新角色初始5个属性点
 
         // 初始化金钱
         player.setGold(100);

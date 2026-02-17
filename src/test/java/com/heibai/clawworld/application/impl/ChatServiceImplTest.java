@@ -166,34 +166,17 @@ class ChatServiceImplTest {
     void testGetChatHistory_ReturnsMessages() {
         // Arrange
         when(playerRepository.findById("player1")).thenReturn(Optional.of(testPlayer));
-
-        List<ChatMessageEntity> messages = new ArrayList<>();
-        ChatMessageEntity msg1 = new ChatMessageEntity();
-        msg1.setId("msg1");
-        msg1.setChannelType(ChatMessageEntity.ChannelType.WORLD);
-        msg1.setSenderId("player1");
-        msg1.setSenderNickname("TestPlayer");
-        msg1.setMessage("Hello");
-        msg1.setTimestamp(System.currentTimeMillis());
-        messages.add(msg1);
-
-        ChatMessage domainMessage = new ChatMessage();
-        domainMessage.setChannelType(ChatMessage.ChannelType.WORLD);
-        domainMessage.setSenderId("player1");
-        domainMessage.setSenderNickname("TestPlayer");
-        domainMessage.setMessage("Hello");
-
-        when(chatMessageRepository.findByTimestampAfterOrderByTimestampAsc(anyLong())).thenReturn(messages);
-        lenient().when(chatMessageRepository.findByChannelTypeAndPartyIdOrderByTimestampDesc(any(), anyString())).thenReturn(new ArrayList<>());
-        lenient().when(chatMessageRepository.findByChannelTypeAndMapIdOrderByTimestampDesc(any(), anyString())).thenReturn(new ArrayList<>());
-        lenient().when(chatMessageRepository.findByChannelTypeOrderByTimestampDesc(any())).thenReturn(new ArrayList<>());
-        lenient().when(chatMapper.toDomain(any(ChatMessageEntity.class))).thenReturn(domainMessage);
+        when(chatMessageRepository.findByTimestampAfterOrderByTimestampAsc(anyLong())).thenReturn(new ArrayList<>());
+        when(chatMessageRepository.findByChannelTypeAndPartyIdOrderByTimestampDesc(any(), anyString())).thenReturn(new ArrayList<>());
+        when(chatMessageRepository.findByChannelTypeAndMapIdOrderByTimestampDesc(any(), anyString())).thenReturn(new ArrayList<>());
+        when(chatMessageRepository.findByChannelTypeOrderByTimestampDesc(any())).thenReturn(new ArrayList<>());
 
         // Act
         List<ChatMessage> result = chatService.getChatHistory("player1");
 
         // Assert
         assertNotNull(result);
-        assertTrue(result.isEmpty() || !result.isEmpty()); // 只要不抛异常就行
+        // 由于所有消息源都返回空列表,结果应该为空
+        assertTrue(result.isEmpty(), "应该返回空列表");
     }
 }
