@@ -148,7 +148,7 @@ public class MapWindowLogGenerator {
             }
 
             if (entity.getEntityType() != null) {
-                sb.append(" [类型：").append(entity.getEntityType()).append("]");
+                sb.append(" [类型：").append(getEntityTypeDisplayName(entity)).append("]");
             }
 
             if (entity.isInteractable()) {
@@ -360,5 +360,36 @@ public class MapWindowLogGenerator {
             options.add("接受交易请求");
             options.add("拒绝交易请求");
         }
+    }
+
+    /**
+     * 获取实体类型的中文显示名称
+     */
+    private String getEntityTypeDisplayName(MapEntity entity) {
+        String type = entity.getEntityType();
+        if (type == null) return "未知";
+
+        return switch (type.toUpperCase()) {
+            case "PLAYER" -> "玩家";
+            case "NPC" -> "NPC";
+            case "WAYPOINT" -> "传送点";
+            case "CAMPFIRE" -> "篝火";
+            case "ENEMY" -> {
+                // 根据敌人等级细分
+                if (entity instanceof com.heibai.clawworld.domain.character.Enemy enemy) {
+                    var tier = enemy.getTier();
+                    if (tier != null) {
+                        yield switch (tier) {
+                            case ELITE -> "精英敌人";
+                            case MAP_BOSS -> "地图BOSS";
+                            case SERVER_BOSS -> "世界BOSS";
+                            default -> "普通敌人";
+                        };
+                    }
+                }
+                yield "普通敌人";
+            }
+            default -> type;
+        };
     }
 }

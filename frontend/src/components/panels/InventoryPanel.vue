@@ -5,7 +5,7 @@
       <button class="popup-panel-close" @click="uiStore.closePanel()">×</button>
     </div>
 
-    <div class="popup-panel-content">
+    <div class="popup-panel-content inventory-content">
       <div class="inventory-grid">
         <div
           v-for="(slot, index) in inventorySlots"
@@ -22,8 +22,11 @@
         </div>
       </div>
 
-      <div v-if="playerStore.inventory.length === 0" class="empty-inventory">
-        背包为空
+      <!-- 金币显示放在最下面 -->
+      <div class="gold-display">
+        <span class="gold-icon">💰</span>
+        <span class="gold-value">{{ playerStore.gold }}</span>
+        <span class="gold-label">金币</span>
       </div>
     </div>
   </div>
@@ -85,10 +88,17 @@ function handleSlotRightClick(slot, event) {
 </script>
 
 <style scoped>
+.inventory-content {
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
 .inventory-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .inventory-slot {
@@ -102,7 +112,7 @@ function handleSlotRightClick(slot, event) {
   position: relative;
   cursor: pointer;
   transition: all var(--transition-fast);
-  min-height: 40px;
+  min-height: 36px;
 }
 
 .inventory-slot:hover:not(.empty) {
@@ -116,7 +126,7 @@ function handleSlotRightClick(slot, event) {
 }
 
 .item-icon {
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .item-count {
@@ -128,10 +138,29 @@ function handleSlotRightClick(slot, event) {
   text-shadow: 0 0 2px var(--bg-dark);
 }
 
-.empty-inventory {
-  text-align: center;
+.gold-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-dark);
+  border-radius: var(--button-radius);
+  margin-top: 12px;
+  flex-shrink: 0;
+}
+
+.gold-icon {
+  font-size: 16px;
+}
+
+.gold-value {
+  color: #ffd700;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.gold-label {
   color: var(--text-muted);
-  padding: 24px;
-  font-size: 13px;
+  font-size: 12px;
 }
 </style>

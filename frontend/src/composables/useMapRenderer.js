@@ -38,6 +38,9 @@ export function useMapRenderer(canvasRef) {
   const ENTITY_COLORS = {
     PLAYER: '#4CAF50',
     ENEMY: '#f44336',
+    ENEMY_ELITE: '#ff5722',
+    ENEMY_BOSS: '#e91e63',
+    ENEMY_WORLD_BOSS: '#9c27b0',
     NPC: '#2196F3',
     WAYPOINT: '#9c27b0',
     CAMPFIRE: '#ff9800'
@@ -46,6 +49,9 @@ export function useMapRenderer(canvasRef) {
   const ENTITY_ICONS = {
     PLAYER: '👤',
     ENEMY: '👹',
+    ENEMY_ELITE: '💀',
+    ENEMY_BOSS: '👿',
+    ENEMY_WORLD_BOSS: '🐉',
     NPC: '🧙',
     WAYPOINT: '🌀',
     CAMPFIRE: '🔥'
@@ -94,12 +100,20 @@ export function useMapRenderer(canvasRef) {
    * 居中玩家
    */
   function centerOnPlayer(viewportWidth, viewportHeight) {
-    const targetOffsetX = playerStore.x - Math.floor(viewportWidth / 2)
-    const targetOffsetY = playerStore.y - Math.floor(viewportHeight / 2)
+    // 如果地图比视口小，居中显示整个地图
+    if (mapStore.width <= viewportWidth) {
+      offsetX.value = -Math.floor((viewportWidth - mapStore.width) / 2)
+    } else {
+      const targetOffsetX = playerStore.x - Math.floor(viewportWidth / 2)
+      offsetX.value = Math.max(0, Math.min(targetOffsetX, mapStore.width - viewportWidth))
+    }
 
-    // 边界限制
-    offsetX.value = Math.max(0, Math.min(targetOffsetX, mapStore.width - viewportWidth))
-    offsetY.value = Math.max(0, Math.min(targetOffsetY, mapStore.height - viewportHeight))
+    if (mapStore.height <= viewportHeight) {
+      offsetY.value = -Math.floor((viewportHeight - mapStore.height) / 2)
+    } else {
+      const targetOffsetY = playerStore.y - Math.floor(viewportHeight / 2)
+      offsetY.value = Math.max(0, Math.min(targetOffsetY, mapStore.height - viewportHeight))
+    }
   }
 
   /**
@@ -323,7 +337,7 @@ export function useMapRenderer(canvasRef) {
 
   // 监听数据变化重新渲染
   watch(
-    () => [mapStore.grid, mapStore.entities, playerStore.x, playerStore.y],
+    [() => mapStore.grid, () => mapStore.entities, () => playerStore.x, () => playerStore.y],
     () => render(),
     { deep: true }
   )

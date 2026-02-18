@@ -25,6 +25,9 @@ export const useMapStore = defineStore('map', () => {
     const grouped = {
       PLAYER: [],
       ENEMY: [],
+      ENEMY_ELITE: [],
+      ENEMY_BOSS: [],
+      ENEMY_WORLD_BOSS: [],
       NPC: [],
       WAYPOINT: [],
       CAMPFIRE: []
@@ -32,6 +35,9 @@ export const useMapStore = defineStore('map', () => {
     entities.value.forEach(entity => {
       if (grouped[entity.type]) {
         grouped[entity.type].push(entity)
+      } else if (entity.type && entity.type.startsWith('ENEMY')) {
+        // 所有敌人类型都归入 ENEMY
+        grouped.ENEMY.push(entity)
       }
     })
     return grouped

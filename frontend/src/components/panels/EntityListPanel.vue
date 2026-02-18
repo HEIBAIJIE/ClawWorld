@@ -128,9 +128,16 @@ const mapStore = useMapStore()
 const playerStore = usePlayerStore()
 
 // 按类型分组
-const enemies = computed(() =>
-  mapStore.entitiesByType.ENEMY.sort((a, b) => a.distance - b.distance)
-)
+const enemies = computed(() => {
+  // 合并所有敌人类型
+  const allEnemies = [
+    ...mapStore.entitiesByType.ENEMY,
+    ...mapStore.entitiesByType.ENEMY_ELITE,
+    ...mapStore.entitiesByType.ENEMY_BOSS,
+    ...mapStore.entitiesByType.ENEMY_WORLD_BOSS
+  ]
+  return allEnemies.sort((a, b) => a.distance - b.distance)
+})
 
 const players = computed(() =>
   mapStore.entitiesByType.PLAYER

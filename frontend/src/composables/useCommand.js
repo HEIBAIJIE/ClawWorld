@@ -61,7 +61,7 @@ export function useCommand() {
     const entries = parseLogText(responseText)
     const grouped = groupLogsByType(entries)
 
-    // 处理窗口类型的日志
+    // 处理窗口类型的日志（现在每个entry的content已经包含完整的多行内容）
     for (const entry of grouped.window) {
       processWindowEntry(entry)
     }
@@ -131,13 +131,13 @@ export function useCommand() {
     }
 
     // 玩家状态
-    if (content.includes('角色:') || content.includes('角色：')) {
+    if (content.includes('你的状态') || content.includes('角色:') || content.includes('角色：')) {
       const playerState = parsePlayerState(content)
       playerStore.updateFromParsed(playerState)
     }
 
     // 技能列表
-    if (content.includes('[敌方单体]') || content.includes('[我方单体]')) {
+    if (content.includes('你的技能') || content.includes('[敌方单体]') || content.includes('[我方单体]') || content.includes('[敌方全体]') || content.includes('[我方全体]')) {
       const skills = parseSkills(content)
       if (skills.length > 0) {
         playerStore.updateFromParsed({ skills })
@@ -145,13 +145,13 @@ export function useCommand() {
     }
 
     // 装备
-    if (content.includes('头部:') || content.includes('头部：')) {
+    if (content.includes('你的装备') || content.includes('头部:') || content.includes('头部：')) {
       const equipment = parseEquipment(content)
       playerStore.updateFromParsed({ equipment })
     }
 
     // 背包
-    if (content.includes('背包为空') || content.match(/x\d+$/m)) {
+    if (content.includes('你的背包') || content.includes('背包为空') || content.match(/x\d+/)) {
       const inventory = parseInventory(content)
       playerStore.updateFromParsed({ inventory })
     }
@@ -163,7 +163,7 @@ export function useCommand() {
     }
 
     // 实体列表
-    if (content.includes('[类型：')) {
+    if (content.includes('[类型：') || content.includes('[类型:') || content.includes('地图实体')) {
       const entities = parseEntityList(content)
       if (entities.length > 0) {
         // 计算与玩家的距离

@@ -1,29 +1,30 @@
 <template>
   <div class="log-panel">
     <!-- 日志显示区 -->
-    <div class="log-display sci-panel sci-scrollbar" ref="logDisplayRef">
-      <div class="game-text" v-html="formattedGameText"></div>
-    </div>
-
-    <!-- Token计数器 -->
-    <div class="token-counter">
-      <span class="token-label">约</span>
-      <span class="token-count">{{ logStore.formattedTokenCount }}</span>
-      <span class="token-label">tokens</span>
+    <div class="log-display-wrapper">
+      <div class="log-display sci-panel sci-scrollbar" ref="logDisplayRef">
+        <div class="game-text" v-html="formattedGameText"></div>
+      </div>
+      <!-- Token计数器 -->
+      <div class="token-counter">
+        <span class="token-label">约</span>
+        <span class="token-count">{{ logStore.formattedTokenCount }}</span>
+        <span class="token-label">tokens</span>
+      </div>
     </div>
 
     <!-- 指令输入区 -->
     <div class="command-input-section">
       <input
         v-model="commandInput"
-        class="sci-input"
+        class="sci-input command-input-field"
         type="text"
         placeholder="输入指令..."
         @keyup.enter="handleSendCommand"
         :disabled="sessionStore.isWaiting"
       />
       <button
-        class="sci-button primary"
+        class="sci-button primary send-button"
         @click="handleSendCommand"
         :disabled="sessionStore.isWaiting || !commandInput.trim()"
       >
@@ -119,7 +120,14 @@ watch(() => logStore.rawText, async () => {
 .log-panel {
   display: flex;
   flex-direction: column;
+}
+
+.log-display-wrapper {
+  flex: 1;
   position: relative;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .log-display {
@@ -133,7 +141,7 @@ watch(() => logStore.rawText, async () => {
 
 .token-counter {
   position: absolute;
-  top: 8px;
+  bottom: 8px;
   right: 8px;
   background: rgba(37, 37, 37, 0.9);
   border: 1px solid var(--border-color);
@@ -141,8 +149,10 @@ watch(() => logStore.rawText, async () => {
   padding: 4px 8px;
   font-size: 10px;
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 4px;
+  z-index: 10;
 }
 
 .token-label {
@@ -156,14 +166,17 @@ watch(() => logStore.rawText, async () => {
 
 .command-input-section {
   margin-top: 12px;
+  display: flex;
+  gap: 8px;
 }
 
-.command-input-section input {
-  width: 100%;
-  margin-bottom: 8px;
+.command-input-field {
+  flex: 1;
+  min-width: 0;
 }
 
-.command-input-section button {
-  width: 100%;
+.send-button {
+  flex-shrink: 0;
+  width: 80px;
 }
 </style>

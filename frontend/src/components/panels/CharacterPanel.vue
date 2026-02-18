@@ -12,6 +12,7 @@
         <div class="character-info">
           <div class="character-name">{{ playerStore.name }}</div>
           <div class="character-class">{{ playerStore.roleName }} Lv.{{ playerStore.level }}</div>
+          <div class="character-position">位置: ({{ playerStore.x }}, {{ playerStore.y }})</div>
         </div>
       </div>
 
@@ -47,12 +48,6 @@
           </div>
           <span class="bar-value">{{ playerStore.experience }}/{{ playerStore.experienceForNextLevel }}</span>
         </div>
-      </div>
-
-      <!-- 金币 -->
-      <div class="gold-display">
-        <span class="gold-icon">💰</span>
-        <span class="gold-value">{{ playerStore.gold }}</span>
       </div>
 
       <div class="sci-divider"></div>
@@ -186,22 +181,10 @@ function addAttribute(attr) {
 </script>
 
 <style scoped>
-.gold-display {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--bg-dark);
-  border-radius: var(--button-radius);
-}
-
-.gold-icon {
-  font-size: 16px;
-}
-
-.gold-value {
-  color: #ffd700;
-  font-weight: 600;
+.character-position {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-top: 2px;
 }
 
 .free-points {

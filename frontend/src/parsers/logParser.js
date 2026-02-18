@@ -33,7 +33,7 @@ export function parseLogLine(line) {
     }
   }
 
-  // 普通文本
+  // 普通文本（可能是多行日志的后续行）
   return {
     isLog: false,
     type: 'plain',
@@ -42,7 +42,7 @@ export function parseLogLine(line) {
 }
 
 /**
- * 解析多行日志文本
+ * 解析多行日志文本，将多行内容合并到对应的日志条目
  * @param {string} text - 多行日志文本
  * @returns {array} 解析后的日志数组
  */
@@ -51,11 +51,31 @@ export function parseLogText(text) {
 
   const lines = text.split('\n')
   const entries = []
+  let currentEntry = null
 
   for (const line of lines) {
-    if (line.trim()) {
-      entries.push(parseLogLine(line))
+    if (!line.trim()) continue
+
+    const parsed = parseLogLine(line)
+
+    if (parsed.isLog) {
+      // 新的日志条目
+      if (currentEntry) {
+        entries.push(currentEntry)
+      }
+      currentEntry = parsed
+    } else if (currentEntry) {
+      // 将普通文本追加到当前日志条目的内容中
+      currentEntry.content += '\n' + parsed.content
+    } else {
+      // 没有当前条目，作为独立条目
+      entries.push(parsed)
     }
+  }
+
+  // 添加最后一个条目
+  if (currentEntry) {
+    entries.push(currentEntry)
   }
 
   return entries
