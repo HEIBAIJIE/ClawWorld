@@ -3,6 +3,7 @@ package com.heibai.clawworld.interfaces.log;
 import com.heibai.clawworld.application.service.CharacterInfoService;
 import com.heibai.clawworld.application.service.MapEntityService;
 import com.heibai.clawworld.application.service.PartyService;
+import com.heibai.clawworld.domain.character.Character;
 import com.heibai.clawworld.domain.character.Party;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.chat.ChatMessage;
@@ -122,7 +123,15 @@ public class MapWindowLogGenerator {
             }
 
             hasEntities = true;
-            sb.append(String.format("%s (%d,%d)", entity.getName(), entity.getX(), entity.getY()));
+            sb.append(entity.getName());
+
+            // 如果是角色类型，显示等级
+            if (entity instanceof Character) {
+                Character character = (Character) entity;
+                sb.append(String.format(" Lv.%d", character.getLevel()));
+            }
+
+            sb.append(String.format(" (%d,%d)", entity.getX(), entity.getY()));
 
             int dx = Math.abs(entity.getX() - player.getX());
             int dy = Math.abs(entity.getY() - player.getY());

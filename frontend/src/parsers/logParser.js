@@ -1,0 +1,123 @@
+/**
+ * 日志格式解析器
+ * 解析服务端返回的日志格式：[来源][时间][类型][子类型]内容
+ */
+
+// 日志行正则
+const LOG_PATTERN = /^\[([^\]]+)\]\[([^\]]+)\]\[([^\]]+)\]\[([^\]]+)\](.*)$/
+
+/**
+ * 解析单行日志
+ * @param {string} line - 日志行
+ * @returns {object} 解析结果
+ */
+export function parseLogLine(line) {
+  const match = line.match(LOG_PATTERN)
+  if (match) {
+    return {
+      isLog: true,
+      source: match[1],
+      time: match[2],
+      type: match[3],
+      subType: match[4],
+      content: match[5].trim()
+    }
+  }
+
+  // 用户输入
+  if (line.startsWith('> ')) {
+    return {
+      isLog: false,
+      type: 'user-input',
+      content: line.substring(2)
+    }
+  }
+
+  // 普通文本
+  return {
+    isLog: false,
+    type: 'plain',
+    content: line
+  }
+}
+
+/**
+ * 解析多行日志文本
+ * @param {string} text - 多行日志文本
+ * @returns {array} 解析后的日志数组
+ */
+export function parseLogText(text) {
+  if (!text) return []
+
+  const lines = text.split('\n')
+  const entries = []
+
+  for (const line of lines) {
+    if (line.trim()) {
+      entries.push(parseLogLine(line))
+    }
+  }
+
+  return entries
+}
+
+/**
+ * 按类型分组日志
+ * @param {array} entries - 日志条目数组
+ * @returns {object} 分组后的日志
+ */
+export function groupLogsByType(entries) {
+  const grouped = {
+    background: [],
+    window: [],
+    state: [],
+    command: [],
+    other: []
+  }
+
+  for (const entry of entries) {
+    if (!entry.isLog) {
+      grouped.other.push(entry)
+      continue
+    }
+
+    switch (entry.type) {
+      case '背景':
+        grouped.background.push(entry)
+        break
+      case '窗口':
+        grouped.window.push(entry)
+        break
+      case '状态':
+        grouped.state.push(entry)
+        break
+      case '发送指令':
+        grouped.command.push(entry)
+        break
+      default:
+        grouped.other.push(entry)
+    }
+  }
+
+  return grouped
+}
+
+/**
+ * 提取特定子类型的日志内容
+ * @param {array} entries - 日志条目数组
+ * @param {string} type - 类型
+ * @param {string} subType - 子类型
+ * @returns {array} 匹配的内容数组
+ */
+export function extractBySubType(entries, type, subType) {
+  return entries
+    .filter(e => e.isLog && e.type === type && e.subType === subType)
+    .map(e => e.content)
+}
+
+export default {
+  parseLogLine,
+  parseLogText,
+  groupLogsByType,
+  extractBySubType
+}

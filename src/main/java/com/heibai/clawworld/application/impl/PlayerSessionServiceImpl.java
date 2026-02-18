@@ -395,7 +395,31 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
         PlayerEntity entity = playerMapper.toEntity(player);
         playerRepository.save(entity);
 
-        return OperationResult.success("添加属性点成功: " + attributeType + " +" + amount);
+        // 返回完整的角色状态，便于前端刷新
+        String attrName = switch (attributeType.toLowerCase()) {
+            case "str", "strength" -> "力量";
+            case "agi", "agility" -> "敏捷";
+            case "int", "intelligence" -> "智力";
+            case "vit", "vitality" -> "体力";
+            default -> attributeType;
+        };
+
+        String statusInfo = String.format(
+            "添加属性点成功: %s +%d\n" +
+            "当前属性：力量%d 敏捷%d 智力%d 体力%d\n" +
+            "可用属性点: %d\n" +
+            "生命%d/%d 法力%d/%d\n" +
+            "物攻%d 物防%d 法攻%d 法防%d 速度%d\n" +
+            "暴击率%.1f%% 暴击伤害%.1f%% 命中率%.1f%% 闪避率%.1f%%",
+            attrName, amount,
+            player.getStrength(), player.getAgility(), player.getIntelligence(), player.getVitality(),
+            player.getFreeAttributePoints(),
+            player.getCurrentHealth(), player.getMaxHealth(), player.getCurrentMana(), player.getMaxMana(),
+            player.getPhysicalAttack(), player.getPhysicalDefense(), player.getMagicAttack(), player.getMagicDefense(), player.getSpeed(),
+            player.getCritRate() * 100, player.getCritDamage() * 100, player.getHitRate() * 100, player.getDodgeRate() * 100
+        );
+
+        return OperationResult.success(statusInfo);
     }
 
     @Override

@@ -1,0 +1,617 @@
+/* 面板布局样式 */
+
+/* 游戏主布局 */
+.game-layout {
+  display: flex;
+  flex: 1;
+  gap: 12px;
+  min-height: 0;
+}
+
+/* 左侧游戏面板 (2/3) */
+.game-panel {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  position: relative;
+}
+
+/* 右侧日志面板 (1/3) */
+.log-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 300px;
+  max-width: 450px;
+}
+
+/* 地图视图容器 */
+.map-view {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: var(--panel-radius);
+}
+
+.map-view:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* 地图画布 */
+.map-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* 功能按钮栏 */
+.action-bar {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+
+.action-bar-button {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  position: relative;
+}
+
+.action-bar-button.active {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-glow);
+}
+
+.action-bar-button .badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  background: var(--entity-enemy);
+  border-radius: 8px;
+  font-size: 10px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+/* 弹出面板 */
+.popup-panel {
+  position: absolute;
+  bottom: 76px;
+  right: 16px;
+  width: 320px;
+  max-height: 400px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+}
+
+.popup-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.popup-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.popup-panel-close {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.popup-panel-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.popup-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+
+/* 角色面板 */
+.character-panel {
+  width: 360px;
+}
+
+.character-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.character-avatar {
+  width: 56px;
+  height: 56px;
+  background: var(--bg-dark);
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.character-info {
+  flex: 1;
+}
+
+.character-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-highlight);
+}
+
+.character-class {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.character-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bar-label {
+  width: 24px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.bar-container {
+  flex: 1;
+}
+
+.bar-value {
+  font-size: 11px;
+  color: var(--text-secondary);
+  min-width: 70px;
+  text-align: right;
+}
+
+/* 属性区域 */
+.attributes-section {
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.attributes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.attribute-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--bg-dark);
+  border-radius: var(--button-radius);
+}
+
+.attribute-name {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.attribute-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.attribute-number {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.attribute-add {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* 背包面板 */
+.inventory-panel {
+  width: 340px;
+}
+
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+
+.inventory-slot {
+  aspect-ratio: 1;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.inventory-slot:hover {
+  border-color: var(--primary);
+  background: var(--bg-hover);
+}
+
+.inventory-slot.empty {
+  cursor: default;
+}
+
+.inventory-slot.empty:hover {
+  border-color: var(--border-color);
+  background: var(--bg-dark);
+}
+
+.item-icon {
+  font-size: 20px;
+}
+
+.item-count {
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-size: 10px;
+  color: var(--text-primary);
+  text-shadow: 0 0 2px var(--bg-dark);
+}
+
+/* 队伍面板 */
+.party-panel {
+  width: 280px;
+}
+
+.party-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  background: var(--bg-dark);
+  border-radius: var(--button-radius);
+  margin-bottom: 8px;
+}
+
+.party-member:last-child {
+  margin-bottom: 0;
+}
+
+.party-member.self {
+  border: 1px solid var(--primary);
+}
+
+.member-avatar {
+  width: 36px;
+  height: 36px;
+  background: var(--bg-panel);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.member-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.member-name {
+  font-size: 13px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.leader-badge {
+  font-size: 10px;
+  padding: 1px 4px;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 2px;
+}
+
+.member-health {
+  margin-top: 4px;
+}
+
+.member-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.party-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* 实体列表面板 */
+.entity-list-panel {
+  width: 320px;
+}
+
+.entity-category {
+  margin-bottom: 16px;
+}
+
+.entity-category:last-child {
+  margin-bottom: 0;
+}
+
+.category-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.category-icon {
+  font-size: 14px;
+}
+
+.category-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.category-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.entity-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-dark);
+  border-radius: var(--button-radius);
+  margin-bottom: 4px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.entity-item:hover {
+  background: var(--bg-hover);
+}
+
+.entity-item:last-child {
+  margin-bottom: 0;
+}
+
+.entity-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  border-radius: 4px;
+}
+
+.entity-icon.enemy {
+  background: rgba(244, 67, 54, 0.2);
+}
+
+.entity-icon.player {
+  background: rgba(76, 175, 80, 0.2);
+}
+
+.entity-icon.npc {
+  background: rgba(33, 150, 243, 0.2);
+}
+
+.entity-icon.waypoint {
+  background: rgba(156, 39, 176, 0.2);
+}
+
+.entity-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.entity-name {
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entity-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  gap: 8px;
+}
+
+.entity-distance {
+  color: var(--text-secondary);
+}
+
+.entity-distance.in-range {
+  color: var(--primary);
+}
+
+/* 日志显示区 */
+.log-display {
+  flex: 1;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: var(--panel-radius);
+  padding: 12px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+/* 指令输入区 */
+.command-input-section {
+  display: flex;
+  gap: 8px;
+}
+
+.command-input-section input {
+  flex: 1;
+}
+
+/* 交互弹窗 */
+.interaction-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 240px;
+  z-index: 100;
+}
+
+.interaction-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.interaction-entity-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  border-radius: 8px;
+}
+
+.interaction-entity-info {
+  flex: 1;
+}
+
+.interaction-entity-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-highlight);
+}
+
+.interaction-entity-level {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.interaction-options {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.interaction-option {
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+}
+
+/* 遮罩层 */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 99;
+}
+
+/* 右键菜单 */
+.context-menu {
+  position: fixed;
+  min-width: 140px;
+  z-index: 200;
+  padding: 6px 0;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.context-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.context-menu-item-icon {
+  width: 16px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 6px 0;
+}
