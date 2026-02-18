@@ -161,6 +161,7 @@ public class CombatInstance {
     /**
      * 获取当前应该行动的角色（通过计算确定）
      * CTB战斗系统：根据速度计算谁最先到达行动条满值
+     * 注意：此方法是纯查询方法，不会修改行动条状态
      */
     public Optional<String> getCurrentTurnCharacterId() {
         // 收集所有存活角色的行动条
@@ -193,12 +194,42 @@ public class CombatInstance {
             return Optional.empty();
         }
 
+        return Optional.of(nextActor.getCharacterId());
+    }
+
+    /**
+     * 推进行动条到下一个角色的回合
+     * 此方法会修改所有存活角色的行动条进度
+     * 应该在确认要执行回合时调用，而不是在查询时调用
+     */
+    public void advanceToNextTurn() {
+        // 收集所有存活角色的行动条
+        List<ActionBarEntry> aliveEntries = new ArrayList<>();
+        for (ActionBarEntry entry : actionBar.values()) {
+            CombatCharacter character = findCharacter(entry.getCharacterId());
+            if (character != null && character.isAlive()) {
+                aliveEntries.add(entry);
+            }
+        }
+
+        if (aliveEntries.isEmpty()) {
+            return;
+        }
+
+        // 找出最快到达行动的角色（时间最短）
+        double minTime = Double.MAX_VALUE;
+
+        for (ActionBarEntry entry : aliveEntries) {
+            double timeToReady = entry.getTimeToReady();
+            if (timeToReady < minTime) {
+                minTime = timeToReady;
+            }
+        }
+
         // 所有存活角色的进度条按该时间推进
         for (ActionBarEntry entry : aliveEntries) {
             entry.advanceByTime(minTime);
         }
-
-        return Optional.of(nextActor.getCharacterId());
     }
 
     /**

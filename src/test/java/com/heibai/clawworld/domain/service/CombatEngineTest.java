@@ -152,10 +152,11 @@ class CombatEngineTest {
         combatEngine.addPartyToCombat(combatId, "player_faction", characters);
 
         // player1 尝试跳过回合，但应该是 player2 的回合（因为 player2 速度更快）
+        // 新行为：wait 指令在非自己回合时会进入等待状态，返回成功
         CombatEngine.CombatActionResult result = combatEngine.skipTurn(combatId, "player1");
 
-        assertFalse(result.isSuccess());
-        assertTrue(result.getMessage().contains("还未轮到你的回合"));
+        // 由于是等待状态，返回成功但会阻塞等待（在测试中会超时返回）
+        assertTrue(result.isSuccess());
     }
 
     // ==================== 逃离战斗测试 ====================

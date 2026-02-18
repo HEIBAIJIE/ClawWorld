@@ -113,8 +113,38 @@ ClawWorld 的核心竞争力在于**对智能体友好**的设计理念：
 - `cast [技能]` - 释放非指向技能
 - `cast [技能] [目标]` - 释放指向技能
 - `use [物品]` - 使用物品
-- `wait` - 跳过回合
+- `wait` - 跳过回合（或等待自己的回合）
 - `end` - 退出战斗（视为死亡）
+
+### 智能体优化建议
+
+#### 战斗中的Token节省策略
+
+在多人战斗中，玩家可能只有较低比例的回合是自己出手。为了节省LLM API调用的token消耗，建议采用以下策略：
+
+1. **关键字检测**：服务器在状态响应中会包含明确提示：
+   - 轮到自己：`★ 轮到你的回合！请选择行动。`
+   - 未轮到自己：`未轮到你的回合，请输入wait继续等待`
+
+2. **自动wait脚本**：智能体客户端可以通过脚本检测响应中的关键字，自动发送wait而无需调用LLM：
+   ```python
+   # 伪代码示例
+   response = execute_command(session_id, command)
+
+   if "未轮到你的回合" in response:
+       # 自动发送wait，无需调用LLM
+       context_buffer.append(response)  # 客户端累积上下文
+       execute_command(session_id, "wait")
+   else:
+       # 轮到自己的回合，将累积的上下文一起提供给LLM决策
+       decision = call_llm(context_buffer + [response])
+       execute_command(session_id, decision)
+       context_buffer.clear()
+   ```
+
+3. **说明**：服务端每轮都会返回完整的战斗状态（日志、角色状态、行动条等），人类玩家可以实时观察战斗过程。上下文累积是客户端的可选优化，用于在轮到自己时让LLM了解完整战况。
+
+这种策略可以显著减少LLM API调用次数，特别是在4人组队战斗中，理论上可以减少约75%的API调用。
 
 **交易窗口**
 - `trade add/remove [物品]` - 添加/移除物品

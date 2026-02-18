@@ -125,7 +125,7 @@ public class CombatWindowLogGenerator {
             "cast [技能名称] - 释放敌方群体、我方群体或自己的技能；对单体技能则随机选择目标\n" +
             "cast [技能名称] [目标名称] - 释放敌方单体或我方单体的技能\n" +
             "use [物品名称] - 使用物品\n" +
-            "wait - 跳过回合\n" +
+            "wait - 跳过回合（或等待自己的回合）\n" +
             "end - 逃离战斗（角色视为死亡）");
 
         // 7. 当前回合提示
@@ -135,7 +135,7 @@ public class CombatWindowLogGenerator {
                 builder.addWindow("当前状态", "★ 轮到你的回合！请选择行动。");
             } else {
                 String currentTurnName = findCharacterName(combat, currentTurnId);
-                builder.addWindow("当前状态", "等待 " + currentTurnName + " 行动...");
+                builder.addWindow("当前状态", "等待 " + currentTurnName + " 行动...\n未轮到你的回合，请输入wait继续等待");
             }
         }
     }
@@ -228,7 +228,7 @@ public class CombatWindowLogGenerator {
                 builder.addState("当前状态", "★ 轮到你的回合！请选择行动。");
             } else {
                 String currentTurnName = findCharacterName(combat, currentTurnId);
-                builder.addState("当前状态", "等待 " + currentTurnName + " 行动...");
+                builder.addState("当前状态", "等待 " + currentTurnName + " 行动...\n未轮到你的回合，请输入wait继续等待");
             }
         }
 

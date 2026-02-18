@@ -422,6 +422,9 @@ public class CombatServiceImpl implements CombatService {
             }
             CombatInstance combat = combatOpt.get();
 
+            // 推进行动条到下一个回合（如果还没有人准备好）
+            combat.advanceToNextTurn();
+
             Optional<String> currentTurn = combat.getCurrentTurnCharacterId();
             if (currentTurn.isEmpty() || !currentTurn.get().equals(playerId)) {
                 return ActionResult.error("还未轮到你的回合");
@@ -495,7 +498,17 @@ public class CombatServiceImpl implements CombatService {
                 return ActionResult.combatEnded("战斗结束", resultMessage);
             }
 
-            return ActionResult.success(resultMessage, resultMessage);
+            // 使用物品后，调用 CombatEngine 处理后续回合
+            CombatEngine.CombatActionResult engineResult = combatEngine.processAfterAction(combatId, playerId);
+
+            if (engineResult.isCombatEnded()) {
+                handleCombatEndWindowTransition(combatId);
+                String battleLog = resultMessage + "\n" + String.join("\n", engineResult.getBattleLog());
+                return ActionResult.combatEnded("战斗结束", battleLog);
+            }
+
+            String battleLog = resultMessage + "\n" + String.join("\n", engineResult.getBattleLog());
+            return ActionResult.success(engineResult.getMessage(), battleLog);
         } catch (Exception e) {
             log.error("战斗中使用物品失败", e);
             return ActionResult.error("使用物品失败: " + e.getMessage());
