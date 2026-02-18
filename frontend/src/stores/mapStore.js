@@ -43,14 +43,43 @@ export const useMapStore = defineStore('map', () => {
     return grouped
   })
 
-  // 获取指定位置的实体
+  // 获取指定位置的实体（返回优先级最高的）
   function getEntityAt(x, y) {
-    return entities.value.find(e => e.x === x && e.y === y)
+    const entitiesAtPos = entities.value.filter(e => e.x === x && e.y === y)
+    if (entitiesAtPos.length === 0) return null
+    if (entitiesAtPos.length === 1) return entitiesAtPos[0]
+
+    // 按优先级排序，返回最高优先级的实体
+    return entitiesAtPos.sort((a, b) => getEntityDisplayPriority(b) - getEntityDisplayPriority(a))[0]
   }
 
   // 获取指定位置的所有实体
   function getEntitiesAt(x, y) {
     return entities.value.filter(e => e.x === x && e.y === y)
+  }
+
+  /**
+   * 获取实体的显示优先级
+   * 优先级：当前玩家(100) > 传送点(90) > 敌人(80) > 其他玩家(70) > 篝火(60) > NPC(50) > 其他实体(10)
+   */
+  function getEntityDisplayPriority(entity) {
+    const type = entity.type || entity.entityType
+    if (!type) return 10
+
+    // 当前玩家优先级最高（通过 isCurrentPlayer 标记或其他方式判断）
+    if (entity.isCurrentPlayer) return 100
+
+    switch (type.toUpperCase()) {
+      case 'WAYPOINT': return 90
+      case 'ENEMY':
+      case 'ENEMY_ELITE':
+      case 'ENEMY_BOSS':
+      case 'ENEMY_WORLD_BOSS': return 80
+      case 'PLAYER': return 70
+      case 'CAMPFIRE': return 60
+      case 'NPC': return 50
+      default: return 10
+    }
   }
 
   // 检查位置是否可通行
@@ -107,6 +136,22 @@ export const useMapStore = defineStore('map', () => {
     }
   }
 
+  // 添加实体
+  function addEntity(entity) {
+    const existing = entities.value.find(e => e.name === entity.name)
+    if (!existing) {
+      entities.value.push(entity)
+    }
+  }
+
+  // 移除实体
+  function removeEntity(entityName) {
+    const index = entities.value.findIndex(e => e.name === entityName)
+    if (index !== -1) {
+      entities.value.splice(index, 1)
+    }
+  }
+
   // 设置窗口类型
   function setWindowType(type) {
     windowType.value = type
@@ -132,6 +177,7 @@ export const useMapStore = defineStore('map', () => {
     // 方法
     getEntityAt, getEntitiesAt, isPassable, getDistance,
     updateMapInfo, updateGrid, updateEntities, updateEntity,
+    addEntity, removeEntity,
     setWindowType, reset
   }
 })

@@ -2,11 +2,6 @@
   <div class="header">
     <h1>ClawWorld</h1>
     <div class="header-info">
-      <span class="player-info" v-if="playerStore.name">
-        <span class="role-icon">{{ playerStore.roleIcon }}</span>
-        <span class="player-name">{{ playerStore.name }}</span>
-        <span class="player-level">Lv.{{ playerStore.level }}</span>
-      </span>
       <span class="map-info" v-if="mapStore.name">
         <span class="map-name">{{ mapStore.name }}</span>
         <span class="map-type" :class="{ safe: mapStore.isSafe, danger: !mapStore.isSafe }">

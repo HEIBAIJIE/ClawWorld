@@ -174,6 +174,9 @@ export function useCommand() {
     if (content.includes('队伍成员') || content.includes('你是队长') || content.includes('你在队伍中')) {
       const partyInfo = parsePartyInfo(content)
       partyStore.updatePartyInfo(partyInfo)
+    } else if (content.includes('你当前没有队伍') || content.includes('组队情况') && content.includes('没有队伍')) {
+      // 没有队伍时重置
+      partyStore.reset()
     }
 
     // 实体列表
@@ -285,14 +288,24 @@ export function useCommand() {
           mapStore.setWindowType('combat')
         }
         break
+
+      case '环境变化':
+        processEnvironmentChange(content)
+        break
+
+      case '队伍变化':
+        processPartyChange(content)
+        break
+
       case '指令响应':
         // 处理移动完成响应
         const moveMatch = content.match(/移动完成，当前位置[：:]\s*\((\d+),\s*(\d+)\)/)
         if (moveMatch) {
-          playerStore.updateFromParsed({
-            x: parseInt(moveMatch[1]),
-            y: parseInt(moveMatch[2])
-          })
+          const newX = parseInt(moveMatch[1])
+          const newY = parseInt(moveMatch[2])
+          playerStore.updateFromParsed({ x: newX, y: newY })
+          // 移动后重新计算所有实体的距离和可交互状态
+          recalculateEntityDistances()
         }
 
         // 处理加点响应
@@ -300,11 +313,197 @@ export function useCommand() {
           const playerState = parsePlayerState(content)
           playerStore.updateFromParsed(playerState)
         }
+
+        // 处理背包更新响应
+        if (content.includes('背包更新：')) {
+          const inventoryStartIndex = content.indexOf('背包更新：')
+          if (inventoryStartIndex !== -1) {
+            const inventoryContent = content.substring(inventoryStartIndex)
+            const inventory = parseInventory(inventoryContent)
+            playerStore.updateFromParsed({ inventory })
+          }
+        }
+
+        // 处理使用物品后的生命/法力更新
+        const healthMatch = content.match(/当前:\s*(\d+)\/(\d+)/)
+        if (healthMatch && content.includes('生命值')) {
+          playerStore.updateFromParsed({
+            currentHealth: parseInt(healthMatch[1]),
+            maxHealth: parseInt(healthMatch[2])
+          })
+        }
+        if (healthMatch && content.includes('法力值')) {
+          playerStore.updateFromParsed({
+            currentMana: parseInt(healthMatch[1]),
+            maxMana: parseInt(healthMatch[2])
+          })
+        }
+
+        // 处理队伍解散响应
+        if (content.includes('队伍已解散')) {
+          partyStore.reset()
+        }
         break
+
       case '战斗日志':
         // 战斗日志已在战斗窗口处理
         break
     }
+  }
+
+  /**
+   * 处理环境变化
+   */
+  function processEnvironmentChange(content) {
+    // 玩家移动: "玩家 小小 移动到 (5,1)"
+    const playerMoveMatch = content.match(/玩家\s+(.+?)\s+移动到\s+\((\d+),(\d+)\)/)
+    if (playerMoveMatch) {
+      const playerName = playerMoveMatch[1]
+      const newX = parseInt(playerMoveMatch[2])
+      const newY = parseInt(playerMoveMatch[3])
+      mapStore.updateEntity(playerName, { x: newX, y: newY })
+      // 重新计算距离
+      recalculateEntityDistances()
+      return
+    }
+
+    // 玩家加入地图: "玩家 小小 加入了地图，位置 (3,1)"
+    const playerJoinMatch = content.match(/玩家\s+(.+?)\s+加入了地图，位置\s+\((\d+),(\d+)\)/)
+    if (playerJoinMatch) {
+      const playerName = playerJoinMatch[1]
+      const x = parseInt(playerJoinMatch[2])
+      const y = parseInt(playerJoinMatch[3])
+      // 添加新玩家实体
+      const existingEntity = mapStore.entities.find(e => e.name === playerName)
+      if (!existingEntity) {
+        mapStore.addEntity({
+          name: playerName,
+          x,
+          y,
+          type: 'PLAYER',
+          displayType: '玩家',
+          interactionOptions: [],
+          isInRange: mapStore.getDistance(playerStore.x, playerStore.y, x, y) <= 1,
+          distance: mapStore.getDistance(playerStore.x, playerStore.y, x, y)
+        })
+      } else {
+        mapStore.updateEntity(playerName, { x, y })
+      }
+      recalculateEntityDistances()
+      return
+    }
+
+    // 实体离开地图: "小小 离开了地图"
+    const leaveMatch = content.match(/(.+?)\s+离开了地图/)
+    if (leaveMatch) {
+      const entityName = leaveMatch[1]
+      mapStore.removeEntity(entityName)
+      return
+    }
+
+    // 交互选项变化: "小小 的交互选项：[查看, 攻击, 请求交易]"
+    const optionsMatch = content.match(/(.+?)\s+的交互选项[：:]\s*\[([^\]]*)\]/)
+    if (optionsMatch) {
+      const entityName = optionsMatch[1]
+      const options = optionsMatch[2].split(',').map(s => s.trim()).filter(Boolean)
+      mapStore.updateEntity(entityName, { interactionOptions: options })
+      return
+    }
+
+    // 交互选项变化（增量）: "小小 的交互选项变化：新增[邀请组队]"
+    const optionsChangeMatch = content.match(/(.+?)\s+的交互选项变化[：:](.+)/)
+    if (optionsChangeMatch) {
+      const entityName = optionsChangeMatch[1]
+      const changeContent = optionsChangeMatch[2]
+
+      const entity = mapStore.entities.find(e => e.name === entityName)
+      if (entity) {
+        let options = [...(entity.interactionOptions || [])]
+
+        // 解析新增选项
+        const addMatch = changeContent.match(/新增\[([^\]]*)\]/)
+        if (addMatch) {
+          const addedOptions = addMatch[1].split(',').map(s => s.trim()).filter(Boolean)
+          addedOptions.forEach(opt => {
+            if (!options.includes(opt)) {
+              options.push(opt)
+            }
+          })
+        }
+
+        // 解析移除选项
+        const removeMatch = changeContent.match(/移除\[([^\]]*)\]/)
+        if (removeMatch) {
+          const removedOptions = removeMatch[1].split(',').map(s => s.trim()).filter(Boolean)
+          options = options.filter(opt => !removedOptions.includes(opt))
+        }
+
+        mapStore.updateEntity(entityName, { interactionOptions: options })
+      }
+      return
+    }
+
+    // 实体移动（非玩家）: "史莱姆#1 移动到 (5,6)"
+    const entityMoveMatch = content.match(/(.+?)\s+移动到\s+\((\d+),(\d+)\)/)
+    if (entityMoveMatch) {
+      const entityName = entityMoveMatch[1]
+      const newX = parseInt(entityMoveMatch[2])
+      const newY = parseInt(entityMoveMatch[3])
+      mapStore.updateEntity(entityName, { x: newX, y: newY })
+      recalculateEntityDistances()
+      return
+    }
+  }
+
+  /**
+   * 处理队伍变化
+   */
+  function processPartyChange(content) {
+    // 离开队伍（被踢或解散）
+    if (content.includes('你已离开队伍') || content.includes('队伍解散') || content.includes('被踢出')) {
+      partyStore.reset()
+      return
+    }
+
+    // 成员加入: "小小 加入了队伍"
+    const joinMatch = content.match(/(.+?)\s+加入了队伍/)
+    if (joinMatch) {
+      const memberName = joinMatch[1]
+      partyStore.addMember({ name: memberName, isLeader: false })
+      return
+    }
+
+    // 成员离开: "小小 离开了队伍"
+    const leaveMatch = content.match(/(.+?)\s+离开了队伍/)
+    if (leaveMatch) {
+      const memberName = leaveMatch[1]
+      partyStore.removeMember(memberName)
+      // 如果队伍只剩自己，重置队伍状态
+      if (partyStore.members.length <= 1) {
+        partyStore.reset()
+      }
+      return
+    }
+
+    // 收到组队邀请: "小小 邀请你加入队伍"
+    if (content.includes('邀请你加入队伍')) {
+      // 可以在这里添加 UI 提示
+      return
+    }
+  }
+
+  /**
+   * 重新计算所有实体的距离和可交互状态
+   */
+  function recalculateEntityDistances() {
+    mapStore.entities.forEach(entity => {
+      if (entity.name !== playerStore.name) {
+        const distance = mapStore.getDistance(playerStore.x, playerStore.y, entity.x, entity.y)
+        const isInRange = distance <= 1
+        // 使用 updateEntity 确保响应式更新
+        mapStore.updateEntity(entity.name, { distance, isInRange })
+      }
+    })
   }
 
   /**

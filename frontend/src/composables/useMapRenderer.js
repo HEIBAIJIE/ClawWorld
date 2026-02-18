@@ -71,9 +71,9 @@ export function useMapRenderer(canvasRef) {
     ctx.fillStyle = '#0a0a0a'
     ctx.fillRect(0, 0, width, height)
 
-    // 计算视口
-    const viewportWidth = Math.ceil(width / CELL_SIZE.value)
-    const viewportHeight = Math.ceil(height / CELL_SIZE.value)
+    // 计算视口（向上取整确保覆盖整个画布）
+    const viewportWidth = Math.ceil(width / CELL_SIZE.value) + 1
+    const viewportHeight = Math.ceil(height / CELL_SIZE.value) + 1
 
     // 居中玩家
     centerOnPlayer(viewportWidth, viewportHeight)
@@ -120,11 +120,13 @@ export function useMapRenderer(canvasRef) {
    * 渲染地形
    */
   function renderTerrain(ctx, viewportWidth, viewportHeight) {
-    for (let vy = 0; vy < viewportHeight + 1; vy++) {
-      for (let vx = 0; vx < viewportWidth + 1; vx++) {
+    // 遍历视口内的所有格子
+    for (let vy = 0; vy < viewportHeight; vy++) {
+      for (let vx = 0; vx < viewportWidth; vx++) {
         const mapX = vx + offsetX.value
         const mapY = offsetY.value + (viewportHeight - vy - 1) // Y轴翻转
 
+        // 跳过地图范围外的格子
         if (mapX < 0 || mapX >= mapStore.width || mapY < 0 || mapY >= mapStore.height) {
           continue
         }
@@ -150,33 +152,45 @@ export function useMapRenderer(canvasRef) {
     ctx.lineWidth = 1
 
     // 垂直线
-    for (let x = 0; x <= viewportWidth + 1; x++) {
+    for (let x = 0; x <= viewportWidth; x++) {
       ctx.beginPath()
       ctx.moveTo(x * CELL_SIZE.value, 0)
-      ctx.lineTo(x * CELL_SIZE.value, (viewportHeight + 1) * CELL_SIZE.value)
+      ctx.lineTo(x * CELL_SIZE.value, viewportHeight * CELL_SIZE.value)
       ctx.stroke()
     }
 
     // 水平线
-    for (let y = 0; y <= viewportHeight + 1; y++) {
+    for (let y = 0; y <= viewportHeight; y++) {
       ctx.beginPath()
       ctx.moveTo(0, y * CELL_SIZE.value)
-      ctx.lineTo((viewportWidth + 1) * CELL_SIZE.value, y * CELL_SIZE.value)
+      ctx.lineTo(viewportWidth * CELL_SIZE.value, y * CELL_SIZE.value)
       ctx.stroke()
     }
   }
 
   /**
    * 渲染实体
+   * 每个格子只渲染优先级最高的实体
    */
   function renderEntities(ctx) {
     const canvas = canvasRef.value
-    const viewportHeight = Math.ceil(canvas.height / CELL_SIZE.value)
+    const viewportHeight = Math.ceil(canvas.height / CELL_SIZE.value) + 1
 
+    // 按位置分组，每个位置只保留优先级最高的实体
+    const entityByPosition = new Map()
     for (const entity of mapStore.entities) {
-      // 跳过玩家自己
+      // 跳过玩家自己（玩家单独渲染）
       if (entity.name === playerStore.name) continue
 
+      const key = `${entity.x},${entity.y}`
+      const existing = entityByPosition.get(key)
+      if (!existing || getEntityRenderPriority(entity) > getEntityRenderPriority(existing)) {
+        entityByPosition.set(key, entity)
+      }
+    }
+
+    // 渲染每个位置优先级最高的实体
+    for (const entity of entityByPosition.values()) {
       const screenX = (entity.x - offsetX.value) * CELL_SIZE.value + CELL_SIZE.value / 2
       const screenY = (viewportHeight - (entity.y - offsetY.value) - 1) * CELL_SIZE.value + CELL_SIZE.value / 2
 
@@ -215,11 +229,32 @@ export function useMapRenderer(canvasRef) {
   }
 
   /**
+   * 获取实体的渲染优先级
+   * 优先级：传送点(90) > 敌人(80) > 其他玩家(70) > 篝火(60) > NPC(50) > 其他实体(10)
+   */
+  function getEntityRenderPriority(entity) {
+    const type = entity.type
+    if (!type) return 10
+
+    switch (type.toUpperCase()) {
+      case 'WAYPOINT': return 90
+      case 'ENEMY':
+      case 'ENEMY_ELITE':
+      case 'ENEMY_BOSS':
+      case 'ENEMY_WORLD_BOSS': return 80
+      case 'PLAYER': return 70
+      case 'CAMPFIRE': return 60
+      case 'NPC': return 50
+      default: return 10
+    }
+  }
+
+  /**
    * 渲染玩家
    */
   function renderPlayer(ctx) {
     const canvas = canvasRef.value
-    const viewportHeight = Math.ceil(canvas.height / CELL_SIZE.value)
+    const viewportHeight = Math.ceil(canvas.height / CELL_SIZE.value) + 1
 
     const screenX = (playerStore.x - offsetX.value) * CELL_SIZE.value + CELL_SIZE.value / 2
     const screenY = (viewportHeight - (playerStore.y - offsetY.value) - 1) * CELL_SIZE.value + CELL_SIZE.value / 2
@@ -262,7 +297,7 @@ export function useMapRenderer(canvasRef) {
    */
   function renderHoveredCell(ctx) {
     const canvas = canvasRef.value
-    const viewportHeight = Math.ceil(canvas.height / CELL_SIZE.value)
+    const viewportHeight = Math.ceil(canvas.height / CELL_SIZE.value) + 1
 
     const { x, y } = hoveredCell.value
     const screenX = (x - offsetX.value) * CELL_SIZE.value
@@ -280,7 +315,7 @@ export function useMapRenderer(canvasRef) {
     const canvas = canvasRef.value
     if (!canvas) return null
 
-    const viewportHeight = Math.ceil(canvas.height / CELL_SIZE.value)
+    const viewportHeight = Math.ceil(canvas.height / CELL_SIZE.value) + 1
     const mapX = Math.floor(screenX / CELL_SIZE.value) + offsetX.value
     const mapY = viewportHeight - Math.floor(screenY / CELL_SIZE.value) - 1 + offsetY.value
 

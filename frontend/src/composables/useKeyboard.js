@@ -11,7 +11,7 @@ export function useKeyboard(mapViewRef) {
   const playerStore = usePlayerStore()
   const mapStore = useMapStore()
   const uiStore = useUIStore()
-  const { move, interact } = useCommand()
+  const { move } = useCommand()
 
   // 按键状态
   const pressedKeys = ref(new Set())
@@ -48,13 +48,6 @@ export function useKeyboard(mapViewRef) {
     if (DIRECTION_MAP[key] && mapStore.windowType === 'map') {
       event.preventDefault()
       handleMove(key)
-      return
-    }
-
-    // 回车交互
-    if (event.key === 'Enter' && mapStore.windowType === 'map') {
-      event.preventDefault()
-      handleEnterInteract()
       return
     }
 
@@ -103,20 +96,6 @@ export function useKeyboard(mapViewRef) {
     // 检查是否可通行
     if (mapStore.isPassable(newX, newY)) {
       await move(newX, newY)
-    }
-  }
-
-  /**
-   * 处理回车交互
-   */
-  function handleEnterInteract() {
-    const facingX = playerStore.x + playerStore.facing.dx
-    const facingY = playerStore.y + playerStore.facing.dy
-
-    // 查找面向位置的实体
-    const entity = mapStore.getEntityAt(facingX, facingY)
-    if (entity && entity.interactionOptions && entity.interactionOptions.length > 0) {
-      uiStore.openInteraction(entity)
     }
   }
 

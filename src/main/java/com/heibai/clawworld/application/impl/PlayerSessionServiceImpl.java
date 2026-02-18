@@ -301,7 +301,30 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
         PlayerEntity entity = playerMapper.toEntity(player);
         playerRepository.save(entity);
 
-        return OperationResult.success(resultMessage != null ? resultMessage : "使用物品成功: " + itemName);
+        // 生成背包更新信息
+        String inventoryUpdate = generateInventoryUpdate(player);
+
+        return OperationResult.success(resultMessage != null ? resultMessage : "使用物品成功: " + itemName, inventoryUpdate);
+    }
+
+    /**
+     * 生成背包更新信息
+     */
+    private String generateInventoryUpdate(Player player) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("背包更新：\n");
+        if (player.getInventory() != null && !player.getInventory().isEmpty()) {
+            for (Player.InventorySlot slot : player.getInventory()) {
+                if (slot.isItem()) {
+                    sb.append(String.format("%s x%d\n", slot.getItem().getName(), slot.getQuantity()));
+                } else if (slot.isEquipment()) {
+                    sb.append(String.format("%s\n", slot.getEquipment().getDisplayName()));
+                }
+            }
+        } else {
+            sb.append("背包为空");
+        }
+        return sb.toString();
     }
 
     @Override

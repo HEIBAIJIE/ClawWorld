@@ -44,7 +44,7 @@ public class MapWindowLogGenerator {
         builder.addWindow("地图窗口", mapInfo);
 
         // 2. 地图网格
-        builder.addWindow("地图窗口", "地图：\n" + generateMapGrid(map, allEntities));
+        builder.addWindow("地图窗口", "地图：\n" + generateMapGrid(map, allEntities, player));
 
         // 3. 玩家状态
         builder.addWindow("地图窗口", "你的状态：\n" + characterInfoService.generatePlayerStatus(player));
@@ -74,21 +74,15 @@ public class MapWindowLogGenerator {
         builder.addWindow("地图窗口", "当前窗口可用指令：\n" + generateAvailableCommands());
     }
 
-    private String generateMapGrid(GameMap map, List<MapEntity> allEntities) {
+    private String generateMapGrid(GameMap map, List<MapEntity> allEntities, Player currentPlayer) {
         StringBuilder sb = new StringBuilder();
         if (map.getTerrain() != null && !map.getTerrain().isEmpty()) {
             for (int y = map.getHeight() - 1; y >= 0; y--) {
                 for (int x = 0; x < map.getWidth(); x++) {
                     sb.append(String.format("(%d,%d) ", x, y));
 
-                    MapEntity entityAtPos = null;
-                    for (MapEntity entity : allEntities) {
-                        if (entity.getX() == x && entity.getY() == y) {
-                            if (entityAtPos == null || "PLAYER".equals(entity.getEntityType())) {
-                                entityAtPos = entity;
-                            }
-                        }
-                    }
+                    // 找到该位置优先级最高的实体
+                    MapEntity entityAtPos = getHighestPriorityEntityAt(x, y, allEntities, currentPlayer);
 
                     if (entityAtPos != null) {
                         sb.append(entityAtPos.getName());
@@ -111,6 +105,52 @@ public class MapWindowLogGenerator {
             sb.append("地图数据加载中...");
         }
         return sb.toString();
+    }
+
+    /**
+     * 获取指定位置优先级最高的实体
+     * 优先级：当前玩家 > 传送点 > 敌人 > 其他玩家 > 篝火 > NPC > 其他实体
+     */
+    private MapEntity getHighestPriorityEntityAt(int x, int y, List<MapEntity> allEntities, Player currentPlayer) {
+        MapEntity highestPriorityEntity = null;
+        int highestPriority = -1;
+
+        for (MapEntity entity : allEntities) {
+            if (entity.getX() == x && entity.getY() == y) {
+                int priority = getEntityDisplayPriority(entity, currentPlayer);
+                if (priority > highestPriority) {
+                    highestPriority = priority;
+                    highestPriorityEntity = entity;
+                }
+            }
+        }
+
+        return highestPriorityEntity;
+    }
+
+    /**
+     * 获取实体的显示优先级
+     * 优先级：当前玩家(100) > 传送点(90) > 敌人(80) > 其他玩家(70) > 篝火(60) > NPC(50) > 其他实体(10)
+     */
+    private int getEntityDisplayPriority(MapEntity entity, Player currentPlayer) {
+        String entityType = entity.getEntityType();
+        if (entityType == null) {
+            return 10; // 其他实体
+        }
+
+        // 当前玩家优先级最高
+        if ("PLAYER".equals(entityType) && currentPlayer != null && entity.getName().equals(currentPlayer.getName())) {
+            return 100;
+        }
+
+        return switch (entityType.toUpperCase()) {
+            case "WAYPOINT" -> 90;
+            case "ENEMY", "ENEMY_ELITE", "ENEMY_BOSS", "ENEMY_WORLD_BOSS" -> 80;
+            case "PLAYER" -> 70; // 其他玩家
+            case "CAMPFIRE" -> 60;
+            case "NPC" -> 50;
+            default -> 10;
+        };
     }
 
 

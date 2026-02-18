@@ -26,9 +26,16 @@ public class UseItemCommand extends Command {
         PlayerSessionService.OperationResult result = CommandServiceLocator.getInstance().getPlayerSessionService()
                 .useItem(context.getPlayerId(), itemName);
 
-        return result.isSuccess() ?
-                CommandResult.success(result.getMessage()) :
-                CommandResult.error(result.getMessage());
+        if (result.isSuccess()) {
+            // 如果有背包更新数据，附加到消息中
+            String message = result.getMessage();
+            if (result.getData() != null) {
+                message = message + "\n" + result.getData().toString();
+            }
+            return CommandResult.success(message);
+        } else {
+            return CommandResult.error(result.getMessage());
+        }
     }
 
     @Override

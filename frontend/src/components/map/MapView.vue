@@ -25,7 +25,7 @@
     <!-- 操作提示 -->
     <div class="control-hints">
       <span>WASD 移动</span>
-      <span>Enter 交互</span>
+      <span>点击 交互</span>
       <span>滚轮 缩放</span>
     </div>
   </div>
