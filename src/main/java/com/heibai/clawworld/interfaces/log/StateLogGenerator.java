@@ -225,29 +225,44 @@ public class StateLogGenerator {
 
         // 检测队伍状态变化
         if (lastSnapshot == null) {
-            // 首次检测，只保存快照，不生成日志
+            // 首次检测，如果已经在队伍中，生成队伍信息
+            if (currentSnapshot.getPartyId() != null && currentSnapshot.getMemberNames() != null
+                && currentSnapshot.getMemberNames().size() > 1) {
+                generatePartyMemberList(builder, currentSnapshot, currentPlayer.getName());
+            }
         } else {
             String lastPartyId = lastSnapshot.getPartyId();
             String currentPartyId = currentSnapshot.getPartyId();
+            List<String> lastMembers = lastSnapshot.getMemberNames() != null ? lastSnapshot.getMemberNames() : new ArrayList<>();
+            List<String> currentMembers = currentSnapshot.getMemberNames() != null ? currentSnapshot.getMemberNames() : new ArrayList<>();
 
             // 检测队伍解散或被踢
             if (lastPartyId != null && currentPartyId == null) {
                 // 之前在队伍中，现在不在了
                 if (lastSnapshot.isLeader()) {
-                    // 自己是队长，队伍解散了（这个是主动操作，不需要通知）
+                    // 自己是队长，检查是否有成员离开导致队伍解散
+                    if (lastMembers.size() > 1) {
+                        // 之前有多个成员，现在队伍解散了
+                        for (String member : lastMembers) {
+                            if (!member.equals(currentPlayer.getName())) {
+                                builder.addState("队伍变化", String.format("%s 离开了队伍", member));
+                            }
+                        }
+                        builder.addState("队伍变化", "队伍已解散");
+                    }
                 } else {
                     // 自己不是队长，可能是被踢或队伍解散
                     builder.addState("队伍变化", "你已离开队伍（队伍解散或被踢出）");
                 }
             } else if (lastPartyId != null && currentPartyId != null && lastPartyId.equals(currentPartyId)) {
                 // 在同一个队伍中，检测成员变化
-                List<String> lastMembers = lastSnapshot.getMemberNames() != null ? lastSnapshot.getMemberNames() : new ArrayList<>();
-                List<String> currentMembers = currentSnapshot.getMemberNames() != null ? currentSnapshot.getMemberNames() : new ArrayList<>();
+                boolean memberChanged = false;
 
                 // 检测新加入的成员
                 for (String member : currentMembers) {
                     if (!lastMembers.contains(member) && !member.equals(currentPlayer.getName())) {
                         builder.addState("队伍变化", String.format("%s 加入了队伍", member));
+                        memberChanged = true;
                     }
                 }
 
@@ -255,10 +270,26 @@ public class StateLogGenerator {
                 for (String member : lastMembers) {
                     if (!currentMembers.contains(member) && !member.equals(currentPlayer.getName())) {
                         builder.addState("队伍变化", String.format("%s 离开了队伍", member));
+                        memberChanged = true;
                     }
                 }
+
+                // 如果成员有变化，生成最新的队伍成员列表
+                if (memberChanged && currentMembers.size() > 1) {
+                    generatePartyMemberList(builder, currentSnapshot, currentPlayer.getName());
+                }
             } else if (lastPartyId == null && currentPartyId != null) {
-                // 之前不在队伍，现在在队伍中（这个是主动操作，不需要通知）
+                // 之前不在队伍，现在在队伍中
+                // 检查是否是因为邀请被接受（队伍成员大于1）
+                if (currentMembers.size() > 1) {
+                    // 邀请被接受，生成队伍信息通知
+                    builder.addState("队伍变化", "队伍已组建");
+                    generatePartyMemberList(builder, currentSnapshot, currentPlayer.getName());
+                }
+            } else if (lastPartyId != null && currentPartyId != null && !lastPartyId.equals(currentPartyId)) {
+                // 换了一个队伍（理论上不应该发生，但以防万一）
+                builder.addState("队伍变化", "你加入了新的队伍");
+                generatePartyMemberList(builder, currentSnapshot, currentPlayer.getName());
             }
 
             // 检测收到的新邀请
@@ -279,6 +310,29 @@ public class StateLogGenerator {
     }
 
     /**
+     * 生成队伍成员列表日志
+     */
+    private void generatePartyMemberList(GameLogBuilder builder, AccountEntity.PartySnapshot snapshot, String currentPlayerName) {
+        if (snapshot.getMemberNames() == null || snapshot.getMemberNames().isEmpty()) {
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("当前队伍成员(").append(snapshot.getMemberNames().size()).append("/4)：");
+
+        String leaderName = snapshot.getLeaderName();
+        for (String memberName : snapshot.getMemberNames()) {
+            sb.append("\n  - ").append(memberName);
+            // 标记队长
+            if (memberName.equals(leaderName)) {
+                sb.append(" [队长]");
+            }
+        }
+
+        builder.addState("队伍变化", sb.toString());
+    }
+
+    /**
      * 构建当前队伍状态快照
      */
     private AccountEntity.PartySnapshot buildCurrentPartySnapshot(Player player) {
@@ -289,15 +343,20 @@ public class StateLogGenerator {
             snapshot.setPartyId(party.getId());
             snapshot.setLeader(party.isLeader(player.getId()));
 
-            // 获取成员名称列表
+            // 获取成员名称列表和队长名字
             List<String> memberNames = new ArrayList<>();
+            String leaderName = null;
             for (String memberId : party.getMemberIds()) {
                 Player member = playerSessionService.getPlayerState(memberId);
                 if (member != null) {
                     memberNames.add(member.getName());
+                    if (party.isLeader(memberId)) {
+                        leaderName = member.getName();
+                    }
                 }
             }
             snapshot.setMemberNames(memberNames);
+            snapshot.setLeaderName(leaderName);
         }
 
         // 收集所有发给当前玩家的待处理邀请

@@ -72,6 +72,7 @@ public class AccountEntity {
     public static class PartySnapshot {
         private String partyId;
         private boolean isLeader;
+        private String leaderName;  // 队长名字
         private java.util.List<String> memberNames;
         // 收到的待处理邀请（inviterName -> inviteTime）
         private java.util.Map<String, Long> pendingInvitationsReceived;

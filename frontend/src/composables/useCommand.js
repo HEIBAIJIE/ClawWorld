@@ -76,31 +76,106 @@ export function useCommand() {
 
   /**
    * 处理窗口类型的日志条目
+   * 根据后端的 subType 精确匹配不同类型的内容
    */
   function processWindowEntry(entry) {
     const { subType, content } = entry
 
     switch (subType) {
-      case '地图窗口':
+      // ===== 地图窗口相关 =====
+      case '地图信息':
         mapStore.setWindowType('map')
-        processMapWindowContent(content)
+        const mapInfo = parseMapInfo(content)
+        mapStore.updateMapInfo(mapInfo)
         break
+
+      case '地图网格':
+        mapStore.setWindowType('map')
+        const { grid, width, height } = parseMapGrid(content)
+        mapStore.updateGrid(grid)
+        mapStore.updateMapInfo({ width, height })
+        break
+
+      case '玩家状态':
+        const playerState = parsePlayerState(content)
+        playerStore.updateFromParsed(playerState)
+        break
+
+      case '技能列表':
+        const skills = parseSkills(content)
+        if (skills.length > 0) {
+          playerStore.updateFromParsed({ skills })
+        }
+        break
+
+      case '装备栏':
+        const equipment = parseEquipment(content)
+        playerStore.updateFromParsed({ equipment })
+        break
+
+      case '背包':
+        const inventory = parseInventory(content)
+        playerStore.updateFromParsed({ inventory })
+        break
+
+      case '队伍信息':
+        if (content.includes('队伍成员') || content.includes('你是队长') || content.includes('你在队伍中')) {
+          const partyInfo = parsePartyInfo(content)
+          partyStore.updatePartyInfo(partyInfo)
+        } else if (content.includes('没有队伍')) {
+          partyStore.reset()
+        }
+        break
+
+      case '实体列表':
+        const entities = parseEntityList(content)
+        if (entities.length > 0) {
+          entities.forEach(entity => {
+            entity.distance = mapStore.getDistance(playerStore.x, playerStore.y, entity.x, entity.y)
+          })
+          mapStore.updateEntities(entities)
+        }
+        break
+
+      case '可达目标':
+        const moveToInteract = parseMoveToInteract(content)
+        moveToInteract.forEach(info => {
+          mapStore.updateEntity(info.name, {
+            moveToX: info.moveToX,
+            moveToY: info.moveToY
+          })
+        })
+        break
+
+      case '聊天记录':
+        // 聊天记录由 chatStore 处理，这里暂不处理
+        break
+
+      case '可用指令':
+        // 可用指令暂不处理
+        break
+
+      // ===== 战斗窗口相关 =====
       case '战斗窗口':
         mapStore.setWindowType('combat')
         combatStore.updateCombatState({ isInCombat: true })
         break
+
       case '参战方':
         const factions = parseFactions(content)
         combatStore.updateCombatState({ factions })
         break
+
       case '角色状态':
         const characters = parseCharacterStatus(content)
         combatStore.updateCombatState({ characters })
         break
+
       case '行动条':
         const actionBar = parseActionBar(content)
         combatStore.updateCombatState({ actionBar })
         break
+
       case '当前状态':
         const status = parseCombatStatus(content)
         combatStore.updateCombatState({
@@ -108,28 +183,27 @@ export function useCommand() {
           currentTurn: status.waitingFor
         })
         break
+
+      // ===== 兼容旧格式（地图窗口） =====
+      case '地图窗口':
+        mapStore.setWindowType('map')
+        processMapWindowContent(content)
+        break
+
+      default:
+        // 未知的 subType，尝试用旧的内容匹配方式处理
+        processMapWindowContent(content)
     }
   }
 
   /**
-   * 处理地图窗口内容
+   * 处理地图窗口内容（兼容旧格式，通过内容特征判断）
    */
   function processMapWindowContent(content) {
     // 地图信息
     if (content.includes('当前地图名')) {
       const mapInfo = parseMapInfo(content)
       mapStore.updateMapInfo(mapInfo)
-    }
-
-    // 地图网格
-    if (content.match(/\(\d+,\d+\)/)) {
-      // 检查是否是地图网格（包含多个坐标）
-      const coordCount = (content.match(/\(\d+,\d+\)/g) || []).length
-      if (coordCount > 5) {
-        const { grid, width, height } = parseMapGrid(content)
-        mapStore.updateGrid(grid)
-        mapStore.updateMapInfo({ width, height })
-      }
     }
 
     // 玩家状态（自己的状态）
@@ -140,12 +214,10 @@ export function useCommand() {
     // 查看其他角色（包含"角色:"但不包含"你的状态"）
     else if ((content.includes('角色:') || content.includes('角色：')) && !content.includes('你的状态')) {
       const characterData = parsePlayerState(content)
-      // 检查是否是查看自己（名字相同）
       if (characterData.name && characterData.name !== playerStore.name) {
         characterData.rawText = content
         uiStore.openInspectCharacter(characterData)
       } else if (characterData.name === playerStore.name) {
-        // 更新自己的状态
         playerStore.updateFromParsed(characterData)
       }
     }
@@ -175,7 +247,6 @@ export function useCommand() {
       const partyInfo = parsePartyInfo(content)
       partyStore.updatePartyInfo(partyInfo)
     } else if (content.includes('你当前没有队伍') || content.includes('组队情况') && content.includes('没有队伍')) {
-      // 没有队伍时重置
       partyStore.reset()
     }
 
@@ -183,7 +254,6 @@ export function useCommand() {
     if (content.includes('[类型：') || content.includes('[类型:') || content.includes('地图实体')) {
       const entities = parseEntityList(content)
       if (entities.length > 0) {
-        // 计算与玩家的距离
         entities.forEach(entity => {
           entity.distance = mapStore.getDistance(playerStore.x, playerStore.y, entity.x, entity.y)
         })
@@ -194,7 +264,6 @@ export function useCommand() {
     // 可移动交互
     if (content.includes('移动到') && content.includes('可交互')) {
       const moveToInteract = parseMoveToInteract(content)
-      // 更新实体的移动目标
       moveToInteract.forEach(info => {
         mapStore.updateEntity(info.name, {
           moveToX: info.moveToX,
@@ -203,7 +272,7 @@ export function useCommand() {
       })
     }
 
-    // 查看物品（包含物品详情关键字）
+    // 查看物品
     if (content.includes('物品详情') || content.includes('装备详情') ||
         (content.includes('类型:') && (content.includes('攻击') || content.includes('防御') || content.includes('效果')))) {
       const itemData = parseItemDetails(content)
@@ -460,8 +529,18 @@ export function useCommand() {
    */
   function processPartyChange(content) {
     // 离开队伍（被踢或解散）
-    if (content.includes('你已离开队伍') || content.includes('队伍解散') || content.includes('被踢出')) {
+    if (content.includes('你已离开队伍') || content.includes('被踢出')) {
       partyStore.reset()
+      return
+    }
+
+    // 队伍已组建或成员列表更新: "当前队伍成员(2/4)：\n  - 小小 [队长]\n  - 巧巧"
+    if (content.includes('当前队伍成员') || content.includes('队伍已组建')) {
+      const partyInfo = parsePartyInfo(content)
+      if (partyInfo.members.length > 0) {
+        partyInfo.isInParty = true
+        partyStore.updatePartyInfo(partyInfo)
+      }
       return
     }
 
@@ -470,6 +549,10 @@ export function useCommand() {
     if (joinMatch) {
       const memberName = joinMatch[1]
       partyStore.addMember({ name: memberName, isLeader: false })
+      // 标记自己在队伍中
+      if (!partyStore.isInParty) {
+        partyStore.updatePartyInfo({ isInParty: true })
+      }
       return
     }
 

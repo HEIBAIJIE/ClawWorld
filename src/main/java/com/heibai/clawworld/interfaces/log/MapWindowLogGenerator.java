@@ -41,37 +41,37 @@ public class MapWindowLogGenerator {
             map.getName(),
             map.getDescription(),
             map.isSafe() ? "【安全区域】" : String.format("【危险区域】推荐等级: %d", map.getRecommendedLevel()));
-        builder.addWindow("地图窗口", mapInfo);
+        builder.addWindow("地图信息", mapInfo);
 
         // 2. 地图网格
-        builder.addWindow("地图窗口", "地图：\n" + generateMapGrid(map, allEntities, player));
+        builder.addWindow("地图网格", generateMapGrid(map, allEntities, player));
 
         // 3. 玩家状态
-        builder.addWindow("地图窗口", "你的状态：\n" + characterInfoService.generatePlayerStatus(player));
+        builder.addWindow("玩家状态", "你的状态：\n" + characterInfoService.generatePlayerStatus(player));
 
         // 4. 技能
-        builder.addWindow("地图窗口", "你的技能：\n" + characterInfoService.generateSkills(player));
+        builder.addWindow("技能列表", "你的技能：\n" + characterInfoService.generateSkills(player));
 
         // 5. 装备
-        builder.addWindow("地图窗口", "你的装备：\n" + characterInfoService.generateEquipment(player));
+        builder.addWindow("装备栏", "你的装备：\n" + characterInfoService.generateEquipment(player));
 
         // 6. 背包
-        builder.addWindow("地图窗口", "你的背包：\n" + characterInfoService.generateInventory(player));
+        builder.addWindow("背包", "你的背包：\n" + characterInfoService.generateInventory(player));
 
         // 7. 组队情况
-        builder.addWindow("地图窗口", "你的组队情况：\n" + characterInfoService.generatePartyInfo(player));
+        builder.addWindow("队伍信息", "你的组队情况：\n" + characterInfoService.generatePartyInfo(player));
 
         // 8. 地图实体
-        builder.addWindow("地图窗口", map.getName() + "的地图实体：\n" + generateMapEntities(player, allEntities, map, reachabilityMap));
+        builder.addWindow("实体列表", map.getName() + "的地图实体：\n" + generateMapEntities(player, allEntities, map, reachabilityMap));
 
         // 9. 可达目标
-        builder.addWindow("地图窗口", "你移动后可以交互的实体：\n" + generateReachableTargets(player, allEntities, map, reachabilityMap));
+        builder.addWindow("可达目标", "你移动后可以交互的实体：\n" + generateReachableTargets(player, allEntities, map, reachabilityMap));
 
         // 10. 聊天记录
-        builder.addWindow("地图窗口", "新增聊天：\n" + generateChatHistory(chatHistory));
+        builder.addWindow("聊天记录", "新增聊天：\n" + generateChatHistory(chatHistory));
 
         // 11. 可用指令
-        builder.addWindow("地图窗口", "当前窗口可用指令：\n" + generateAvailableCommands());
+        builder.addWindow("可用指令", "当前窗口可用指令：\n" + generateAvailableCommands());
     }
 
     private String generateMapGrid(GameMap map, List<MapEntity> allEntities, Player currentPlayer) {

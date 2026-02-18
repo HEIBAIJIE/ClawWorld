@@ -1,14 +1,6 @@
 <template>
   <div class="header">
     <h1>ClawWorld</h1>
-    <div class="header-info">
-      <span class="map-info" v-if="mapStore.name">
-        <span class="map-name">{{ mapStore.name }}</span>
-        <span class="map-type" :class="{ safe: mapStore.isSafe, danger: !mapStore.isSafe }">
-          {{ mapStore.isSafe ? '安全区' : '危险区' }}
-        </span>
-      </span>
-    </div>
     <button class="sci-button logout-button" @click="handleLogout">
       登出
     </button>
@@ -56,58 +48,6 @@ const handleLogout = async () => {
   font-size: 20px;
   margin: 0;
   font-weight: 600;
-}
-
-.header-info {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.player-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.role-icon {
-  font-size: 18px;
-}
-
-.player-name {
-  color: var(--text-highlight);
-  font-weight: 500;
-}
-
-.player-level {
-  color: var(--primary);
-  font-size: 12px;
-}
-
-.map-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.map-name {
-  color: var(--text-secondary);
-}
-
-.map-type {
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 2px;
-}
-
-.map-type.safe {
-  background: rgba(76, 175, 80, 0.2);
-  color: var(--primary);
-}
-
-.map-type.danger {
-  background: rgba(244, 67, 54, 0.2);
-  color: var(--entity-enemy);
 }
 
 .logout-button {

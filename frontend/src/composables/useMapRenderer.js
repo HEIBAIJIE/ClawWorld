@@ -18,6 +18,10 @@ export function useMapRenderer(canvasRef) {
   const offsetX = ref(0)
   const offsetY = ref(0)
 
+  // 屏幕居中偏移（当地图比视口小时）
+  const screenOffsetX = ref(0)
+  const screenOffsetY = ref(0)
+
   // 鼠标悬浮的格子
   const hoveredCell = ref(null)
 
@@ -71,12 +75,20 @@ export function useMapRenderer(canvasRef) {
     ctx.fillStyle = '#0a0a0a'
     ctx.fillRect(0, 0, width, height)
 
-    // 计算视口（向上取整确保覆盖整个画布）
-    const viewportWidth = Math.ceil(width / CELL_SIZE.value) + 1
-    const viewportHeight = Math.ceil(height / CELL_SIZE.value) + 1
+    // 计算视口格子数（+2 确保边缘完整显示）
+    const viewportWidth = Math.ceil(width / CELL_SIZE.value) + 2
+    const viewportHeight = Math.ceil(height / CELL_SIZE.value) + 2
 
-    // 居中玩家
+    // 居中玩家并计算屏幕偏移
     centerOnPlayer(viewportWidth, viewportHeight)
+
+    // 计算屏幕居中偏移（当地图比视口小时）
+    screenOffsetX.value = mapStore.width < viewportWidth
+      ? Math.floor((viewportWidth - mapStore.width) / 2)
+      : 0
+    screenOffsetY.value = mapStore.height < viewportHeight
+      ? Math.floor((viewportHeight - mapStore.height) / 2)
+      : 0
 
     // 渲染地形
     renderTerrain(ctx, viewportWidth, viewportHeight)
@@ -101,15 +113,18 @@ export function useMapRenderer(canvasRef) {
    */
   function centerOnPlayer(viewportWidth, viewportHeight) {
     // 如果地图比视口小，居中显示整个地图
+    // 注意：这里计算的是地图坐标的起始偏移，不是屏幕偏移
     if (mapStore.width <= viewportWidth) {
-      offsetX.value = -Math.floor((viewportWidth - mapStore.width) / 2)
+      // 地图比视口小，从0开始显示整个地图
+      offsetX.value = 0
     } else {
       const targetOffsetX = playerStore.x - Math.floor(viewportWidth / 2)
       offsetX.value = Math.max(0, Math.min(targetOffsetX, mapStore.width - viewportWidth))
     }
 
     if (mapStore.height <= viewportHeight) {
-      offsetY.value = -Math.floor((viewportHeight - mapStore.height) / 2)
+      // 地图比视口小，从0开始显示整个地图
+      offsetY.value = 0
     } else {
       const targetOffsetY = playerStore.y - Math.floor(viewportHeight / 2)
       offsetY.value = Math.max(0, Math.min(targetOffsetY, mapStore.height - viewportHeight))
@@ -120,14 +135,16 @@ export function useMapRenderer(canvasRef) {
    * 渲染地形
    */
   function renderTerrain(ctx, viewportWidth, viewportHeight) {
-    // 遍历视口内的所有格子
-    for (let vy = 0; vy < viewportHeight; vy++) {
-      for (let vx = 0; vx < viewportWidth; vx++) {
-        const mapX = vx + offsetX.value
-        const mapY = offsetY.value + (viewportHeight - vy - 1) // Y轴翻转
+    // 直接遍历地图的所有格子
+    for (let mapY = 0; mapY < mapStore.height; mapY++) {
+      for (let mapX = 0; mapX < mapStore.width; mapX++) {
+        // 计算屏幕坐标
+        const vx = mapX - offsetX.value + screenOffsetX.value
+        // Y轴翻转：地图高Y值显示在屏幕上方
+        const vy = (mapStore.height - 1 - mapY) - offsetY.value + screenOffsetY.value
 
-        // 跳过地图范围外的格子
-        if (mapX < 0 || mapX >= mapStore.width || mapY < 0 || mapY >= mapStore.height) {
+        // 跳过视口外的格子
+        if (vx < -1 || vx > viewportWidth || vy < -1 || vy > viewportHeight) {
           continue
         }
 
@@ -174,7 +191,6 @@ export function useMapRenderer(canvasRef) {
    */
   function renderEntities(ctx) {
     const canvas = canvasRef.value
-    const viewportHeight = Math.ceil(canvas.height / CELL_SIZE.value) + 1
 
     // 按位置分组，每个位置只保留优先级最高的实体
     const entityByPosition = new Map()
@@ -191,8 +207,11 @@ export function useMapRenderer(canvasRef) {
 
     // 渲染每个位置优先级最高的实体
     for (const entity of entityByPosition.values()) {
-      const screenX = (entity.x - offsetX.value) * CELL_SIZE.value + CELL_SIZE.value / 2
-      const screenY = (viewportHeight - (entity.y - offsetY.value) - 1) * CELL_SIZE.value + CELL_SIZE.value / 2
+      // 计算屏幕坐标（使用与地形相同的公式）
+      const vx = entity.x - offsetX.value + screenOffsetX.value
+      const vy = (mapStore.height - 1 - entity.y) - offsetY.value + screenOffsetY.value
+      const screenX = vx * CELL_SIZE.value + CELL_SIZE.value / 2
+      const screenY = vy * CELL_SIZE.value + CELL_SIZE.value / 2
 
       // 检查是否在视口内
       if (screenX < -CELL_SIZE.value || screenX > canvas.width + CELL_SIZE.value ||
@@ -253,11 +272,11 @@ export function useMapRenderer(canvasRef) {
    * 渲染玩家
    */
   function renderPlayer(ctx) {
-    const canvas = canvasRef.value
-    const viewportHeight = Math.ceil(canvas.height / CELL_SIZE.value) + 1
-
-    const screenX = (playerStore.x - offsetX.value) * CELL_SIZE.value + CELL_SIZE.value / 2
-    const screenY = (viewportHeight - (playerStore.y - offsetY.value) - 1) * CELL_SIZE.value + CELL_SIZE.value / 2
+    // 计算屏幕坐标（使用与地形相同的公式）
+    const vx = playerStore.x - offsetX.value + screenOffsetX.value
+    const vy = (mapStore.height - 1 - playerStore.y) - offsetY.value + screenOffsetY.value
+    const screenX = vx * CELL_SIZE.value + CELL_SIZE.value / 2
+    const screenY = vy * CELL_SIZE.value + CELL_SIZE.value / 2
 
     // 绘制玩家光环
     ctx.strokeStyle = '#8BC34A'
@@ -296,12 +315,12 @@ export function useMapRenderer(canvasRef) {
    * 渲染悬浮高亮
    */
   function renderHoveredCell(ctx) {
-    const canvas = canvasRef.value
-    const viewportHeight = Math.ceil(canvas.height / CELL_SIZE.value) + 1
-
     const { x, y } = hoveredCell.value
-    const screenX = (x - offsetX.value) * CELL_SIZE.value
-    const screenY = (viewportHeight - (y - offsetY.value) - 1) * CELL_SIZE.value
+    // 计算屏幕坐标（使用与地形相同的公式）
+    const vx = x - offsetX.value + screenOffsetX.value
+    const vy = (mapStore.height - 1 - y) - offsetY.value + screenOffsetY.value
+    const screenX = vx * CELL_SIZE.value
+    const screenY = vy * CELL_SIZE.value
 
     ctx.strokeStyle = 'rgba(76, 175, 80, 0.8)'
     ctx.lineWidth = 2
@@ -315,9 +334,16 @@ export function useMapRenderer(canvasRef) {
     const canvas = canvasRef.value
     if (!canvas) return null
 
-    const viewportHeight = Math.ceil(canvas.height / CELL_SIZE.value) + 1
-    const mapX = Math.floor(screenX / CELL_SIZE.value) + offsetX.value
-    const mapY = viewportHeight - Math.floor(screenY / CELL_SIZE.value) - 1 + offsetY.value
+    // 屏幕格子坐标
+    const vx = Math.floor(screenX / CELL_SIZE.value)
+    const vy = Math.floor(screenY / CELL_SIZE.value)
+
+    // 反向计算地图坐标
+    // vx = mapX - offsetX + screenOffsetX => mapX = vx + offsetX - screenOffsetX
+    // vy = (mapStore.height - 1 - mapY) - offsetY + screenOffsetY
+    // => mapY = mapStore.height - 1 - (vy + offsetY - screenOffsetY)
+    const mapX = vx + offsetX.value - screenOffsetX.value
+    const mapY = mapStore.height - 1 - (vy + offsetY.value - screenOffsetY.value)
 
     return { x: mapX, y: mapY }
   }
@@ -372,7 +398,14 @@ export function useMapRenderer(canvasRef) {
 
   // 监听数据变化重新渲染
   watch(
-    [() => mapStore.grid, () => mapStore.entities, () => playerStore.x, () => playerStore.y],
+    [
+      () => mapStore.grid,
+      () => mapStore.entities,
+      () => mapStore.width,
+      () => mapStore.height,
+      () => playerStore.x,
+      () => playerStore.y
+    ],
     () => render(),
     { deep: true }
   )

@@ -124,6 +124,7 @@ onMounted(() => {
   position: relative;
   overflow: hidden;
   outline: none;
+  border-radius: 0 0 var(--panel-radius) var(--panel-radius);
 }
 
 .map-view:focus {
