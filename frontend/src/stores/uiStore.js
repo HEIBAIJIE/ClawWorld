@@ -35,6 +35,7 @@ export const useUIStore = defineStore('ui', () => {
 
   // 切换面板
   function togglePanel(panelName) {
+    console.log('[UIStore] 切换面板:', panelName, '->', activePanel.value === panelName ? null : panelName)
     if (activePanel.value === panelName) {
       activePanel.value = null
     } else {
@@ -44,47 +45,55 @@ export const useUIStore = defineStore('ui', () => {
 
   // 关闭面板
   function closePanel() {
+    console.log('[UIStore] 关闭面板')
     activePanel.value = null
   }
 
   // 打开交互弹窗
   function openInteraction(entity) {
+    console.log('[UIStore] 打开交互弹窗:', entity?.name)
     interactionTarget.value = entity
     showInteractionModal.value = true
   }
 
   // 关闭交互弹窗
   function closeInteraction() {
+    console.log('[UIStore] 关闭交互弹窗')
     interactionTarget.value = null
     showInteractionModal.value = false
   }
 
   // 打开查看角色弹窗
   function openInspectCharacter(characterData) {
+    console.log('[UIStore] 打开查看角色弹窗:', characterData?.name)
     inspectCharacter.value = characterData
     showInspectCharacterModal.value = true
   }
 
   // 关闭查看角色弹窗
   function closeInspectCharacter() {
+    console.log('[UIStore] 关闭查看角色弹窗')
     inspectCharacter.value = null
     showInspectCharacterModal.value = false
   }
 
   // 打开查看物品弹窗
   function openInspectItem(itemData) {
+    console.log('[UIStore] 打开查看物品弹窗:', itemData?.name)
     inspectItem.value = itemData
     showInspectItemModal.value = true
   }
 
   // 关闭查看物品弹窗
   function closeInspectItem() {
+    console.log('[UIStore] 关闭查看物品弹窗')
     inspectItem.value = null
     showInspectItemModal.value = false
   }
 
   // 显示右键菜单
   function showContextMenu(x, y, items, target = null) {
+    console.log('[UIStore] 显示右键菜单:', { x, y, items: items.length, target: target?.name })
     contextMenu.value = {
       visible: true,
       x,
@@ -101,6 +110,7 @@ export const useUIStore = defineStore('ui', () => {
 
   // 显示提示消息
   function showToast(message, type = 'info', duration = 3000) {
+    console.log('[UIStore] 显示Toast:', type, message)
     toast.value = {
       visible: true,
       message,

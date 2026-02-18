@@ -33,9 +33,11 @@ export function useCommand() {
    */
   async function sendCommand(command) {
     if (!command.trim() || sessionStore.isWaiting) {
+      console.warn('[Command] 指令被拒绝:', { command, isWaiting: sessionStore.isWaiting })
       return { success: false, message: '无效指令或正在等待响应' }
     }
 
+    console.log('[Command] 发送指令:', command)
     sessionStore.isWaiting = true
     logStore.addUserInput(command)
 
@@ -43,6 +45,7 @@ export function useCommand() {
       const response = await gameApi.executeCommand(sessionStore.sessionId, command)
 
       if (response.data.response) {
+        console.log('[Command] 收到响应，长度:', response.data.response.length)
         logStore.appendRawText('\n' + response.data.response)
         // 解析响应并更新stores
         processResponse(response.data.response)
@@ -51,6 +54,7 @@ export function useCommand() {
       return { success: true, data: response.data }
     } catch (error) {
       const errorMsg = error.response?.data?.response || error.message || '网络错误'
+      console.error('[Command] 指令执行失败:', errorMsg)
       logStore.appendRawText('\n' + errorMsg)
       return { success: false, message: errorMsg }
     } finally {
@@ -63,8 +67,15 @@ export function useCommand() {
    * @param {string} responseText - 响应文本
    */
   function processResponse(responseText) {
+    console.log('[Command] 开始解析响应')
     const entries = parseLogText(responseText)
     const grouped = groupLogsByType(entries)
+    console.log('[Command] 解析结果:', {
+      window: grouped.window.length,
+      state: grouped.state.length,
+      background: grouped.background.length,
+      other: grouped.other.length
+    })
 
     // 处理窗口类型的日志（现在每个entry的content已经包含完整的多行内容）
     for (const entry of grouped.window) {
@@ -83,6 +94,7 @@ export function useCommand() {
    */
   function processWindowEntry(entry) {
     const { subType, content } = entry
+    console.log('[Command] 处理窗口条目:', subType, '内容长度:', content.length)
 
     switch (subType) {
       // ===== 地图窗口相关 =====
@@ -193,6 +205,7 @@ export function useCommand() {
 
       case '当前状态':
         const status = parseCombatStatus(content)
+        console.log('[Command] 战斗当前状态:', status)
         combatStore.updateCombatState({
           isMyTurn: status.isMyTurn,
           currentTurn: status.waitingFor
@@ -203,6 +216,7 @@ export function useCommand() {
         }
         // 自动wait机制：检测到需要等待时自动发送wait
         if (status.needsAutoWait && !combatStore.autoWaitPending) {
+          console.log('[Command] 触发自动wait')
           combatStore.autoWaitPending = true
           setTimeout(() => {
             sendCommand('wait').finally(() => {
@@ -375,11 +389,13 @@ export function useCommand() {
    */
   function processStateEntry(entry) {
     const { subType, content } = entry
+    console.log('[Command] 处理状态条目:', subType, '内容长度:', content.length)
 
     switch (subType) {
       case '窗口变化':
         // 注意：内容格式是 "你已经从XXX窗口切换到YYY窗口"
         // 需要检查"切换到"后面的目标窗口类型
+        console.log('[Command] 窗口变化:', content)
         if (content.includes('切换到战斗窗口')) {
           mapStore.setWindowType('combat')
           combatStore.updateCombatState({ isInCombat: true })
@@ -681,6 +697,7 @@ export function useCommand() {
    */
   function processCombatLog(content) {
     const action = parseCombatAction(content)
+    console.log('[Command] 处理战斗日志:', content, '解析结果:', action)
 
     // 添加到战斗日志
     combatStore.addBattleLog({ content, action })
@@ -732,6 +749,7 @@ export function useCommand() {
    */
   function processCombatCommandResponse(content) {
     const result = parseCommandResponse(content)
+    console.log('[Command] 处理战斗指令响应:', result)
 
     // 处理战斗动作特效
     for (const action of result.actions) {

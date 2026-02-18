@@ -9,6 +9,7 @@ export const useSessionStore = defineStore('session', () => {
   const username = ref('')
 
   function setSession(id, user) {
+    console.log('[SessionStore] 设置会话:', { sessionId: id, username: user })
     sessionId.value = id
     username.value = user
     isLoggedIn.value = true
@@ -17,6 +18,7 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   function clearSession() {
+    console.log('[SessionStore] 清除会话')
     sessionId.value = ''
     username.value = ''
     isLoggedIn.value = false
@@ -27,12 +29,15 @@ export const useSessionStore = defineStore('session', () => {
   function restoreSession() {
     const storedSessionId = localStorage.getItem('sessionId')
     const storedUsername = localStorage.getItem('username')
+    console.log('[SessionStore] 尝试恢复会话:', { storedSessionId, storedUsername })
     if (storedSessionId) {
       sessionId.value = storedSessionId
       username.value = storedUsername || ''
       isLoggedIn.value = true
+      console.log('[SessionStore] 会话恢复成功')
       return true
     }
+    console.log('[SessionStore] 无可恢复的会话')
     return false
   }
 

@@ -109,6 +109,7 @@ export const useMapStore = defineStore('map', () => {
 
   // 更新地图信息
   function updateMapInfo(data) {
+    console.log('[MapStore] 更新地图信息:', data)
     if (data.id !== undefined) id.value = data.id
     if (data.name !== undefined) name.value = data.name
     if (data.description !== undefined) description.value = data.description
@@ -120,11 +121,13 @@ export const useMapStore = defineStore('map', () => {
 
   // 更新地图网格
   function updateGrid(newGrid) {
+    console.log('[MapStore] 更新地图网格:', newGrid.length, 'x', newGrid[0]?.length || 0)
     grid.value = newGrid
   }
 
   // 更新实体列表
   function updateEntities(newEntities) {
+    console.log('[MapStore] 更新实体列表:', newEntities.length, '个实体')
     entities.value = newEntities
   }
 
@@ -132,6 +135,7 @@ export const useMapStore = defineStore('map', () => {
   function updateEntity(entityName, updates) {
     const entity = entities.value.find(e => e.name === entityName)
     if (entity) {
+      console.log('[MapStore] 更新实体:', entityName, updates)
       Object.assign(entity, updates)
     }
   }
@@ -140,6 +144,7 @@ export const useMapStore = defineStore('map', () => {
   function addEntity(entity) {
     const existing = entities.value.find(e => e.name === entity.name)
     if (!existing) {
+      console.log('[MapStore] 添加实体:', entity.name, entity.type)
       entities.value.push(entity)
     }
   }
@@ -148,12 +153,14 @@ export const useMapStore = defineStore('map', () => {
   function removeEntity(entityName) {
     const index = entities.value.findIndex(e => e.name === entityName)
     if (index !== -1) {
+      console.log('[MapStore] 移除实体:', entityName)
       entities.value.splice(index, 1)
     }
   }
 
   // 设置窗口类型
   function setWindowType(type) {
+    console.log('[MapStore] 设置窗口类型:', type)
     windowType.value = type
   }
 

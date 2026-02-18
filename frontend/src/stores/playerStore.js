@@ -84,6 +84,7 @@ export const usePlayerStore = defineStore('player', () => {
 
   // 更新玩家状态
   function updateFromParsed(data) {
+    console.log('[PlayerStore] 更新玩家状态:', data)
     if (data.name !== undefined) name.value = data.name
     if (data.roleName !== undefined) roleName.value = data.roleName
     if (data.level !== undefined) level.value = data.level

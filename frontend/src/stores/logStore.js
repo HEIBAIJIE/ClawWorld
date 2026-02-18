@@ -15,6 +15,7 @@ export const useLogStore = defineStore('log', () => {
 
   // 添加原始文本
   function appendRawText(text) {
+    console.log('[LogStore] 追加日志文本，长度:', text.length)
     if (rawText.value) {
       rawText.value += '\n' + text
     } else {
@@ -24,6 +25,7 @@ export const useLogStore = defineStore('log', () => {
 
   // 设置原始文本
   function setRawText(text) {
+    console.log('[LogStore] 设置日志文本，长度:', text.length)
     rawText.value = text
   }
 
@@ -41,6 +43,7 @@ export const useLogStore = defineStore('log', () => {
 
   // 添加用户输入
   function addUserInput(command) {
+    console.log('[LogStore] 添加用户输入:', command)
     appendRawText('\n> ' + command)
     addEntry({
       type: 'user-input',
@@ -51,6 +54,7 @@ export const useLogStore = defineStore('log', () => {
 
   // 清空日志
   function clear() {
+    console.log('[LogStore] 清空日志')
     rawText.value = ''
     entries.value = []
   }

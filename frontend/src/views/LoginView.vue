@@ -51,6 +51,7 @@ const loginForm = ref({
 const errorMessage = ref('')
 
 const handleLogin = async () => {
+  console.log('[LoginView] 开始登录:', loginForm.value.username)
   if (!loginForm.value.username.trim() || !loginForm.value.password.trim()) {
     errorMessage.value = '用户名和密码不能为空'
     return
@@ -65,6 +66,7 @@ const handleLogin = async () => {
       loginForm.value.password
     )
 
+    console.log('[LoginView] 登录响应:', response.data.success)
     if (response.data.success) {
       // 保存会话
       sessionStore.setSession(response.data.sessionId, loginForm.value.username.trim())
@@ -74,14 +76,18 @@ const handleLogin = async () => {
       if (response.data.windowContent) {
         initialText += '\n\n' + response.data.windowContent
       }
+      console.log('[LoginView] 初始文本长度:', initialText.length)
       logStore.setRawText(initialText)
 
       // 解析初始数据
+      console.log('[LoginView] 开始解析初始数据')
       processResponse(initialText)
     } else {
+      console.warn('[LoginView] 登录失败:', response.data.message)
       errorMessage.value = response.data.message || '登录失败'
     }
   } catch (error) {
+    console.error('[LoginView] 登录异常:', error)
     errorMessage.value = error.response?.data?.message || '网络错误，请检查服务器是否启动'
   } finally {
     sessionStore.isLoading = false

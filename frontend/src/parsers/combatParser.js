@@ -26,6 +26,7 @@ export function parseFactions(content) {
     })
   }
 
+  console.log('[CombatParser] 解析参战方:', factions)
   return factions
 }
 
@@ -61,6 +62,7 @@ export function parseCharacterStatus(content) {
     }
   }
 
+  console.log('[CombatParser] 解析角色状态:', characters.length, '个角色')
   return characters
 }
 
@@ -90,6 +92,7 @@ export function parseActionBar(content) {
     }
   }
 
+  console.log('[CombatParser] 解析行动条:', actionBar.length, '个条目')
   return actionBar
 }
 
@@ -125,12 +128,14 @@ export function parseBattleLogs(content) {
  * @returns {object} 状态信息
  */
 export function parseCombatStatus(content) {
-  return {
+  const result = {
     isMyTurn: content.includes('★ 轮到你的回合'),
     isWaiting: content.includes('未轮到你的回合'),
     waitingFor: extractWaitingFor(content),
     needsAutoWait: needsAutoWait(content)
   }
+  console.log('[CombatParser] 解析战斗状态:', result)
+  return result
 }
 
 /**
@@ -162,21 +167,25 @@ export function parseCombatResult(content) {
     const goldMatch = content.match(/每人\s*(\d+)/)
     const factionMatch = content.match(/阵营\s*(\S+)\s*获得胜利/)
 
-    return {
+    const result = {
       victory: true,
       winnerFaction: factionMatch ? factionMatch[1] : null,
       experience: expMatch ? parseInt(expMatch[1]) : 0,
       gold: goldMatch ? parseInt(goldMatch[1]) : 0
     }
+    console.log('[CombatParser] 解析战斗结果(胜利):', result)
+    return result
   }
 
   // 失败
   if (content.includes('战斗失败') || content.includes('被击败')) {
-    return {
+    const result = {
       victory: false,
       experience: 0,
       gold: 0
     }
+    console.log('[CombatParser] 解析战斗结果(失败):', result)
+    return result
   }
 
   return null

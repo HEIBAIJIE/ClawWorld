@@ -19,6 +19,7 @@ export const usePartyStore = defineStore('party', () => {
 
   // 更新队伍信息
   function updatePartyInfo(data) {
+    console.log('[PartyStore] 更新队伍信息:', data)
     if (data.partyId !== undefined) partyId.value = data.partyId
     if (data.isInParty !== undefined) isInParty.value = data.isInParty
     if (data.isLeader !== undefined) isLeader.value = data.isLeader
@@ -28,6 +29,7 @@ export const usePartyStore = defineStore('party', () => {
   // 添加成员
   function addMember(member) {
     if (!members.value.find(m => m.name === member.name)) {
+      console.log('[PartyStore] 添加成员:', member.name)
       members.value.push(member)
     }
   }
@@ -36,6 +38,7 @@ export const usePartyStore = defineStore('party', () => {
   function removeMember(memberName) {
     const index = members.value.findIndex(m => m.name === memberName)
     if (index !== -1) {
+      console.log('[PartyStore] 移除成员:', memberName)
       members.value.splice(index, 1)
     }
   }
@@ -44,12 +47,14 @@ export const usePartyStore = defineStore('party', () => {
   function updateMember(memberName, updates) {
     const member = members.value.find(m => m.name === memberName)
     if (member) {
+      console.log('[PartyStore] 更新成员:', memberName, updates)
       Object.assign(member, updates)
     }
   }
 
   // 重置状态
   function reset() {
+    console.log('[PartyStore] 重置队伍状态')
     partyId.value = null
     isInParty.value = false
     isLeader.value = false

@@ -78,6 +78,7 @@ export function parseLogText(text) {
     entries.push(currentEntry)
   }
 
+  console.log('[LogParser] 解析日志文本，共', entries.length, '个条目')
   return entries
 }
 

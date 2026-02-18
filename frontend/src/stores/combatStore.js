@@ -106,10 +106,12 @@ export const useCombatStore = defineStore('combat', () => {
 
   // 更新战斗状态
   function updateCombatState(data) {
+    console.log('[CombatStore] 更新战斗状态:', data)
     if (data.isInCombat !== undefined) {
       isInCombat.value = data.isInCombat
       // 进入新战斗时，重置结算状态并递增战斗序列号
       if (data.isInCombat) {
+        console.log('[CombatStore] 进入新战斗，重置结算状态')
         showResult.value = false
         combatResult.value = null
         combatSequence.value++
@@ -118,13 +120,16 @@ export const useCombatStore = defineStore('combat', () => {
     }
     if (data.combatId !== undefined) combatId.value = data.combatId
     if (data.factions !== undefined) {
+      console.log('[CombatStore] 更新参战方:', data.factions)
       factions.value = data.factions
     }
     // 先设置 myName，这样后续的 updateCharacterFactions 能正确计算 myFaction
     if (data.myName !== undefined) {
+      console.log('[CombatStore] 设置我的名字:', data.myName)
       myName.value = data.myName
     }
     if (data.characters !== undefined) {
+      console.log('[CombatStore] 更新角色列表:', data.characters.length, '个角色')
       // 合并角色数据，使用角色自带的阵营信息
       for (const newChar of data.characters) {
         const existing = characters.value.find(c => c.name === newChar.name)
@@ -137,26 +142,36 @@ export const useCombatStore = defineStore('combat', () => {
       // 如果角色没有阵营信息，从factions中补充
       updateCharacterFactions()
     }
-    if (data.actionBar !== undefined) actionBar.value = data.actionBar
+    if (data.actionBar !== undefined) {
+      console.log('[CombatStore] 更新行动条:', data.actionBar)
+      actionBar.value = data.actionBar
+    }
     if (data.currentTurn !== undefined) {
       const prevTurn = currentTurn.value
       currentTurn.value = data.currentTurn
+      console.log('[CombatStore] 回合切换:', prevTurn, '->', data.currentTurn)
       // 当回合切换时，重新启动倒计时（无论是否是自己的回合）
       // 只要当前行动者是玩家（非AI敌人），就显示倒计时
       if (data.currentTurn && data.currentTurn !== prevTurn) {
         // 检查当前行动者是否是玩家（敌人名字通常包含#）
         const isPlayerTurn = !data.currentTurn.includes('#')
         if (isPlayerTurn) {
+          console.log('[CombatStore] 玩家回合，启动倒计时')
           startCountdown()
         } else {
+          console.log('[CombatStore] 敌人回合，停止倒计时')
           stopCountdown()
         }
       }
     }
     if (data.isMyTurn !== undefined) {
+      console.log('[CombatStore] 是否我的回合:', data.isMyTurn)
       isMyTurn.value = data.isMyTurn
     }
-    if (data.mySkills !== undefined) mySkills.value = data.mySkills
+    if (data.mySkills !== undefined) {
+      console.log('[CombatStore] 更新我的技能:', data.mySkills)
+      mySkills.value = data.mySkills
+    }
   }
 
   // 根据参战方更新角色的阵营信息（仅当角色没有阵营时）
@@ -304,6 +319,7 @@ export const useCombatStore = defineStore('combat', () => {
 
   // 显示战斗结果
   function showCombatResult(result) {
+    console.log('[CombatStore] 显示战斗结果:', result)
     // 停止倒计时并清除回调，防止战斗结束后继续触发
     stopCountdown()
     onTimeoutCallback.value = null
@@ -314,12 +330,14 @@ export const useCombatStore = defineStore('combat', () => {
 
   // 关闭战斗结果
   function closeCombatResult() {
+    console.log('[CombatStore] 关闭战斗结果')
     showResult.value = false
     combatResult.value = null
   }
 
   // 重置状态
   function reset() {
+    console.log('[CombatStore] 重置战斗状态')
     isInCombat.value = false
     combatId.value = null
     factions.value = []
