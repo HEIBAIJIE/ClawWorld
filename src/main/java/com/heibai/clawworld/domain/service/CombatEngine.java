@@ -1238,7 +1238,15 @@ public class CombatEngine {
         }
 
         String combatId = combat.getCombatId();
-        combat.setStatus(com.heibai.clawworld.domain.combat.Combat.CombatStatus.FINISHED);
+
+        // 使用 synchronized 确保战斗只被处理一次
+        // 如果状态已经是 FINISHED，说明另一个线程已经在处理了
+        synchronized (combat) {
+            if (combat.getStatus() == com.heibai.clawworld.domain.combat.Combat.CombatStatus.FINISHED) {
+                return null;
+            }
+            combat.setStatus(com.heibai.clawworld.domain.combat.Combat.CombatStatus.FINISHED);
+        }
 
         // 取消回合超时计时
         turnTimeoutManager.combatEnded(combatId);

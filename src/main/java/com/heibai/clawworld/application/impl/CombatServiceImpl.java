@@ -789,29 +789,36 @@ public class CombatServiceImpl implements CombatService {
     private void handleCombatEndWindowTransition(String combatId) {
         try {
             // 获取战利品分配结果
+            // 注意：getAndRemoveRewardDistribution 是原子操作，只有一个线程能获取到 distribution
+            // 如果返回 null，说明另一个线程已经在处理战斗结束了，当前线程不需要做任何处理
             CombatInstance.RewardDistribution distribution = combatEngine.getAndRemoveRewardDistribution(combatId);
 
-            // 处理战利品分配
-            if (distribution != null) {
-                // 如果敌人需要重置状态（所有玩家撤退的情况）
-                if (distribution.isEnemiesNeedReset()) {
-                    resetEnemyStates(distribution);
-                } else {
-                    distributeRewards(distribution);
-                    // 更新被击败敌人的状态
-                    updateDefeatedEnemies(distribution);
-                }
-
-                // 处理被击败玩家的传送和经验惩罚
-                handleDefeatedPlayers(distribution);
-
-                // 同步玩家的战斗后状态（生命和法力）- 只对存活玩家
-                syncPlayerFinalStates(distribution);
+            if (distribution == null) {
+                // 另一个线程已经在处理战斗结束，当前线程直接返回
+                // 窗口状态转换会由获取到 distribution 的线程统一处理
+                log.debug("战斗结束处理已由其他线程执行: combatId={}", combatId);
+                return;
             }
+
+            // 处理战利品分配
+            // 如果敌人需要重置状态（所有玩家撤退的情况）
+            if (distribution.isEnemiesNeedReset()) {
+                resetEnemyStates(distribution);
+            } else {
+                distributeRewards(distribution);
+                // 更新被击败敌人的状态
+                updateDefeatedEnemies(distribution);
+            }
+
+            // 处理被击败玩家的传送和经验惩罚
+            handleDefeatedPlayers(distribution);
+
+            // 同步玩家的战斗后状态（生命和法力）- 只对存活玩家
+            syncPlayerFinalStates(distribution);
 
             // 收集被击败玩家的ID（这些玩家已经在handleDefeatedPlayers中处理过了，combatId已被清除）
             Set<String> defeatedPlayerIds = new HashSet<>();
-            if (distribution != null && distribution.getDefeatedPlayers() != null) {
+            if (distribution.getDefeatedPlayers() != null) {
                 for (CombatInstance.DefeatedPlayer dp : distribution.getDefeatedPlayers()) {
                     defeatedPlayerIds.add(dp.getPlayerId());
                 }
