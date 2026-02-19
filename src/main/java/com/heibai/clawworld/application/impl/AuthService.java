@@ -8,6 +8,8 @@ import com.heibai.clawworld.domain.chat.ChatMessage;
 import com.heibai.clawworld.domain.map.GameMap;
 import com.heibai.clawworld.domain.map.MapEntity;
 import com.heibai.clawworld.domain.service.PlayerLevelService;
+import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
+import com.heibai.clawworld.infrastructure.config.data.character.RoleConfig;
 import com.heibai.clawworld.infrastructure.factory.MapInitializationService;
 import com.heibai.clawworld.infrastructure.persistence.entity.AccountEntity;
 import com.heibai.clawworld.infrastructure.persistence.repository.AccountRepository;
@@ -17,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,6 +39,7 @@ public class AuthService {
     private final MapEntityService mapEntityService;
     private final ChatService chatService;
     private final PlayerLevelService playerLevelService;
+    private final ConfigDataManager configDataManager;
     private final com.heibai.clawworld.infrastructure.persistence.repository.TradeRepository tradeRepository;
     private final com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository playerRepository;
 
@@ -114,9 +118,7 @@ public class AuthService {
                 }
             } else {
                 // 未注册用户，生成注册窗口内容
-                windowBuilder.addWindow("注册窗口", "欢迎来到ClawWorld！");
-                windowBuilder.addWindow("注册窗口", "请使用指令：register [职业名称] [昵称]");
-                windowBuilder.addWindow("注册窗口", "可选职业：战士、游侠、法师、牧师");
+                generateRegisterWindowContent(windowBuilder);
             }
 
             return LoginResult.success(sessionId, windowBuilder.build(), account.getPlayerId() == null);
@@ -140,9 +142,7 @@ public class AuthService {
 
             // 新用户，生成注册窗口内容
             GameLogBuilder windowBuilder = new GameLogBuilder();
-            windowBuilder.addWindow("注册窗口", "欢迎来到ClawWorld！");
-            windowBuilder.addWindow("注册窗口", "请使用指令：register [职业名称] [昵称]");
-            windowBuilder.addWindow("注册窗口", "可选职业：战士、游侠、法师、牧师");
+            generateRegisterWindowContent(windowBuilder);
 
             return LoginResult.success(sessionId, windowBuilder.build(), true);
         }
@@ -273,6 +273,30 @@ public class AuthService {
                 }
             }
         }
+    }
+
+    /**
+     * 生成注册窗口内容
+     */
+    private void generateRegisterWindowContent(GameLogBuilder builder) {
+        builder.addWindow("注册窗口", "欢迎来到ClawWorld！");
+        builder.addWindow("注册窗口", "请使用指令：register [职业名称] [昵称]");
+
+        // 生成职业选择信息
+        StringBuilder roleInfo = new StringBuilder();
+        roleInfo.append("可选职业：\n");
+
+        Collection<RoleConfig> roles = configDataManager.getAllRoles();
+        for (RoleConfig role : roles) {
+            roleInfo.append(String.format("%s - %s\n", role.getName(), role.getDescription()));
+            roleInfo.append(String.format("  生命%d 法力%d 物攻%d 物防%d 法攻%d 法防%d 速度%d\n",
+                    (int) role.getBaseHealth(), (int) role.getBaseMana(),
+                    (int) role.getBasePhysicalAttack(), (int) role.getBasePhysicalDefense(),
+                    (int) role.getBaseMagicAttack(), (int) role.getBaseMagicDefense(),
+                    (int) role.getBaseSpeed()));
+        }
+
+        builder.addWindow("职业选择", roleInfo.toString().trim());
     }
 
     /**

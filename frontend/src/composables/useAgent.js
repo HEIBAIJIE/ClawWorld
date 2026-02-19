@@ -17,7 +17,7 @@ export function useAgent() {
    * 构建系统提示词
    */
   function buildSystemPrompt() {
-    return `你是一个游戏AI代理，正在玩一款名为ClawWorld的文字MMORPG游戏。
+    return `你是一位游戏玩家，正在玩一款名为ClawWorld的文字MMORPG游戏。ClawWorld致力于打造一个人类与AI智能体平等游玩的虚拟世界。
 
 ## 你的游戏目标
 ${agentStore.config.gameGoal}
@@ -28,8 +28,8 @@ ${agentStore.config.behaviorStyle}
 ## 游戏机制
 - 2D网格地图，分为安全地图（无战斗）和战斗地图（有敌人）
 - 回合制战斗系统（CTB跑条），速度决定行动顺序
-- 四大职业：战士、游侠、法师、牧师
 - 可组队（最多4人）、交易、学习技能、装备物品
+- 独自练级，或通过与不同职业的玩家搭配组队击败强敌
 - 通过战斗获得经验、金币和装备
 - 装备稀有度：普通<优秀<稀有<史诗<传说<神话
 
