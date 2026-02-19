@@ -50,6 +50,7 @@ public class CombatMapper {
             Player player = (Player) character;
             combatChar.setPartyLeader(player.isPartyLeader());
             combatChar.setPartyId(player.getPartyId());
+            combatChar.setLevel(player.getLevel());
         }
 
         return combatChar;
@@ -84,6 +85,7 @@ public class CombatMapper {
 
         // 设置敌人配置ID（用于战利品计算）
         combatChar.setEnemyConfigId(enemy.getTemplateId());
+        combatChar.setLevel(config.getLevel());
 
         // 设置敌人实例信息（用于战斗结束后更新状态）
         combatChar.setEnemyMapId(enemy.getMapId());

@@ -1152,6 +1152,7 @@ public class CombatEngine {
      * - 金钱平分
      * - 物品归队长持有
      * - 战斗结束后玩家不会回复生命值和法力值
+     * - 被击败的玩家需要传送回安全区域并可能受到经验惩罚
      */
     private void handleCombatRewards(CombatInstance combat, CombatParty winner) {
         log.info("战斗 {} 的胜利方 {} 获得战利品", combat.getCombatId(), winner.getFactionId());
@@ -1187,6 +1188,20 @@ public class CombatEngine {
         // 创建战利品分配结果
         CombatInstance.RewardDistribution distribution = new CombatInstance.RewardDistribution();
         distribution.setWinnerFactionId(winner.getFactionId());
+        distribution.setCombatType(combat.getCombatType());
+        distribution.setMapId(combat.getMapId());
+
+        // 统计所有玩家是否都被击败（用于PVE惩罚判断）
+        boolean allPlayersDefeated = true;
+        for (CombatParty party : combat.getParties().values()) {
+            for (CombatCharacter character : party.getCharacters()) {
+                if (character.isPlayer() && character.isAlive() && !character.isRetreated()) {
+                    allPlayersDefeated = false;
+                    break;
+                }
+            }
+            if (!allPlayersDefeated) break;
+        }
 
         // 保存所有玩家的最终状态（包括所有参战方的玩家）
         for (CombatParty party : combat.getParties().values()) {
@@ -1196,6 +1211,16 @@ public class CombatEngine {
                         character.getCharacterId(),
                         new CombatInstance.PlayerFinalState(character.getCurrentHealth(), character.getCurrentMana())
                     );
+                    // 记录被击败的玩家（死亡且不是撤退的）
+                    if (!character.isAlive() && !character.isRetreated()) {
+                        distribution.getDefeatedPlayers().add(
+                            new CombatInstance.DefeatedPlayer(
+                                character.getCharacterId(),
+                                character.getLevel(),
+                                allPlayersDefeated
+                            )
+                        );
+                    }
                 }
                 // 记录被击败的敌人
                 if (character.isEnemy() && !character.isAlive()) {

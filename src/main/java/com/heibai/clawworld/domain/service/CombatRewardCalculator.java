@@ -13,6 +13,8 @@ import java.util.Random;
 /**
  * 战利品计算器
  * 根据设计文档计算战斗结束后的战利品
+ *
+ * 注意：玩家被击败的经验惩罚逻辑在CombatServiceImpl.handleDefeatedPlayers()中处理
  */
 public class CombatRewardCalculator {
 
@@ -97,30 +99,6 @@ public class CombatRewardCalculator {
     }
 
     /**
-     * 计算玩家被击败的惩罚
-     * 根据设计文档：
-     * - 如果玩家被敌人击败，高于地图推荐等级的玩家掉落5%金钱，否则无惩罚
-     * - 如果玩家被玩家击败，如果败方平均等级超过地图推荐等级，败方5%的金钱会被胜利方平分
-     */
-    public PlayerDefeatPenalty calculatePlayerDefeatPenalty(CombatCharacter player, boolean defeatedByEnemy,
-                                                            int playerLevel, int mapRecommendedLevel, int playerGold) {
-        PlayerDefeatPenalty penalty = new PlayerDefeatPenalty();
-        penalty.setPlayerId(player.getCharacterId());
-
-        // 从玩家数据中获取金钱并计算惩罚
-        if (playerLevel > mapRecommendedLevel) {
-            int goldLost = (int) (playerGold * 0.05); // 5%的金钱
-            penalty.setGoldLost(goldLost);
-            penalty.setHasPenalty(true);
-        } else {
-            penalty.setGoldLost(0);
-            penalty.setHasPenalty(false);
-        }
-
-        return penalty;
-    }
-
-    /**
      * 战利品
      */
     @Data
@@ -129,15 +107,5 @@ public class CombatRewardCalculator {
         private int experience;
         private int gold;
         private List<String> items; // 物品ID列表
-    }
-
-    /**
-     * 玩家失败惩罚
-     */
-    @Data
-    public static class PlayerDefeatPenalty {
-        private String playerId;
-        private int goldLost;
-        private boolean hasPenalty;
     }
 }

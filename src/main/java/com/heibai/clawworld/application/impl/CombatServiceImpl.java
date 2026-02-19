@@ -83,9 +83,45 @@ public class CombatServiceImpl implements CombatService {
                 return CombatResult.error("不能攻击同阵营角色");
             }
 
-            // 收集同格子同阵营的所有角色
-            List<Player> attackerParty = collectPartyMembers(attacker);
+            // 收集目标队伍成员（需要先收集才能判断等级保护）
             List<Player> targetParty = collectPartyMembers(target);
+
+            // 4. 检查PVP等级保护：如果目标队伍中所有玩家都小于等于地图推荐等级，则不能攻击
+            // 但如果队伍中有任何一个玩家高于保护等级，则整个队伍都可以被攻击
+            Integer recommendedLevel = mapConfig.getRecommendedLevel();
+            if (recommendedLevel != null) {
+                boolean hasHighLevelPlayer = false;
+                for (Player member : targetParty) {
+                    if (member.getLevel() > recommendedLevel) {
+                        hasHighLevelPlayer = true;
+                        break;
+                    }
+                }
+                if (!hasHighLevelPlayer) {
+                    return CombatResult.error("无法攻击该队伍，队伍中所有玩家等级都不高于地图推荐等级(" + recommendedLevel + "级)");
+                }
+            }
+
+            // 5. 检查目标是否正在战斗中且受保护
+            Optional<PlayerEntity> targetEntityOpt = playerRepository.findById(targetId);
+            if (targetEntityOpt.isPresent() && targetEntityOpt.get().isInCombat()) {
+                // 目标正在战斗中，检查队伍是否受保护（队伍中是否有高等级玩家）
+                if (recommendedLevel != null) {
+                    boolean hasHighLevelPlayer = false;
+                    for (Player member : targetParty) {
+                        if (member.getLevel() > recommendedLevel) {
+                            hasHighLevelPlayer = true;
+                            break;
+                        }
+                    }
+                    if (!hasHighLevelPlayer) {
+                        return CombatResult.error("该队伍正在战斗中且受等级保护，无法加入战斗");
+                    }
+                }
+            }
+
+            // 收集攻击方队伍成员
+            List<Player> attackerParty = collectPartyMembers(attacker);
 
             // 创建战斗
             String combatId = combatEngine.createCombat(attacker.getMapId());
@@ -227,10 +263,36 @@ public class CombatServiceImpl implements CombatService {
             }
 
             if (targetEnemy.isInCombat()) {
-                // 如果敌人已在战斗中，加入现有战斗
+                // 如果敌人已在战斗中，检查是否可以加入
                 String existingCombatId = targetEnemy.getCombatId();
                 Optional<CombatInstance> existingCombat = combatEngine.getCombat(existingCombatId);
                 if (existingCombat.isPresent()) {
+                    CombatInstance combat = existingCombat.get();
+
+                    // 检查抢怪保护：检查每个玩家队伍是否受保护
+                    // 如果某个队伍中所有玩家都小于等于地图推荐等级，则该队伍受保护，不允许其他人加入战斗
+                    Integer recommendedLevel = mapConfig.getRecommendedLevel();
+                    if (recommendedLevel != null) {
+                        for (CombatParty party : combat.getParties().values()) {
+                            // 检查这个队伍是否是玩家队伍
+                            boolean isPlayerParty = party.getCharacters().stream()
+                                .anyMatch(c -> c.isPlayer() && c.isAlive());
+                            if (!isPlayerParty) {
+                                continue; // 跳过敌人队伍
+                            }
+
+                            // 检查队伍中是否有高等级玩家
+                            boolean hasHighLevelPlayer = party.getCharacters().stream()
+                                .filter(c -> c.isPlayer() && c.isAlive())
+                                .anyMatch(c -> c.getLevel() > recommendedLevel);
+
+                            if (!hasHighLevelPlayer) {
+                                // 这个队伍受保护
+                                return CombatResult.error("战斗中有受等级保护的队伍（队伍中所有玩家等级都不高于" + recommendedLevel + "级），无法加入战斗");
+                            }
+                        }
+                    }
+
                     // 将玩家加入现有战斗
                     List<Player> attackerParty = collectPartyMembers(attacker);
                     List<CombatCharacter> attackerCombatChars = attackerParty.stream()
@@ -736,7 +798,10 @@ public class CombatServiceImpl implements CombatService {
                     updateDefeatedEnemies(distribution);
                 }
 
-                // 同步玩家的战斗后状态（生命和法力）
+                // 处理被击败玩家的传送和经验惩罚
+                handleDefeatedPlayers(distribution);
+
+                // 同步玩家的战斗后状态（生命和法力）- 只对存活玩家
                 syncPlayerFinalStates(distribution);
             }
 
@@ -776,6 +841,118 @@ public class CombatServiceImpl implements CombatService {
         } catch (Exception e) {
             log.error("处理战斗结束窗口转换失败: combatId={}", combatId, e);
         }
+    }
+
+    /**
+     * 处理被击败玩家的传送和经验惩罚
+     * 根据设计文档：
+     * - 玩家被击败后返回上一次使用的位于安全区域的传送点，并恢复满状态
+     * - PVE战斗中，所有玩家被敌人击败时，高于地图推荐等级的玩家掉落10%当前经验值
+     * - PVE战斗中，部分玩家被敌人击败时，被击败的高于地图推荐等级的玩家掉落10%当前经验值
+     * - PVP战斗中，高于地图推荐等级的玩家掉落10%当前经验值
+     */
+    private void handleDefeatedPlayers(CombatInstance.RewardDistribution distribution) {
+        if (distribution == null || distribution.getDefeatedPlayers() == null || distribution.getDefeatedPlayers().isEmpty()) {
+            return;
+        }
+
+        // 获取地图推荐等级
+        Integer recommendedLevel = null;
+        if (distribution.getMapId() != null) {
+            MapConfig mapConfig = configDataManager.getMap(distribution.getMapId());
+            if (mapConfig != null) {
+                recommendedLevel = mapConfig.getRecommendedLevel();
+            }
+        }
+
+        for (CombatInstance.DefeatedPlayer defeatedPlayer : distribution.getDefeatedPlayers()) {
+            Optional<PlayerEntity> playerOpt = playerRepository.findById(defeatedPlayer.getPlayerId());
+            if (!playerOpt.isPresent()) {
+                continue;
+            }
+
+            PlayerEntity player = playerOpt.get();
+
+            // 判断是否需要经验惩罚
+            boolean shouldPenalize = false;
+            if (recommendedLevel != null && defeatedPlayer.getPlayerLevel() > recommendedLevel) {
+                // 玩家等级高于地图推荐等级
+                if (distribution.getCombatType() == CombatInstance.CombatType.PVP) {
+                    // PVP战斗：高于地图推荐等级的玩家掉落10%经验
+                    shouldPenalize = true;
+                } else if (distribution.getCombatType() == CombatInstance.CombatType.PVE) {
+                    // PVE战斗：无论是全部被击败还是部分被击败，高于推荐等级的玩家都掉落10%经验
+                    shouldPenalize = true;
+                }
+            }
+
+            // 执行经验惩罚
+            if (shouldPenalize) {
+                int expPenalty = (int) (player.getExperience() * 0.1);
+                player.setExperience(Math.max(0, player.getExperience() - expPenalty));
+                log.info("玩家 {} 被击败，扣除 {}% 经验值 ({} 点)", player.getName(), 10, expPenalty);
+            }
+
+            // 传送到上次安全传送点并恢复满状态
+            teleportToSafeWaypoint(player);
+
+            playerRepository.save(player);
+        }
+    }
+
+    /**
+     * 将被击败的玩家传送到上次使用的安全区域传送点，并恢复满状态
+     */
+    private void teleportToSafeWaypoint(PlayerEntity player) {
+        String lastSafeWaypointId = player.getLastSafeWaypointId();
+
+        if (lastSafeWaypointId != null) {
+            // 获取传送点配置
+            var waypointConfig = configDataManager.getWaypoint(lastSafeWaypointId);
+            if (waypointConfig != null) {
+                // 传送到该传送点
+                player.setCurrentMapId(waypointConfig.getMapId());
+                player.setX(waypointConfig.getX());
+                player.setY(waypointConfig.getY());
+                log.info("玩家 {} 被击败，传送回安全传送点: {} (地图: {}, 位置: {}, {})",
+                    player.getName(), waypointConfig.getName(), waypointConfig.getMapId(),
+                    waypointConfig.getX(), waypointConfig.getY());
+            } else {
+                // 传送点配置不存在，使用默认传送点
+                teleportToDefaultSafeWaypoint(player);
+            }
+        } else {
+            // 没有记录上次安全传送点，使用默认传送点
+            teleportToDefaultSafeWaypoint(player);
+        }
+
+        // 恢复满状态
+        player.setCurrentHealth(player.getMaxHealth());
+        player.setCurrentMana(player.getMaxMana());
+    }
+
+    /**
+     * 传送到默认安全传送点（第一个安全地图的第一个传送点）
+     */
+    private void teleportToDefaultSafeWaypoint(PlayerEntity player) {
+        // 查找第一个安全地图
+        for (MapConfig mapConfig : configDataManager.getAllMaps()) {
+            if (mapConfig.isSafe()) {
+                // 查找该地图的第一个传送点
+                for (var waypointConfig : configDataManager.getAllWaypoints()) {
+                    if (waypointConfig.getMapId().equals(mapConfig.getId())) {
+                        player.setCurrentMapId(waypointConfig.getMapId());
+                        player.setX(waypointConfig.getX());
+                        player.setY(waypointConfig.getY());
+                        player.setLastSafeWaypointId(waypointConfig.getId());
+                        log.info("玩家 {} 被击败，传送回默认安全传送点: {} (地图: {})",
+                            player.getName(), waypointConfig.getName(), mapConfig.getName());
+                        return;
+                    }
+                }
+            }
+        }
+        log.warn("找不到安全传送点，玩家 {} 保持原位置", player.getName());
     }
 
     /**
@@ -831,14 +1008,29 @@ public class CombatServiceImpl implements CombatService {
     /**
      * 同步玩家的战斗后状态（生命和法力）
      * 根据设计文档：战斗胜利后玩家不会回复生命值和法力值
+     * 注意：被击败的玩家已在handleDefeatedPlayers中处理，这里跳过
      */
     private void syncPlayerFinalStates(CombatInstance.RewardDistribution distribution) {
         if (distribution == null || distribution.getPlayerFinalStates() == null) {
             return;
         }
 
+        // 收集被击败玩家的ID，这些玩家已经在handleDefeatedPlayers中处理
+        Set<String> defeatedPlayerIds = new HashSet<>();
+        if (distribution.getDefeatedPlayers() != null) {
+            for (CombatInstance.DefeatedPlayer dp : distribution.getDefeatedPlayers()) {
+                defeatedPlayerIds.add(dp.getPlayerId());
+            }
+        }
+
         for (Map.Entry<String, CombatInstance.PlayerFinalState> entry : distribution.getPlayerFinalStates().entrySet()) {
             String playerId = entry.getKey();
+
+            // 跳过被击败的玩家（已在handleDefeatedPlayers中处理）
+            if (defeatedPlayerIds.contains(playerId)) {
+                continue;
+            }
+
             CombatInstance.PlayerFinalState finalState = entry.getValue();
 
             Optional<PlayerEntity> playerOpt = playerRepository.findById(playerId);

@@ -65,11 +65,12 @@ public class TeleportServiceImpl implements TeleportService {
         player.setX(targetWaypoint.getX());
         player.setY(targetWaypoint.getY());
 
-        // 如果传送到安全区，恢复生命和法力
+        // 如果传送到安全区，恢复生命和法力，并记录为上次安全传送点
         boolean healthRestored = false;
         if (targetMapConfig.isSafe()) {
             player.setCurrentHealth(player.getMaxHealth());
             player.setCurrentMana(player.getMaxMana());
+            player.setLastSafeWaypointId(targetWaypoint.getId());
             healthRestored = true;
         }
 

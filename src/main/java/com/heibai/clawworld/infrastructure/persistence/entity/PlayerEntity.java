@@ -94,6 +94,9 @@ public class PlayerEntity {
     // 商店状态
     private String currentShopId;
 
+    // 上次使用的安全区域传送点ID（用于被击败后复活）
+    private String lastSafeWaypointId;
+
     /**
      * 装备栏数据
      */

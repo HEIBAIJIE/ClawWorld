@@ -479,6 +479,9 @@ public class CombatInstance {
         private List<DefeatedEnemy> defeatedEnemies; // 被击败的敌人列表
         private boolean enemiesNeedReset;         // 敌人是否需要重置状态（所有玩家撤退时为true）
         private List<EnemyToReset> enemiesToReset; // 需要重置状态的敌人列表
+        private List<DefeatedPlayer> defeatedPlayers; // 被击败的玩家列表（需要传送和惩罚）
+        private CombatType combatType;            // 战斗类型（PVE/PVP）
+        private String mapId;                     // 战斗所在地图ID
 
         public RewardDistribution() {
             this.items = new ArrayList<>();
@@ -486,6 +489,7 @@ public class CombatInstance {
             this.playerFinalStates = new HashMap<>();
             this.defeatedEnemies = new ArrayList<>();
             this.enemiesToReset = new ArrayList<>();
+            this.defeatedPlayers = new ArrayList<>();
         }
     }
 
@@ -530,6 +534,22 @@ public class CombatInstance {
             this.mapId = mapId;
             this.instanceId = instanceId;
             this.respawnSeconds = respawnSeconds;
+        }
+    }
+
+    /**
+     * 被击败的玩家信息（需要传送和惩罚）
+     */
+    @Data
+    public static class DefeatedPlayer {
+        private String playerId;
+        private int playerLevel;
+        private boolean allPlayersDefeated; // 是否所有玩家都被击败（用于PVE判断）
+
+        public DefeatedPlayer(String playerId, int playerLevel, boolean allPlayersDefeated) {
+            this.playerId = playerId;
+            this.playerLevel = playerLevel;
+            this.allPlayersDefeated = allPlayersDefeated;
         }
     }
 }

@@ -21,6 +21,7 @@ public class CombatCharacter {
     private String partyId; // 队伍ID（用于战利品分配）
     private String enemyConfigId; // 敌人配置ID（仅敌人使用，用于获取掉落配置）
     private boolean partyLeader; // 是否是队长（用于战利品分配）
+    private int level; // 角色等级（用于惩罚判断）
 
     // 敌人实例信息（仅敌人使用，用于战斗结束后更新状态）
     private String enemyMapId; // 敌人所在地图ID
