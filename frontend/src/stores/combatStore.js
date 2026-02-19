@@ -27,6 +27,9 @@ export const useCombatStore = defineStore('combat', () => {
   const turnCountdown = ref(10)
   const countdownTimer = ref(null)
 
+  // 回合开始时间戳（毫秒）
+  const turnStartTimestamp = ref(0)
+
   // 目标选择模式
   const targetSelectionMode = ref(false)
   const pendingSkill = ref(null)
@@ -108,15 +111,15 @@ export const useCombatStore = defineStore('combat', () => {
   function updateCombatState(data) {
     console.log('[CombatStore] 更新战斗状态:', data)
     if (data.isInCombat !== undefined) {
-      isInCombat.value = data.isInCombat
-      // 进入新战斗时，重置结算状态并递增战斗序列号
-      if (data.isInCombat) {
+      // 只有在从非战斗状态进入战斗状态时，才重置结算状态并递增战斗序列号
+      if (data.isInCombat && !isInCombat.value) {
         console.log('[CombatStore] 进入新战斗，重置结算状态')
         showResult.value = false
         combatResult.value = null
         combatSequence.value++
         stopCountdown() // 停止旧战斗的倒计时
       }
+      isInCombat.value = data.isInCombat
     }
     if (data.combatId !== undefined) combatId.value = data.combatId
     if (data.factions !== undefined) {
@@ -226,25 +229,55 @@ export const useCombatStore = defineStore('combat', () => {
   }
 
   // 启动倒计时
-  function startCountdown() {
+  // @param serverTimestamp 服务端返回的回合开始时间戳（毫秒），如果为0则使用当前时间
+  function startCountdown(serverTimestamp = 0) {
+    console.log('[CombatStore] startCountdown 被调用，serverTimestamp:', serverTimestamp, 'Date.now():', Date.now())
     stopCountdown()
-    turnCountdown.value = 10
+
+    // 计算剩余时间
+    let remainingSeconds = 10
+    if (serverTimestamp > 0) {
+      const elapsed = Date.now() - serverTimestamp
+      remainingSeconds = Math.max(0, Math.ceil(10 - elapsed / 1000))
+      turnStartTimestamp.value = serverTimestamp
+      console.log('[CombatStore] 使用服务端时间戳计算倒计时，已过', Math.floor(elapsed / 1000), '秒，剩余', remainingSeconds, '秒')
+    } else {
+      turnStartTimestamp.value = Date.now()
+      console.log('[CombatStore] 使用当前时间作为倒计时起点')
+    }
+
+    turnCountdown.value = remainingSeconds
+    console.log('[CombatStore] 设置 turnCountdown 为', remainingSeconds)
+
+    // 如果已经超时，直接触发回调
+    if (remainingSeconds <= 0) {
+      console.log('[CombatStore] 已超时，触发回调')
+      if (isMyTurn.value && onTimeoutCallback.value) {
+        onTimeoutCallback.value()
+      }
+      return
+    }
+
     // 记录启动倒计时时的状态
     const wasMyTurn = isMyTurn.value
     const startSequence = combatSequence.value
+    console.log('[CombatStore] 启动 setInterval，wasMyTurn:', wasMyTurn, 'startSequence:', startSequence)
     countdownTimer.value = setInterval(() => {
       // 如果战斗序列号变了，说明进入了新战斗，停止旧的倒计时
       if (combatSequence.value !== startSequence) {
+        console.log('[CombatStore] 战斗序列号变化，停止倒计时')
         stopCountdown()
         return
       }
       // 如果已经显示结算，停止倒计时
       if (showResult.value) {
+        console.log('[CombatStore] 显示结算，停止倒计时')
         stopCountdown()
         return
       }
       if (turnCountdown.value > 0) {
         turnCountdown.value--
+        console.log('[CombatStore] 倒计时递减，当前值:', turnCountdown.value)
         // 倒计时到0时，如果启动时是自己的回合且现在仍是自己的回合，触发自动wait
         if (turnCountdown.value === 0) {
           // 再次检查：如果已经显示结算，不触发回调

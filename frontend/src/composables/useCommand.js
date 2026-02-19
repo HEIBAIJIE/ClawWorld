@@ -99,8 +99,8 @@ export function useCommand() {
    * 根据后端的 subType 精确匹配不同类型的内容
    */
   function processWindowEntry(entry) {
-    const { subType, content } = entry
-    console.log('[Command] 处理窗口条目:', subType, '内容长度:', content.length)
+    const { subType, content, timestamp } = entry
+    console.log('[Command] 处理窗口条目:', subType, '内容长度:', content.length, '时间戳:', timestamp)
 
     switch (subType) {
       // ===== 地图窗口相关 =====
@@ -211,14 +211,15 @@ export function useCommand() {
 
       case '当前状态':
         const status = parseCombatStatus(content)
-        console.log('[Command] 战斗当前状态:', status)
+        console.log('[Command] 战斗当前状态:', status, '时间戳:', timestamp)
         combatStore.updateCombatState({
           isMyTurn: status.isMyTurn,
           currentTurn: status.waitingFor
         })
-        // 轮到自己回合时启动倒计时
+        // 轮到自己回合时启动倒计时，传入服务端时间戳
         if (status.isMyTurn) {
-          combatStore.startCountdown()
+          console.log('[Command] 启动倒计时，服务端时间戳:', timestamp)
+          combatStore.startCountdown(timestamp || 0)
         }
         // 自动wait机制：检测到需要等待时自动发送wait
         if (status.needsAutoWait && !combatStore.autoWaitPending) {
@@ -394,7 +395,7 @@ export function useCommand() {
    * 处理状态类型的日志条目
    */
   function processStateEntry(entry) {
-    const { subType, content } = entry
+    const { subType, content, timestamp } = entry
     console.log('[Command] 处理状态条目:', subType, '内容长度:', content.length)
 
     switch (subType) {
@@ -452,9 +453,9 @@ export function useCommand() {
             isMyTurn: stateStatus.isMyTurn,
             currentTurn: stateStatus.waitingFor
           })
-          // 轮到自己回合时启动倒计时
+          // 轮到自己回合时启动倒计时，传入服务端时间戳
           if (stateStatus.isMyTurn) {
-            combatStore.startCountdown()
+            combatStore.startCountdown(timestamp || 0)
           }
           // 自动wait机制
           if (stateStatus.needsAutoWait && !combatStore.autoWaitPending) {

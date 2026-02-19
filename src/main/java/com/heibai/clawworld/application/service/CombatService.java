@@ -85,6 +85,13 @@ public interface CombatService {
     boolean isPlayerTurn(String combatId, String playerId);
 
     /**
+     * 获取当前回合开始时间（毫秒时间戳）
+     * @param combatId 战斗ID
+     * @return 回合开始时间，如果没有则返回0
+     */
+    long getTurnStartTime(String combatId);
+
+    /**
      * 战斗结果
      */
     class CombatResult {

@@ -7,6 +7,34 @@
 const LOG_PATTERN = /^\[([^\]]+)\]\[([^\]]+)\]\[([^\]]+)\]\[([^\]]+)\](.*)$/
 
 /**
+ * 解析时间字符串为毫秒时间戳
+ * 格式：X月X日 HH:MM:SS
+ * @param {string} timeStr - 时间字符串
+ * @returns {number} 毫秒时间戳，解析失败返回0
+ */
+export function parseTimeToTimestamp(timeStr) {
+  if (!timeStr) return 0
+
+  // 匹配格式：X月X日 HH:MM:SS
+  const match = timeStr.match(/(\d+)月(\d+)日\s+(\d+):(\d+):(\d+)/)
+  if (!match) return 0
+
+  const month = parseInt(match[1])
+  const day = parseInt(match[2])
+  const hour = parseInt(match[3])
+  const minute = parseInt(match[4])
+  const second = parseInt(match[5])
+
+  // 使用当前年份
+  const now = new Date()
+  const year = now.getFullYear()
+
+  // 创建日期对象
+  const date = new Date(year, month - 1, day, hour, minute, second)
+  return date.getTime()
+}
+
+/**
  * 解析单行日志
  * @param {string} line - 日志行
  * @returns {object} 解析结果
@@ -14,10 +42,12 @@ const LOG_PATTERN = /^\[([^\]]+)\]\[([^\]]+)\]\[([^\]]+)\]\[([^\]]+)\](.*)$/
 export function parseLogLine(line) {
   const match = line.match(LOG_PATTERN)
   if (match) {
+    const timeStr = match[2]
     return {
       isLog: true,
       source: match[1],
-      time: match[2],
+      time: timeStr,
+      timestamp: parseTimeToTimestamp(timeStr),
       type: match[3],
       subType: match[4],
       content: match[5].trim()
@@ -140,5 +170,6 @@ export default {
   parseLogLine,
   parseLogText,
   groupLogsByType,
-  extractBySubType
+  extractBySubType,
+  parseTimeToTimestamp
 }

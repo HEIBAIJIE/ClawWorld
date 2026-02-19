@@ -22,7 +22,7 @@ public class CombatWindowLogGenerator {
 
     /**
      * 生成战斗窗口日志（进入战斗时显示）
-     * 根据设计文档，战斗窗口需要返回���
+     * 根据设计文档，战斗窗口需要返回
      * （1）当前战斗一共有哪些方，有哪些角色
      * （2）这些角色的属性、状态等基础信息
      * （3）当前行动条顺序
@@ -30,6 +30,14 @@ public class CombatWindowLogGenerator {
      * （5）再次强调战斗中支持的指令
      */
     public void generateCombatWindowLogs(GameLogBuilder builder, Combat combat, String playerId) {
+        generateCombatWindowLogs(builder, combat, playerId, 0);
+    }
+
+    /**
+     * 生成战斗窗口日志（进入战斗时显示）
+     * @param turnStartTime 当前回合开始时间戳（毫秒），0表示使用当前时间
+     */
+    public void generateCombatWindowLogs(GameLogBuilder builder, Combat combat, String playerId, long turnStartTime) {
         // 1. 战斗基本信息
         builder.addWindow("战斗窗口", "=== 战斗开始 ===");
 
@@ -132,11 +140,13 @@ public class CombatWindowLogGenerator {
         // 7. 当前回合提示
         if (combat.getActionBar() != null && !combat.getActionBar().isEmpty()) {
             String currentTurnId = combat.getActionBar().get(0).getCharacterId();
+            // 使用回合开始时间作为日志时间戳
+            long logTimestamp = turnStartTime > 0 ? turnStartTime : System.currentTimeMillis();
             if (currentTurnId != null && currentTurnId.equals(playerId)) {
-                builder.addWindow("当前状态", "★ 轮到你的回合！请选择行动。");
+                builder.addWindowWithTimestamp("当前状态", "★ 轮到你的回合！请选择行动。", logTimestamp);
             } else {
                 String currentTurnName = findCharacterName(combat, currentTurnId);
-                builder.addWindow("当前状态", "等待 " + currentTurnName + " 行动...\n未轮到你的回合，请输入wait继续等待");
+                builder.addWindowWithTimestamp("当前状态", "等待 " + currentTurnName + " 行动...\n未轮到你的回合，请输入wait继续等待", logTimestamp);
             }
         }
     }
@@ -154,6 +164,15 @@ public class CombatWindowLogGenerator {
      */
     public int generateCombatStateLogs(GameLogBuilder builder, Combat combat, String playerId,
                                        String commandResult, int lastLogSequence) {
+        return generateCombatStateLogs(builder, combat, playerId, commandResult, lastLogSequence, 0);
+    }
+
+    /**
+     * 生成战斗状态日志（增量）
+     * @param turnStartTime 当前回合开始时间戳（毫秒），0表示使用当前时间
+     */
+    public int generateCombatStateLogs(GameLogBuilder builder, Combat combat, String playerId,
+                                       String commandResult, int lastLogSequence, long turnStartTime) {
         // 1. 指令响应（不再单独添加，因为战斗日志中已经包含了行动信息）
         // 只有当没有新的战斗日志时才显示指令响应
         boolean hasNewLogs = false;
@@ -226,11 +245,13 @@ public class CombatWindowLogGenerator {
         // 5. 当前回合提示
         if (combat.getActionBar() != null && !combat.getActionBar().isEmpty()) {
             String currentTurnId = combat.getActionBar().get(0).getCharacterId();
+            // 使用回合开始时间作为日志时间戳
+            long logTimestamp = turnStartTime > 0 ? turnStartTime : System.currentTimeMillis();
             if (currentTurnId != null && currentTurnId.equals(playerId)) {
-                builder.addState("当前状态", "★ 轮到你的回合！请选择行动。");
+                builder.addStateWithTimestamp("当前状态", "★ 轮到你的回合！请选择行动。", logTimestamp);
             } else {
                 String currentTurnName = findCharacterName(combat, currentTurnId);
-                builder.addState("当前状态", "等待 " + currentTurnName + " 行动...\n未轮到你的回合，请输入wait继续等待");
+                builder.addStateWithTimestamp("当前状态", "等待 " + currentTurnName + " 行动...\n未轮到你的回合，请输入wait继续等待", logTimestamp);
             }
         }
 

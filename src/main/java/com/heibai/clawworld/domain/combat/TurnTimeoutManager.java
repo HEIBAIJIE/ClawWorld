@@ -131,6 +131,14 @@ public class TurnTimeoutManager {
     }
 
     /**
+     * 获取当前回合开始时间（毫秒时间戳）
+     */
+    public long getTurnStartTime(String combatId) {
+        Long startTime = turnStartTimes.get(combatId);
+        return startTime != null ? startTime : 0;
+    }
+
+    /**
      * 获取当前回合已经过的时间（毫秒）
      */
     public long getElapsedTime(String combatId) {

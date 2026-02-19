@@ -37,10 +37,26 @@ public class GameLogBuilder {
     }
 
     /**
+     * 添加服务端窗口日志（自定义时间戳）
+     */
+    public GameLogBuilder addWindowWithTimestamp(String subType, String content, long timestamp) {
+        logs.add(GameLog.serverWindowWithTimestamp(subType, content, timestamp));
+        return this;
+    }
+
+    /**
      * 添加服务端状态日志
      */
     public GameLogBuilder addState(String subType, String content) {
         logs.add(GameLog.serverState(subType, content));
+        return this;
+    }
+
+    /**
+     * 添加服务端状态日志（自定义时间戳）
+     */
+    public GameLogBuilder addStateWithTimestamp(String subType, String content, long timestamp) {
+        logs.add(GameLog.serverStateWithTimestamp(subType, content, timestamp));
         return this;
     }
 

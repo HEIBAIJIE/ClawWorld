@@ -111,9 +111,11 @@ public class UnifiedResponseGenerator {
                         // 获取上次的日志序列号
                         int lastLogSequence = account != null && account.getLastCombatLogSequence() != null
                             ? account.getLastCombatLogSequence() : 0;
+                        // 获取当前回合开始时间
+                        long turnStartTime = combatService.getTurnStartTime(player.getCombatId());
                         // 生成增量日志并获取新的序列号
                         int newLogSequence = combatWindowLogGenerator.generateCombatStateLogs(
-                            builder, combat, playerId, commandResult, lastLogSequence);
+                            builder, combat, playerId, commandResult, lastLogSequence, turnStartTime);
                         // 保存新的序列号
                         if (account != null && newLogSequence > lastLogSequence) {
                             account.setLastCombatLogSequence(newLogSequence);
@@ -332,7 +334,9 @@ public class UnifiedResponseGenerator {
             if (player.getCombatId() != null) {
                 com.heibai.clawworld.domain.combat.Combat combat = combatService.getCombatState(player.getCombatId());
                 if (combat != null) {
-                    combatWindowLogGenerator.generateCombatWindowLogs(builder, combat, playerId);
+                    // 获取当前回合开始时间
+                    long turnStartTime = combatService.getTurnStartTime(player.getCombatId());
+                    combatWindowLogGenerator.generateCombatWindowLogs(builder, combat, playerId, turnStartTime);
                     // 进入战斗窗口时，重置日志序列号为0，这样第一次获取状态时会获取所有日志
                     // 但由于窗口内容已经显示了初始状态，所以设置为当前最大序列号
                     Optional<AccountEntity> accountOpt = accountRepository.findByPlayerId(playerId);

@@ -131,12 +131,38 @@ public class GameLog {
     }
 
     /**
+     * 创建服务端窗口日志（自定义时间戳）
+     */
+    public static GameLog serverWindowWithTimestamp(String subType, String content, long timestamp) {
+        return GameLog.builder()
+            .source(Source.SERVER)
+            .timestamp(timestamp)
+            .type(Type.WINDOW)
+            .subType(subType)
+            .content(content)
+            .build();
+    }
+
+    /**
      * 创建服务端状态日志
      */
     public static GameLog serverState(String subType, String content) {
         return GameLog.builder()
             .source(Source.SERVER)
             .timestamp(System.currentTimeMillis())
+            .type(Type.STATE)
+            .subType(subType)
+            .content(content)
+            .build();
+    }
+
+    /**
+     * 创建服务端状态日志（自定义时间戳）
+     */
+    public static GameLog serverStateWithTimestamp(String subType, String content, long timestamp) {
+        return GameLog.builder()
+            .source(Source.SERVER)
+            .timestamp(timestamp)
             .type(Type.STATE)
             .subType(subType)
             .content(content)
