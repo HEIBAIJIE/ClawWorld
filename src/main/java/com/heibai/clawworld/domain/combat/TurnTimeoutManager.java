@@ -49,9 +49,9 @@ public class TurnTimeoutManager {
      * @param combatId 战斗ID
      * @param characterId 玩家角色ID
      */
-    public void startPlayerTurn(String combatId, String characterId) {
+    public synchronized void startPlayerTurn(String combatId, String characterId) {
         // 取消之前的超时任务（如果有）
-        cancelTimeout(combatId);
+        cancelTimeoutInternal(combatId);
 
         // 记录当前回合玩家和开始时间
         currentTurnPlayers.put(combatId, characterId);
@@ -73,20 +73,20 @@ public class TurnTimeoutManager {
      * @param combatId 战斗ID
      * @param characterId 玩家角色ID
      */
-    public void playerActed(String combatId, String characterId) {
+    public synchronized void playerActed(String combatId, String characterId) {
         String currentPlayer = currentTurnPlayers.get(combatId);
         if (currentPlayer != null && currentPlayer.equals(characterId)) {
             log.debug("[战斗 {}] 玩家 {} 已行动，取消超时计时", combatId, characterId);
-            cancelTimeout(combatId);
+            cancelTimeoutInternal(combatId);
             currentTurnPlayers.remove(combatId);
             turnStartTimes.remove(combatId);
         }
     }
 
     /**
-     * 取消超时计时
+     * 取消超时计时（内部方法，不加锁）
      */
-    public void cancelTimeout(String combatId) {
+    private void cancelTimeoutInternal(String combatId) {
         ScheduledFuture<?> future = activeTimeouts.remove(combatId);
         if (future != null && !future.isDone()) {
             future.cancel(false);
@@ -94,10 +94,17 @@ public class TurnTimeoutManager {
     }
 
     /**
+     * 取消超时计时
+     */
+    public synchronized void cancelTimeout(String combatId) {
+        cancelTimeoutInternal(combatId);
+    }
+
+    /**
      * 战斗结束，清理所有相关资源
      */
-    public void combatEnded(String combatId) {
-        cancelTimeout(combatId);
+    public synchronized void combatEnded(String combatId) {
+        cancelTimeoutInternal(combatId);
         currentTurnPlayers.remove(combatId);
         turnStartTimes.remove(combatId);
     }
@@ -106,14 +113,24 @@ public class TurnTimeoutManager {
      * 处理超时
      */
     private void handleTimeout(String combatId, String characterId) {
+        // 先检查是否仍然是该玩家的回合（可能已经被取消）
+        synchronized (this) {
+            String currentPlayer = currentTurnPlayers.get(combatId);
+            if (currentPlayer == null || !currentPlayer.equals(characterId)) {
+                // 已经不是该玩家的回合了，忽略超时
+                log.debug("[战斗 {}] 玩家 {} 的超时已被取消，忽略", combatId, characterId);
+                return;
+            }
+
+            // 清理状态
+            activeTimeouts.remove(combatId);
+            currentTurnPlayers.remove(combatId);
+            turnStartTimes.remove(combatId);
+        }
+
         log.info("[战斗 {}] 玩家 {} 回合超时，自动空过", combatId, characterId);
 
-        // 清理状态
-        activeTimeouts.remove(combatId);
-        currentTurnPlayers.remove(combatId);
-        turnStartTimes.remove(combatId);
-
-        // 通知回调
+        // 通知回调（在锁外执行，避免死锁）
         if (callback != null) {
             try {
                 callback.onTurnTimeout(combatId, characterId);

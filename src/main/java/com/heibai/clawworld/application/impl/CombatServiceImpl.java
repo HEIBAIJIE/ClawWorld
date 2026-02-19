@@ -181,6 +181,9 @@ public class CombatServiceImpl implements CombatService {
                 }
             }
 
+            // 初始化第一个回合
+            combatEngine.initializeFirstTurn(combatId);
+
             log.info("发起战斗: combatId={}, attackerId={}, targetId={}, mapId={}, attackerPartySize={}, targetPartySize={}",
                 combatId, attackerId, targetId, attacker.getMapId(), attackerParty.size(), targetParty.size());
 
@@ -406,6 +409,9 @@ public class CombatServiceImpl implements CombatService {
                 }
             }
 
+            // 初始化第一个回合
+            combatEngine.initializeFirstTurn(combatId);
+
             log.info("发起PVE战斗: combatId={}, attackerId={}, enemyName={}, mapId={}, enemyCount={}, partySize={}",
                 combatId, attackerId, enemyDisplayName, mapId, enemyCombatChars.size(), attackerParty.size());
 
@@ -525,9 +531,7 @@ public class CombatServiceImpl implements CombatService {
             }
             CombatInstance combat = combatOpt.get();
 
-            // 推进行动条到下一个回合（如果还没有人准备好）
-            combat.advanceToNextTurn();
-
+            // 检查是否轮到该玩家（不推进行动条）
             Optional<String> currentTurn = combat.getCurrentTurnCharacterId();
             if (currentTurn.isEmpty() || !currentTurn.get().equals(playerId)) {
                 return ActionResult.error("还未轮到你的回合");
@@ -805,18 +809,27 @@ public class CombatServiceImpl implements CombatService {
                 syncPlayerFinalStates(distribution);
             }
 
-            // 从数据库中查找所有combatId匹配的玩家
+            // 收集被击败玩家的ID（这些玩家已经在handleDefeatedPlayers中处理过了，combatId已被清除）
+            Set<String> defeatedPlayerIds = new HashSet<>();
+            if (distribution != null && distribution.getDefeatedPlayers() != null) {
+                for (CombatInstance.DefeatedPlayer dp : distribution.getDefeatedPlayers()) {
+                    defeatedPlayerIds.add(dp.getPlayerId());
+                }
+            }
+
+            // 从数据库中查找所有combatId匹配的玩家（被击败的玩家combatId已被清除，不会出现在这里）
             List<PlayerEntity> playersInCombat = playerRepository.findAll().stream()
                 .filter(p -> combatId.equals(p.getCombatId()))
                 .collect(Collectors.toList());
 
-            if (playersInCombat.isEmpty()) {
+            if (playersInCombat.isEmpty() && defeatedPlayerIds.isEmpty()) {
                 log.debug("没有找到参战玩家，可能战斗状态已被清理: combatId={}", combatId);
                 return;
             }
 
             List<com.heibai.clawworld.domain.window.WindowTransition> transitions = new java.util.ArrayList<>();
 
+            // 处理存活的玩家（清除战斗状态）
             for (PlayerEntity player : playersInCombat) {
                 String playerId = player.getId();
                 String currentWindow = windowStateService.getCurrentWindowType(playerId);
@@ -827,6 +840,13 @@ public class CombatServiceImpl implements CombatService {
                 player.setInCombat(false);
                 player.setCombatId(null);
                 playerRepository.save(player);
+            }
+
+            // 为被击败的玩家也添加窗口切换（他们的战斗状态已在handleDefeatedPlayers中清除）
+            for (String defeatedPlayerId : defeatedPlayerIds) {
+                String currentWindow = windowStateService.getCurrentWindowType(defeatedPlayerId);
+                transitions.add(com.heibai.clawworld.domain.window.WindowTransition.of(
+                    defeatedPlayerId, currentWindow, "MAP", null));
             }
 
             if (!transitions.isEmpty()) {
@@ -852,9 +872,20 @@ public class CombatServiceImpl implements CombatService {
      * - PVP战斗中，高于地图推荐等级的玩家掉落10%当前经验值
      */
     private void handleDefeatedPlayers(CombatInstance.RewardDistribution distribution) {
-        if (distribution == null || distribution.getDefeatedPlayers() == null || distribution.getDefeatedPlayers().isEmpty()) {
+        if (distribution == null) {
+            log.debug("handleDefeatedPlayers: distribution is null");
             return;
         }
+        if (distribution.getDefeatedPlayers() == null) {
+            log.debug("handleDefeatedPlayers: defeatedPlayers is null");
+            return;
+        }
+        if (distribution.getDefeatedPlayers().isEmpty()) {
+            log.debug("handleDefeatedPlayers: defeatedPlayers is empty");
+            return;
+        }
+
+        log.info("处理被击败玩家: {} 人", distribution.getDefeatedPlayers().size());
 
         // 获取地图推荐等级
         Integer recommendedLevel = null;
@@ -896,7 +927,13 @@ public class CombatServiceImpl implements CombatService {
             // 传送到上次安全传送点并恢复满状态
             teleportToSafeWaypoint(player);
 
+            // 同时清除战斗状态，避免后续循环覆盖传送后的位置
+            player.setInCombat(false);
+            player.setCombatId(null);
+
             playerRepository.save(player);
+            log.info("玩家 {} 被击败处理完成，当前位置: ({}, {}) 地图: {}",
+                player.getName(), player.getX(), player.getY(), player.getCurrentMapId());
         }
     }
 

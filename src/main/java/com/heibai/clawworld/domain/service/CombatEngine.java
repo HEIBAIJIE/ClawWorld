@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 import jakarta.annotation.PreDestroy;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 /**
@@ -40,6 +41,9 @@ public class CombatEngine {
 
     // 每个战斗的回合等待器
     private final Map<String, CombatTurnWaiter> turnWaiters = new ConcurrentHashMap<>();
+
+    // 每个战斗的锁（确保同一战斗的操作是串行的）
+    private final Map<String, ReentrantLock> combatLocks = new ConcurrentHashMap<>();
 
     // 伤害计算器
     private final CombatDamageCalculator damageCalculator = new CombatDamageCalculator();
@@ -75,49 +79,62 @@ public class CombatEngine {
     }
 
     /**
+     * 获取战斗锁（如果不存在则创建）
+     */
+    private ReentrantLock getCombatLock(String combatId) {
+        return combatLocks.computeIfAbsent(combatId, k -> new ReentrantLock());
+    }
+
+    /**
      * 处理回合超时回调
      * 当玩家回合超时时，自动执行空过
      */
     private void handleTurnTimeout(String combatId, String characterId) {
-        CombatInstance combat = activeCombats.get(combatId);
-        if (combat == null) {
-            return;
+        ReentrantLock lock = getCombatLock(combatId);
+        lock.lock();
+        try {
+            CombatInstance combat = activeCombats.get(combatId);
+            if (combat == null) {
+                return;
+            }
+
+            // 检查是否确实轮到该角色（双重检查，防止竞态条件）
+            Optional<String> currentTurn = combat.getCurrentTurnCharacterId();
+            if (currentTurn.isEmpty() || !currentTurn.get().equals(characterId)) {
+                return;
+            }
+
+            CombatCharacter character = combat.findCharacter(characterId);
+            if (character == null || !character.isAlive()) {
+                return;
+            }
+
+            log.info("[战斗 {}] 玩家 {} 回合超时，自动空过", combatId, character.getName());
+
+            // 记录超时空过日志
+            combat.addLog(character.getName() + " 回合超时，自动空过");
+
+            // 执行空过
+            skipTurnInternal(combat, characterId);
+
+            // 通知所有等待的玩家
+            CombatTurnWaiter waiter = turnWaiters.get(combatId);
+            if (waiter != null) {
+                waiter.notifyAllWaiting();
+            }
+
+            // 继续处理后续回合（敌人AI等）
+            processNextTurnsAfterTimeoutInternal(combat);
+        } finally {
+            lock.unlock();
         }
-
-        // 检查是否确实轮到该角色
-        Optional<String> currentTurn = combat.getCurrentTurnCharacterId();
-        if (currentTurn.isEmpty() || !currentTurn.get().equals(characterId)) {
-            return;
-        }
-
-        CombatCharacter character = combat.findCharacter(characterId);
-        if (character == null || !character.isAlive()) {
-            return;
-        }
-
-        log.info("[战斗 {}] 玩家 {} 回合超时，自动空过", combatId, character.getName());
-
-        // 记录超时空过日志
-        combat.addLog(character.getName() + " 回合超时，自动空过");
-
-        // 执行空过
-        skipTurnInternal(combat, characterId);
-
-        // 通知所有等待的玩家
-        CombatTurnWaiter waiter = turnWaiters.get(combatId);
-        if (waiter != null) {
-            waiter.notifyAllWaiting();
-        }
-
-        // 继续处理后续回合（敌人AI等）
-        processNextTurnsAfterTimeout(combat);
     }
 
     /**
-     * 超时后继续处理后续回合
+     * 超时后继续处理后续回合（内部方法，已持有锁）
      * 这个方法会处理敌人AI回合，直到轮到下一个玩家或战斗结束
      */
-    private void processNextTurnsAfterTimeout(CombatInstance combat) {
+    private void processNextTurnsAfterTimeoutInternal(CombatInstance combat) {
         while (true) {
             // 检查战斗是否结束
             if (combat.isFinished()) {
@@ -178,6 +195,7 @@ public class CombatEngine {
         CombatInstance combat = new CombatInstance(combatId, mapId);
         activeCombats.put(combatId, combat);
         turnWaiters.put(combatId, new CombatTurnWaiter());
+        combatLocks.put(combatId, new ReentrantLock());
         log.info("创建战斗: combatId={}, mapId={}", combatId, mapId);
         return combatId;
     }
@@ -198,14 +216,66 @@ public class CombatEngine {
             throw new IllegalArgumentException("战斗不存在: " + combatId);
         }
 
-        CombatParty party = new CombatParty(factionId);
-        for (CombatCharacter character : characters) {
-            character.setFactionId(factionId);
-            party.addCharacter(character);
+        ReentrantLock lock = getCombatLock(combatId);
+        lock.lock();
+        try {
+            CombatParty party = new CombatParty(factionId);
+            for (CombatCharacter character : characters) {
+                character.setFactionId(factionId);
+                party.addCharacter(character);
+            }
+
+            combat.addParty(factionId, party);
+            log.info("阵营 {} 加入战斗 {}", factionId, combatId);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * 初始化战斗的第一个回合
+     * 在所有参战方加入后调用，推进行动条并启动第一个玩家的超时计时
+     */
+    public void initializeFirstTurn(String combatId) {
+        CombatInstance combat = activeCombats.get(combatId);
+        if (combat == null) {
+            return;
         }
 
-        combat.addParty(factionId, party);
-        log.info("阵营 {} 加入战斗 {}", factionId, combatId);
+        ReentrantLock lock = getCombatLock(combatId);
+        lock.lock();
+        try {
+            // 推进行动条到第一个回合
+            combat.advanceToNextTurn();
+
+            // 获取第一个行动的角色
+            Optional<String> firstTurnOpt = combat.getCurrentTurnCharacterId();
+            if (firstTurnOpt.isEmpty()) {
+                return;
+            }
+
+            String firstCharacterId = firstTurnOpt.get();
+            CombatCharacter firstCharacter = combat.findCharacter(firstCharacterId);
+
+            if (firstCharacter == null || !firstCharacter.isAlive()) {
+                return;
+            }
+
+            // 如果第一个行动的是玩家，启动超时计时
+            if (firstCharacter.isPlayer()) {
+                turnTimeoutManager.startPlayerTurn(combatId, firstCharacterId);
+                log.debug("[战斗 {}] 第一个回合: 玩家 {} 开始行动", combatId, firstCharacter.getName());
+            } else if (firstCharacter.isEnemy()) {
+                // 如果第一个行动的是敌人，执行AI并继续处理
+                combat.addLog("=== 轮到 " + firstCharacter.getName() + " 的回合 ===");
+                executeEnemyAIInternal(combat, firstCharacter);
+
+                // 继续处理后续回合直到轮到玩家
+                processNextTurnsAfterTimeoutInternal(combat);
+            }
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**
@@ -229,8 +299,8 @@ public class CombatEngine {
      *
      * 流程：
      * 1. 检查战斗是否已结束（返回缓存的结束信息）
-     * 2. 推进行动条确定当前回合
-     * 3. 检查是否轮到该玩家
+     * 2. 获取战斗锁，确保操作的原子性
+     * 3. 检查是否轮到该玩家（不推进行动条，只查询）
      * 4. 执行技能
      * 5. 取消该玩家的计时
      * 6. 通知所有等待的玩家
@@ -254,46 +324,60 @@ public class CombatEngine {
             return CombatActionResult.error("战斗不存在");
         }
 
-        CombatCharacter caster = combat.findCharacter(casterId);
-        if (caster == null || !caster.isAlive()) {
-            return CombatActionResult.error("施法者不存在或已死亡");
+        // 获取战斗锁
+        ReentrantLock lock = getCombatLock(combatId);
+        lock.lock();
+        try {
+            // 再次检查战斗是否存在（可能在等待锁期间被移除）
+            combat = activeCombats.get(combatId);
+            if (combat == null) {
+                endInfo = endedCombatCache.get(combatId);
+                if (endInfo != null) {
+                    return createCombatEndedResult(endInfo, casterId);
+                }
+                return CombatActionResult.error("战斗不存在");
+            }
+
+            CombatCharacter caster = combat.findCharacter(casterId);
+            if (caster == null || !caster.isAlive()) {
+                return CombatActionResult.error("施法者不存在或已死亡");
+            }
+
+            // 检查是否轮到该角色（不推进行动条，只查询当前状态）
+            Optional<String> currentTurn = combat.getCurrentTurnCharacterId();
+            if (currentTurn.isEmpty() || !currentTurn.get().equals(casterId)) {
+                // 不是该玩家的回合，返回当前战斗状态但拒绝执行
+                CombatActionResult result = CombatActionResult.error("还未轮到你的回合");
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
+                return result;
+            }
+
+            // 玩家行动，取消超时计时
+            turnTimeoutManager.playerActed(combatId, casterId);
+
+            // 执行技能
+            CombatActionResult result = executeSkillInternal(combat, casterId, skillId, targetId);
+
+            if (!result.isSuccess()) {
+                return result;
+            }
+
+            // 如果战斗已结束，直接返回
+            if (result.isCombatEnded()) {
+                return result;
+            }
+
+            // 通知所有等待的玩家，让他们重新检查是否轮到自己
+            CombatTurnWaiter waiter = turnWaiters.get(combatId);
+            if (waiter != null) {
+                waiter.notifyAllWaiting();
+            }
+
+            // 处理后续回合（敌人AI等）直到轮到玩家或战斗结束
+            return processUntilPlayerTurnOrEndInternal(combat, casterId, result);
+        } finally {
+            lock.unlock();
         }
-
-        // 推进行动条到下一个回合（如果还没有人准备好）
-        combat.advanceToNextTurn();
-
-        // 检查是否轮到该角色
-        Optional<String> currentTurn = combat.getCurrentTurnCharacterId();
-        if (currentTurn.isEmpty() || !currentTurn.get().equals(casterId)) {
-            // 不是该玩家的回合，返回当前战斗状态但拒绝执行
-            CombatActionResult result = CombatActionResult.error("还未轮到你的回合");
-            result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
-            return result;
-        }
-
-        // 玩家行动，取消超时计时
-        turnTimeoutManager.playerActed(combatId, casterId);
-
-        // 执行技能
-        CombatActionResult result = executeSkillInternal(combat, casterId, skillId, targetId);
-
-        if (!result.isSuccess()) {
-            return result;
-        }
-
-        // 如果战斗已结束，直接返回
-        if (result.isCombatEnded()) {
-            return result;
-        }
-
-        // 通知所有等待的玩家，让他们重新检查是否轮到自己
-        CombatTurnWaiter waiter = turnWaiters.get(combatId);
-        if (waiter != null) {
-            waiter.notifyAllWaiting();
-        }
-
-        // 处理后续回合（敌人AI等）直到轮到玩家或战斗结束
-        return processUntilPlayerTurnOrEnd(combat, casterId, result);
     }
 
     /**
@@ -324,13 +408,13 @@ public class CombatEngine {
     }
 
     /**
-     * 处理回合直到轮到指定玩家或战斗结束
+     * 处理回合直到轮到指定玩家或战斗结束（内部方法，已持有锁）
      * 核心逻辑：
      * 1. 如果轮到当前玩家，启动超时计时并返回
      * 2. 如果轮到其他玩家，启动该玩家的超时计时，当前玩家立即返回（不阻塞）
      * 3. 如果轮到敌人，执行AI后继续循环
      */
-    private CombatActionResult processUntilPlayerTurnOrEnd(CombatInstance combat, String playerId, CombatActionResult result) {
+    private CombatActionResult processUntilPlayerTurnOrEndInternal(CombatInstance combat, String playerId, CombatActionResult result) {
         CombatTurnWaiter waiter = turnWaiters.get(combat.getCombatId());
 
         while (true) {
@@ -453,17 +537,29 @@ public class CombatEngine {
             return CombatActionResult.error("战斗不存在");
         }
 
-        // 通知所有等待的玩家，让他们重新检查是否轮到自己
-        CombatTurnWaiter waiter = turnWaiters.get(combatId);
-        if (waiter != null) {
-            waiter.notifyAllWaiting();
+        ReentrantLock lock = getCombatLock(combatId);
+        lock.lock();
+        try {
+            // 再次检查战斗是否存在
+            combat = activeCombats.get(combatId);
+            if (combat == null) {
+                return CombatActionResult.error("战斗不存在");
+            }
+
+            // 通知所有等待的玩家，让他们重新检查是否轮到自己
+            CombatTurnWaiter waiter = turnWaiters.get(combatId);
+            if (waiter != null) {
+                waiter.notifyAllWaiting();
+            }
+
+            CombatActionResult result = CombatActionResult.success("行动完成");
+            result.setBattleLog(new ArrayList<>());
+
+            // 处理后续回合直到轮到玩家或战斗结束
+            return processUntilPlayerTurnOrEndInternal(combat, playerId, result);
+        } finally {
+            lock.unlock();
         }
-
-        CombatActionResult result = CombatActionResult.success("行动完成");
-        result.setBattleLog(new ArrayList<>());
-
-        // 处理后续回合直到轮到玩家或战斗结束
-        return processUntilPlayerTurnOrEnd(combat, playerId, result);
     }
 
     /**
@@ -683,149 +779,182 @@ public class CombatEngine {
             return CombatActionResult.error("战斗不存在");
         }
 
-        CombatCharacter character = combat.findCharacter(characterId);
-        if (character == null) {
-            return CombatActionResult.error("角色不存在");
-        }
-
-        // 推进行动条到下一个回合（如果还没有人准备好）
-        combat.advanceToNextTurn();
-
-        Optional<String> currentTurn = combat.getCurrentTurnCharacterId();
-
-        // 如果不是该玩家的回合，阻塞等待直到下一个玩家执行完操作
-        if (currentTurn.isEmpty() || !currentTurn.get().equals(characterId)) {
-            CombatActionResult result = CombatActionResult.success("等待中");
-            result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
-
-            // 阻塞等待直到下一个玩家执行完操作
-            return waitForNextPlayerAction(combat, characterId, result);
-        }
-
-        // 玩家行动（跳过回合），取消超时计时
-        turnTimeoutManager.playerActed(combatId, characterId);
-
-        // 跳过回合
-        CombatActionResult result = skipTurnInternal(combat, characterId);
-
-        if (result.isCombatEnded()) {
-            return result;
-        }
-
-        // 通知所有等待的玩家，让他们重新检查是否轮到自己
-        CombatTurnWaiter waiter = turnWaiters.get(combatId);
-        if (waiter != null) {
-            waiter.notifyAllWaiting();
-        }
-
-        // 处理后续回合直到轮到玩家或战斗结束
-        return processUntilPlayerTurnOrEnd(combat, characterId, result);
-    }
-
-    /**
-     * 阻塞等待直到下一个玩家执行完操作
-     * 用于 wait 命令，当不是自己回合时调用
-     */
-    private CombatActionResult waitForNextPlayerAction(CombatInstance combat, String playerId, CombatActionResult result) {
-        CombatTurnWaiter waiter = turnWaiters.get(combat.getCombatId());
-
-        while (true) {
-            // 检查战斗是否结束
-            if (combat.isFinished()) {
-                List<String> endLogs = finishCombat(combat);
-                if (endLogs != null) {
-                    result.setCombatEnded(true);
-                    for (String log : endLogs) {
-                        result.addLog(log);
-                    }
+        // 获取战斗锁
+        ReentrantLock lock = getCombatLock(combatId);
+        lock.lock();
+        try {
+            // 再次检查战斗是否存在
+            combat = activeCombats.get(combatId);
+            if (combat == null) {
+                endInfo = endedCombatCache.get(combatId);
+                if (endInfo != null) {
+                    return createCombatEndedResult(endInfo, characterId);
                 }
+                return CombatActionResult.error("战斗不存在");
+            }
+
+            CombatCharacter character = combat.findCharacter(characterId);
+            if (character == null) {
+                return CombatActionResult.error("角色不存在");
+            }
+
+            // 检查当前回合（不推进行动条）
+            Optional<String> currentTurn = combat.getCurrentTurnCharacterId();
+
+            // 如果不是该玩家的回合，释放锁后阻塞等待
+            if (currentTurn.isEmpty() || !currentTurn.get().equals(characterId)) {
+                // 释放锁后调用阻塞等待
+                lock.unlock();
+                try {
+                    return waitForTurn(combatId, characterId);
+                } finally {
+                    // 重新获取锁以便finally块正常释放
+                    lock.lock();
+                }
+            }
+
+            // 玩家行动（跳过回合），取消超时计时
+            turnTimeoutManager.playerActed(combatId, characterId);
+
+            // 跳过回合
+            CombatActionResult result = skipTurnInternal(combat, characterId);
+
+            if (result.isCombatEnded()) {
                 return result;
             }
 
-            // 检查战斗是否超时
-            if (combat.isTimeout()) {
-                handleCombatTimeout(combat);
+            // 通知所有等待的玩家，让他们重新检查是否轮到自己
+            CombatTurnWaiter waiter = turnWaiters.get(combatId);
+            if (waiter != null) {
+                waiter.notifyAllWaiting();
+            }
+
+            // 处理后续回合直到轮到玩家或战斗结束
+            return processUntilPlayerTurnOrEndInternal(combat, characterId, result);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * 等待战斗状态变化（阻塞等待）
+     * 用于玩家在非自己回合时发送wait指令
+     *
+     * 阻塞返回条件：
+     * 1. 有任何状态变化（其他玩家完成行动、超时空过等）
+     * 2. 等待超时（10秒）
+     * 3. 战斗结束
+     *
+     * 返回后前端根据最新状态决定下一步操作
+     */
+    public CombatActionResult waitForTurn(String combatId, String characterId) {
+        // 首先检查战斗是否已结束
+        CombatEndInfo endInfo = endedCombatCache.get(combatId);
+        if (endInfo != null) {
+            return createCombatEndedResult(endInfo, characterId);
+        }
+
+        CombatInstance combat = activeCombats.get(combatId);
+        if (combat == null) {
+            endInfo = endedCombatCache.get(combatId);
+            if (endInfo != null) {
+                return createCombatEndedResult(endInfo, characterId);
+            }
+            return CombatActionResult.error("战斗不存在");
+        }
+
+        // 先检查当前状态
+        ReentrantLock lock = getCombatLock(combatId);
+        lock.lock();
+        try {
+            combat = activeCombats.get(combatId);
+            if (combat == null) {
+                endInfo = endedCombatCache.get(combatId);
+                if (endInfo != null) {
+                    return createCombatEndedResult(endInfo, characterId);
+                }
+                return CombatActionResult.error("战斗不存在");
+            }
+
+            CombatCharacter character = combat.findCharacter(characterId);
+            if (character == null) {
+                return CombatActionResult.error("角色不存在");
+            }
+
+            // 检查战斗是否结束
+            if (combat.isFinished()) {
+                CombatActionResult result = CombatActionResult.success("战斗已结束");
                 result.setCombatEnded(true);
                 result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                 return result;
             }
 
-            // 推进行动条到下一个回合
-            combat.advanceToNextTurn();
+            // 检查当前回合，如果已经轮到自己则立即返回
+            Optional<String> currentTurn = combat.getCurrentTurnCharacterId();
+            if (currentTurn.isPresent() && currentTurn.get().equals(characterId)) {
+                CombatActionResult result = CombatActionResult.success("轮到你的回合");
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
+                return result;
+            }
+        } finally {
+            lock.unlock();
+        }
 
-            // 获取当前行动的角色
-            Optional<String> currentTurnOpt = combat.getCurrentTurnCharacterId();
-            if (currentTurnOpt.isEmpty()) {
+        // 不是自己的回合，阻塞等待状态变化
+        CombatTurnWaiter waiter = turnWaiters.get(combatId);
+        if (waiter != null) {
+            log.debug("[战斗 {}] 玩家 {} 开始阻塞等待状态变化", combatId, characterId);
+            CombatTurnWaiter.WaitResult waitResult = waiter.waitForNextTurn(characterId);
+            log.debug("[战斗 {}] 玩家 {} 等待结束: {}", combatId, characterId, waitResult.getStatus());
+        }
+
+        // 被唤醒或超时，返回当前最新状态
+        endInfo = endedCombatCache.get(combatId);
+        if (endInfo != null) {
+            return createCombatEndedResult(endInfo, characterId);
+        }
+
+        combat = activeCombats.get(combatId);
+        if (combat == null) {
+            endInfo = endedCombatCache.get(combatId);
+            if (endInfo != null) {
+                return createCombatEndedResult(endInfo, characterId);
+            }
+            return CombatActionResult.error("战斗不存在");
+        }
+
+        // 返回当前状态，让前端根据状态决定下一步
+        lock.lock();
+        try {
+            combat = activeCombats.get(combatId);
+            if (combat == null) {
+                endInfo = endedCombatCache.get(combatId);
+                if (endInfo != null) {
+                    return createCombatEndedResult(endInfo, characterId);
+                }
+                return CombatActionResult.error("战斗不存在");
+            }
+
+            if (combat.isFinished()) {
+                CombatActionResult result = CombatActionResult.success("战斗已结束");
+                result.setCombatEnded(true);
                 result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                 return result;
             }
 
-            String currentCharacterId = currentTurnOpt.get();
-            CombatCharacter currentCharacter = combat.findCharacter(currentCharacterId);
-
-            if (currentCharacter == null || !currentCharacter.isAlive()) {
-                combat.resetActionBar(currentCharacterId);
-                continue;
+            Optional<String> currentTurn = combat.getCurrentTurnCharacterId();
+            if (currentTurn.isPresent() && currentTurn.get().equals(characterId)) {
+                CombatActionResult result = CombatActionResult.success("轮到你的回合");
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
+                return result;
+            } else {
+                // 仍然不是自己的回合，返回状态让前端继续wait
+                CombatActionResult result = CombatActionResult.success("未轮到你的回合，请输入wait继续等待");
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
+                return result;
             }
-
-            // 如果是玩家回合
-            if (currentCharacter.isPlayer()) {
-                // 启动该玩家的回合超时计时
-                turnTimeoutManager.startPlayerTurn(combat.getCombatId(), currentCharacterId);
-
-                if (currentCharacterId.equals(playerId)) {
-                    // 轮到当前玩家，返回等待输入
-                    result.setMessage("轮到你的回合");
-                    result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
-                    return result;
-                } else {
-                    // 轮到其他玩家，记录日志
-                    combat.addLog("=== 轮到 " + currentCharacter.getName() + " 的回合 ===");
-                    combat.addLog(currentCharacter.getName() + " 等待行动...");
-
-                    // 通知轮到回合的玩家
-                    if (waiter != null) {
-                        waiter.notifyTurn(currentCharacterId);
-                    }
-
-                    // 阻塞等待该玩家执行完操作
-                    if (waiter != null) {
-                        CombatTurnWaiter.WaitResult waitResult = waiter.waitForNextTurn(playerId);
-
-                        if (waitResult.isTimeout()) {
-                            // 等待超时，返回当前战斗状态
-                            result.setMessage("等待超时，请继续等待");
-                            result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
-                            return result;
-                        }
-                        // 被唤醒后继续循环检查
-                        continue;
-                    } else {
-                        // 没有waiter，直接返回等待状态
-                        result.setMessage("等待其他玩家行动...");
-                        result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
-                        return result;
-                    }
-                }
-            }
-
-            // 敌人回合，执行AI
-            if (currentCharacter.isEnemy()) {
-                combat.addLog("=== 轮到 " + currentCharacter.getName() + " 的回合 ===");
-                executeEnemyAIInternal(combat, currentCharacter);
-
-                // 检查战斗是否因敌人行动而结束
-                if (combat.isFinished()) {
-                    List<String> endLogs = finishCombat(combat);
-                    if (endLogs != null) {
-                        result.setCombatEnded(true);
-                        for (String log : endLogs) {
-                            result.addLog(log);
-                        }
-                    }
-                    return result;
-                }
-            }
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -877,46 +1006,57 @@ public class CombatEngine {
             return CombatActionResult.error("战斗不存在");
         }
 
-        // 检查战斗类型，只有PVE战斗才能撤退
-        if (combat.getCombatType() != CombatInstance.CombatType.PVE) {
-            return CombatActionResult.error("PVP战斗中不能撤退");
-        }
-
-        CombatCharacter character = combat.findCharacter(characterId);
-        if (character == null) {
-            return CombatActionResult.error("角色不存在");
-        }
-
-        // 只有玩家可以撤退
-        if (!character.isPlayer()) {
-            return CombatActionResult.error("只有玩家可以撤退");
-        }
-
-        // 撤退：标记为已撤退，但不设置死亡，保留当前生命和法力
-        character.setRetreated(true);
-        combat.addLog(character.getName() + " 撤退了");
-
-        // 从行动条中移除该角色
-        combat.getActionBar().remove(characterId);
-
-        CombatActionResult result = CombatActionResult.success("撤退成功");
-
-        // 检查战斗是否结束
-        List<String> endLogs = finishCombatWithRetreat(combat);
-        if (endLogs != null) {
-            result.setCombatEnded(true);
-            for (String log : endLogs) {
-                result.addLog(log);
+        ReentrantLock lock = getCombatLock(combatId);
+        lock.lock();
+        try {
+            combat = activeCombats.get(combatId);
+            if (combat == null) {
+                return CombatActionResult.error("战斗不存在");
             }
-        } else {
-            // 战斗没有结束，通知所有等待的玩家
-            CombatTurnWaiter waiter = turnWaiters.get(combatId);
-            if (waiter != null) {
-                waiter.notifyAllWaiting();
-            }
-        }
 
-        return result;
+            // 检查战斗类型，只有PVE战斗才能撤退
+            if (combat.getCombatType() != CombatInstance.CombatType.PVE) {
+                return CombatActionResult.error("PVP战斗中不能撤退");
+            }
+
+            CombatCharacter character = combat.findCharacter(characterId);
+            if (character == null) {
+                return CombatActionResult.error("角色不存在");
+            }
+
+            // 只有玩家可以撤退
+            if (!character.isPlayer()) {
+                return CombatActionResult.error("只有玩家可以撤退");
+            }
+
+            // 撤退：标记为已撤退，但不设置死亡，保留当前生命和法力
+            character.setRetreated(true);
+            combat.addLog(character.getName() + " 撤退了");
+
+            // 从行动条中移除该角色
+            combat.getActionBar().remove(characterId);
+
+            CombatActionResult result = CombatActionResult.success("撤退成功");
+
+            // 检查战斗是否结束
+            List<String> endLogs = finishCombatWithRetreat(combat);
+            if (endLogs != null) {
+                result.setCombatEnded(true);
+                for (String log : endLogs) {
+                    result.addLog(log);
+                }
+            } else {
+                // 战斗没有结束，通知所有等待的玩家
+                CombatTurnWaiter waiter = turnWaiters.get(combatId);
+                if (waiter != null) {
+                    waiter.notifyAllWaiting();
+                }
+            }
+
+            return result;
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**
@@ -1140,6 +1280,8 @@ public class CombatEngine {
 
         activeCombats.remove(combatId);
         turnWaiters.remove(combatId);
+        // 注意：不在这里移除锁，因为可能还有其他线程在等待锁
+        // 锁会在一段时间后自动被GC回收
         log.info("战斗结束: combatId={}", combatId);
         return newLogs;
     }
