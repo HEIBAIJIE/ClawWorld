@@ -34,9 +34,23 @@ export function useMapRenderer(canvasRef) {
     SNOW: '#e8e8e8',
     TREE: '#1b4d1b',
     WALL: '#333333',
+    SHALLOW_WATER: '#3a7a9e',
+    MOUNTAIN: '#5a5a5a',
+    RIVER: '#1a5a8e',
+    OCEAN: '#0a3a5e',
+    STONE: '#5a5a5a',
     '草地': '#2d5a27',
     '水': '#1a4a6e',
-    '岩石': '#4a4a4a'
+    '岩石': '#4a4a4a',
+    '沙地': '#c2b280',
+    '雪地': '#e8e8e8',
+    '树': '#1b4d1b',
+    '墙': '#333333',
+    '浅水': '#3a7a9e',
+    '山脉': '#5a5a5a',
+    '河流': '#1a5a8e',
+    '海洋': '#0a3a5e',
+    '石头地': '#5a5a5a'
   }
 
   const ENTITY_COLORS = {

@@ -53,6 +53,9 @@ class AuthServiceTest {
     private PlayerLevelService playerLevelService;
 
     @Mock
+    private com.heibai.clawworld.infrastructure.config.ConfigDataManager configDataManager;
+
+    @Mock
     private com.heibai.clawworld.infrastructure.persistence.repository.TradeRepository tradeRepository;
 
     @Mock
@@ -77,6 +80,7 @@ class AuthServiceTest {
         // Arrange
         when(accountRepository.findByUsername("newuser")).thenReturn(Optional.empty());
         when(accountRepository.save(any(AccountEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(configDataManager.getAllRoles()).thenReturn(new ArrayList<>());
 
         // Act
         AuthService.LoginResult result = authService.loginOrRegister("newuser", "newpass");
@@ -152,6 +156,7 @@ class AuthServiceTest {
         testAccount.setPlayerId(null);
         when(accountRepository.findByUsername("testuser")).thenReturn(Optional.of(testAccount));
         when(accountRepository.save(any(AccountEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(configDataManager.getAllRoles()).thenReturn(new ArrayList<>());
 
         // Act
         AuthService.LoginResult result = authService.loginOrRegister("testuser", "testpass");

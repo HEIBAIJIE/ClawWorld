@@ -7,7 +7,7 @@ import { useCombatStore } from '../stores/combatStore'
 import { useUIStore } from '../stores/uiStore'
 import { gameApi } from '../api/game'
 import { parseLogText, groupLogsByType, extractBySubType } from '../parsers/logParser'
-import { parseMapGrid, parseEntityList, parseMapInfo, parseMoveToInteract } from '../parsers/mapParser'
+import { parseSpecialTerrain, buildMapGrid, parseEntityList, parseMapInfo, parseMoveToInteract } from '../parsers/mapParser'
 import { parsePlayerState, parseSkills, parseEquipment, parseInventory, parsePartyInfo } from '../parsers/playerParser'
 import {
   parseFactions, parseCharacterStatus, parseActionBar, parseCombatStatus,
@@ -108,13 +108,27 @@ export function useCommand() {
         mapStore.setWindowType('map')
         const mapInfo = parseMapInfo(content)
         mapStore.updateMapInfo(mapInfo)
+        // 如果有尺寸和默认地形信息，构建初始网格
+        if (mapInfo.width && mapInfo.height) {
+          const { grid } = buildMapGrid(mapInfo.width, mapInfo.height, mapInfo.defaultTerrain, mapStore.specialTerrains)
+          mapStore.updateGrid(grid)
+        }
+        break
+
+      case '特殊地形':
+        mapStore.setWindowType('map')
+        const specialTerrains = parseSpecialTerrain(content)
+        mapStore.updateSpecialTerrains(specialTerrains)
+        // 重新构建网格
+        if (mapStore.width && mapStore.height) {
+          const { grid } = buildMapGrid(mapStore.width, mapStore.height, mapStore.defaultTerrain, specialTerrains)
+          mapStore.updateGrid(grid)
+        }
         break
 
       case '地图网格':
+        // 兼容旧格式（如果后端还返回地图网格）
         mapStore.setWindowType('map')
-        const { grid, width, height } = parseMapGrid(content)
-        mapStore.updateGrid(grid)
-        mapStore.updateMapInfo({ width, height })
         break
 
       case '玩家状态':

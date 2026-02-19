@@ -50,11 +50,7 @@ public class ShopWindowLogGenerator {
             player.getInventory() != null ? player.getInventory().size() : 0));
         builder.addWindow("商店窗口", playerAssets.toString());
 
-        // 5. 可用指令
-        builder.addWindow("商店窗口", "当前窗口可用指令：\n" +
-            "shop buy [物品名称] [数量] - 购买商品\n" +
-            "shop sell [物品名称] [数量] - 出售物品\n" +
-            "shop leave - 离开商店");
+        // 注意：可用指令已移至系统上下文，不再在每次窗口刷新时输出
     }
 
     /**

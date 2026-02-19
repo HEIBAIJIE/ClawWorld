@@ -240,7 +240,8 @@ public class ConfigDataManager {
     public List<String> getMapTerrain(String mapId, int x, int y) {
         List<MapTerrainConfig> terrains = mapConfigLoader.getMapTerrain(mapId);
         return terrains.stream()
-            .filter(t -> t.getX() == x && t.getY() == y)
+            .filter(t -> x >= Math.min(t.getX1(), t.getX2()) && x <= Math.max(t.getX1(), t.getX2())
+                      && y >= Math.min(t.getY1(), t.getY2()) && y <= Math.max(t.getY1(), t.getY2()))
             .flatMap(t -> Arrays.stream(t.getTerrainTypes().split(",")))
             .map(String::trim)
             .collect(Collectors.toList());

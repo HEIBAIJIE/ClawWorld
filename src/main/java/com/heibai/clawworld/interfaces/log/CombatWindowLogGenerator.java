@@ -129,15 +129,9 @@ public class CombatWindowLogGenerator {
         skills.append("- 普通攻击 [敌方单体] (消耗:0MP, 无CD)\n");
         builder.addWindow("技能列表", skills.toString().trim());
 
-        // 6. 可用指令
-        builder.addWindow("可用指令", "【战斗指令】\n" +
-            "cast [技能名称] - 释放敌方群体、我方群体或自己的技能；对单体技能则随机选择目标\n" +
-            "cast [技能名称] [目标名称] - 释放敌方单体或我方单体的技能\n" +
-            "use [物品名称] - 使用物品\n" +
-            "wait - 跳过回合（或等待自己的回合）\n" +
-            "end - 逃离战斗（角色视为死亡）");
+        // 注意：可用指令已移至系统上下文，不再在每次窗口刷新时输出
 
-        // 7. 当前回合提示
+        // 6. 当前回合提示
         if (combat.getActionBar() != null && !combat.getActionBar().isEmpty()) {
             String currentTurnId = combat.getActionBar().get(0).getCharacterId();
             // 使用回合开始时间作为日志时间戳

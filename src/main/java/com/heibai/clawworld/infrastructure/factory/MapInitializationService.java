@@ -188,17 +188,24 @@ public class MapInitializationService {
             terrain.add(row);
         }
 
-        // 应用特殊地形配置
+        // 应用特殊地形配置（矩形区域）
         List<MapTerrainConfig> terrainConfigs = configDataManager.getMapTerrain(config.getId());
         for (MapTerrainConfig tc : terrainConfigs) {
-            if (tc.getX() >= 0 && tc.getX() < config.getWidth() &&
-                tc.getY() >= 0 && tc.getY() < config.getHeight()) {
+            // 遍历矩形区域内的所有格子
+            int minX = Math.max(0, Math.min(tc.getX1(), tc.getX2()));
+            int maxX = Math.min(config.getWidth() - 1, Math.max(tc.getX1(), tc.getX2()));
+            int minY = Math.max(0, Math.min(tc.getY1(), tc.getY2()));
+            int maxY = Math.min(config.getHeight() - 1, Math.max(tc.getY1(), tc.getY2()));
 
-                GameMap.TerrainCell cell = terrain.get(tc.getY()).get(tc.getX());
-                List<String> terrainTypes = Arrays.stream(tc.getTerrainTypes().split(";"))
-                        .map(String::trim)
-                        .toList();
-                cell.setTerrainTypes(terrainTypes);
+            List<String> terrainTypes = Arrays.stream(tc.getTerrainTypes().split(";"))
+                    .map(String::trim)
+                    .toList();
+
+            for (int y = minY; y <= maxY; y++) {
+                for (int x = minX; x <= maxX; x++) {
+                    GameMap.TerrainCell cell = terrain.get(y).get(x);
+                    cell.setTerrainTypes(terrainTypes);
+                }
             }
         }
 

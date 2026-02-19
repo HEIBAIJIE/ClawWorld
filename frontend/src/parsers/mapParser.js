@@ -1,52 +1,75 @@
 /**
  * 地图数据解析器
- * 解析地图网格、实体列表等信息
+ * 解析特殊地形、实体列表等信息
  */
 
 /**
- * 解析地图网格
- * 输入格式: "(0,11) GRASS  (1,11) GRASS  (2,11) 史莱姆#1  ..."
- * @param {string} content - 地图网格文本
- * @returns {object} { grid: 二维数组, width, height }
+ * 解析特殊地形（矩形区域格式）
+ * 输入格式: "岩石（不可通过） 矩形范围(0,0)~(0,2)"
+ * @param {string} content - 特殊地形文本
+ * @returns {array} 特殊地形矩形数组
  */
-export function parseMapGrid(content) {
-  const cellPattern = /\((\d+),(\d+)\)\s+(\S+)/g
-  const cells = []
-  let match
-  let maxX = 0
-  let maxY = 0
+export function parseSpecialTerrain(content) {
+  const terrains = []
+  const lines = content.split('\n')
+  const pattern = /^(.+?)（(可通过|不可通过)）\s*矩形范围\((\d+),(\d+)\)~\((\d+),(\d+)\)/
 
-  while ((match = cellPattern.exec(content)) !== null) {
-    const x = parseInt(match[1])
-    const y = parseInt(match[2])
-    const cellContent = match[3]
-
-    maxX = Math.max(maxX, x)
-    maxY = Math.max(maxY, y)
-
-    // 判断是地形还是实体
-    const isEntity = !isTerrain(cellContent)
-
-    cells.push({
-      x,
-      y,
-      content: cellContent,
-      isEntity,
-      terrain: isEntity ? 'GRASS' : cellContent, // 如果是实体，默认地形为草地
-      passable: isPassableTerrain(isEntity ? 'GRASS' : cellContent)
-    })
+  for (const line of lines) {
+    const match = line.trim().match(pattern)
+    if (match) {
+      terrains.push({
+        name: match[1].trim(),
+        passable: match[2] === '可通过',
+        x1: parseInt(match[3]),
+        y1: parseInt(match[4]),
+        x2: parseInt(match[5]),
+        y2: parseInt(match[6])
+      })
+    }
   }
 
+  return terrains
+}
+
+/**
+ * 根据特殊地形和默认地形构建地图网格
+ * @param {number} width - 地图宽度
+ * @param {number} height - 地图高度
+ * @param {string} defaultTerrain - 默认地形
+ * @param {array} specialTerrains - 特殊地形矩形数组
+ * @returns {object} { grid: 二维数组, width, height }
+ */
+export function buildMapGrid(width, height, defaultTerrain, specialTerrains) {
   // 构建二维数组 [y][x]
-  const width = maxX + 1
-  const height = maxY + 1
   const grid = []
 
   for (let y = 0; y < height; y++) {
     grid[y] = []
     for (let x = 0; x < width; x++) {
-      const cell = cells.find(c => c.x === x && c.y === y)
-      grid[y][x] = cell || { x, y, terrain: 'GRASS', passable: true, isEntity: false }
+      grid[y][x] = {
+        x,
+        y,
+        terrain: defaultTerrain,
+        passable: isPassableTerrain(defaultTerrain),
+        isEntity: false
+      }
+    }
+  }
+
+  // 应用特殊地形
+  for (const terrain of specialTerrains) {
+    const minX = Math.min(terrain.x1, terrain.x2)
+    const maxX = Math.max(terrain.x1, terrain.x2)
+    const minY = Math.min(terrain.y1, terrain.y2)
+    const maxY = Math.max(terrain.y1, terrain.y2)
+
+    for (let y = minY; y <= maxY && y < height; y++) {
+      for (let x = minX; x <= maxX && x < width; x++) {
+        if (grid[y] && grid[y][x]) {
+          grid[y][x].terrain = terrain.name
+          grid[y][x].passable = terrain.passable
+        }
+      }
     }
   }
 
@@ -54,19 +77,11 @@ export function parseMapGrid(content) {
 }
 
 /**
- * 判断是否为地形
- */
-function isTerrain(content) {
-  const terrains = ['GRASS', 'WATER', 'ROCK', 'SAND', 'SNOW', 'TREE', 'WALL', '草地', '水', '岩石', '沙地', '雪地', '树', '墙']
-  return terrains.includes(content.toUpperCase()) || terrains.includes(content)
-}
-
-/**
  * 判断地形是否可通行
  */
 function isPassableTerrain(terrain) {
-  const impassable = ['WATER', 'ROCK', 'TREE', 'WALL', '水', '岩石', '树', '墙', '河流', '海洋', '山脉']
-  return !impassable.includes(terrain.toUpperCase()) && !impassable.includes(terrain)
+  const impassable = ['WATER', 'ROCK', 'TREE', 'WALL', '水', '岩石', '树', '墙', '河流', '海洋', '山脉', '浅水']
+  return !impassable.includes(terrain?.toUpperCase?.()) && !impassable.includes(terrain)
 }
 
 /**
@@ -156,7 +171,7 @@ function parseInteractionOptions(optionsStr) {
 
 /**
  * 解析地图信息头
- * 输入格式: "当前地图名：森林入口，通往黑暗森林的入口【危险区域】推荐等级: 3"
+ * 输入格式: "当前地图：森林入口（10×10），通往黑暗森林的入口【危险区域】推荐等级: 3，默认地形：草地"
  * @param {string} content - 地图信息文本
  * @returns {object} 地图信息
  */
@@ -165,17 +180,28 @@ export function parseMapInfo(content) {
     name: '',
     description: '',
     isSafe: true,
-    recommendedLevel: 0
+    recommendedLevel: 0,
+    width: 10,
+    height: 10,
+    defaultTerrain: 'GRASS'
   }
 
-  // 解析地图名
-  const nameMatch = content.match(/当前地图名[：:]\s*([^，,【]+)/)
+  // 解析地图名和尺寸
+  const nameMatch = content.match(/当前地图[：:]\s*([^（(]+)[（(](\d+)[×x](\d+)[）)]/)
   if (nameMatch) {
     result.name = nameMatch[1].trim()
+    result.width = parseInt(nameMatch[2])
+    result.height = parseInt(nameMatch[3])
+  } else {
+    // 兼容旧格式
+    const oldNameMatch = content.match(/当前地图名[：:]\s*([^，,【]+)/)
+    if (oldNameMatch) {
+      result.name = oldNameMatch[1].trim()
+    }
   }
 
   // 解析描述
-  const descMatch = content.match(/[，,]([^【]+)/)
+  const descMatch = content.match(/[）)][，,]([^【]+)/)
   if (descMatch) {
     result.description = descMatch[1].trim()
   }
@@ -187,6 +213,12 @@ export function parseMapInfo(content) {
   const levelMatch = content.match(/推荐等级[：:]\s*(\d+)/)
   if (levelMatch) {
     result.recommendedLevel = parseInt(levelMatch[1])
+  }
+
+  // 解析默认地形
+  const terrainMatch = content.match(/默认地形[：:]\s*(\S+)/)
+  if (terrainMatch) {
+    result.defaultTerrain = terrainMatch[1].trim()
   }
 
   return result
@@ -218,7 +250,8 @@ export function parseMoveToInteract(content) {
 }
 
 export default {
-  parseMapGrid,
+  parseSpecialTerrain,
+  buildMapGrid,
   parseEntityList,
   parseMapInfo,
   parseMoveToInteract

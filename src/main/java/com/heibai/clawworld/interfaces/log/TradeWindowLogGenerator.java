@@ -43,15 +43,7 @@ public class TradeWindowLogGenerator {
         // 3. 交易状态
         generateTradeStatus(builder, trade, player.getId());
 
-        // 4. 可用指令
-        builder.addWindow("交易窗口", "当前窗口可用指令：\n" +
-            "trade add [物品名称] - 添加物品到交易框\n" +
-            "trade remove [物品名称] - 从交易框移除物品\n" +
-            "trade money [金额] - 设置交易金额\n" +
-            "trade lock - 锁定交易\n" +
-            "trade unlock - 取消锁定\n" +
-            "trade confirm - 确认交易（双方都锁定后）\n" +
-            "trade end - 取消交易");
+        // 注意：可用指令已移至系统上下文，不再在每次窗口刷新时输出
     }
 
     /**

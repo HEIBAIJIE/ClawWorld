@@ -111,8 +111,10 @@ public class MapConfigLoader {
             List<MapTerrainConfig> terrains = csvReader.readCsv(resource.getInputStream(), record -> {
                 MapTerrainConfig terrain = new MapTerrainConfig();
                 terrain.setMapId(csvReader.getString(record, "mapId"));
-                terrain.setX(csvReader.getInt(record, "x"));
-                terrain.setY(csvReader.getInt(record, "y"));
+                terrain.setX1(csvReader.getInt(record, "x1"));
+                terrain.setY1(csvReader.getInt(record, "y1"));
+                terrain.setX2(csvReader.getInt(record, "x2"));
+                terrain.setY2(csvReader.getInt(record, "y2"));
                 terrain.setTerrainTypes(csvReader.getString(record, "terrainTypes"));
                 return terrain;
             });

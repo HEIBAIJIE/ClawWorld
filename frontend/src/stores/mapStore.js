@@ -10,6 +10,10 @@ export const useMapStore = defineStore('map', () => {
   const height = ref(10)
   const isSafe = ref(true)
   const recommendedLevel = ref(0)
+  const defaultTerrain = ref('GRASS')
+
+  // 特殊地形矩形列表
+  const specialTerrains = ref([])
 
   // 地图网格数据 - 二维数组 [y][x]
   const grid = ref([])
@@ -117,6 +121,13 @@ export const useMapStore = defineStore('map', () => {
     if (data.height !== undefined) height.value = data.height
     if (data.isSafe !== undefined) isSafe.value = data.isSafe
     if (data.recommendedLevel !== undefined) recommendedLevel.value = data.recommendedLevel
+    if (data.defaultTerrain !== undefined) defaultTerrain.value = data.defaultTerrain
+  }
+
+  // 更新特殊地形
+  function updateSpecialTerrains(terrains) {
+    console.log('[MapStore] 更新特殊地形:', terrains.length, '个矩形')
+    specialTerrains.value = terrains
   }
 
   // 更新地图网格
@@ -170,6 +181,8 @@ export const useMapStore = defineStore('map', () => {
     name.value = ''
     width.value = 10
     height.value = 10
+    defaultTerrain.value = 'GRASS'
+    specialTerrains.value = []
     grid.value = []
     entities.value = []
     windowType.value = 'map'
@@ -178,12 +191,13 @@ export const useMapStore = defineStore('map', () => {
   return {
     // 状态
     id, name, description, width, height, isSafe, recommendedLevel,
+    defaultTerrain, specialTerrains,
     grid, entities, windowType,
     // 计算属性
     entitiesByType,
     // 方法
     getEntityAt, getEntitiesAt, isPassable, getDistance,
-    updateMapInfo, updateGrid, updateEntities, updateEntity,
+    updateMapInfo, updateSpecialTerrains, updateGrid, updateEntities, updateEntity,
     addEntity, removeEntity,
     setWindowType, reset
   }

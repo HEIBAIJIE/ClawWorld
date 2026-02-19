@@ -9,6 +9,8 @@ import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.chat.ChatMessage;
 import com.heibai.clawworld.domain.map.GameMap;
 import com.heibai.clawworld.domain.map.MapEntity;
+import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
+import com.heibai.clawworld.infrastructure.config.data.map.MapTerrainConfig;
 import com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity;
 import com.heibai.clawworld.infrastructure.persistence.repository.TradeRepository;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,7 @@ public class MapWindowLogGenerator {
     private final PartyService partyService;
     private final TradeRepository tradeRepository;
     private final MapEntityService mapEntityService;
+    private final ConfigDataManager configDataManager;
 
     /**
      * 生成地图窗口日志
@@ -36,18 +39,28 @@ public class MapWindowLogGenerator {
         // 预计算可达性地图（一次BFS，后续直接查询）
         java.util.Set<String> reachabilityMap = mapEntityService.calculateReachabilityMap(player.getId());
 
-        // 1. 地图基本信息
-        String mapInfo = String.format("当前地图名：%s，%s%s",
+        // 1. 地图基本信息（包含尺寸和默认地形）
+        var mapConfig = configDataManager.getMap(map.getId());
+        String defaultTerrain = mapConfig != null ? mapConfig.getDefaultTerrain() : "GRASS";
+        String mapInfo = String.format("当前地图：%s（%d×%d），%s%s，默认地形：%s",
             map.getName(),
+            map.getWidth(),
+            map.getHeight(),
             map.getDescription(),
-            map.isSafe() ? "【安全区域】" : String.format("【危险区域】推荐等级: %d", map.getRecommendedLevel()));
+            map.isSafe() ? "【安全区域】" : String.format("【危险区域】推荐等级: %d", map.getRecommendedLevel()),
+            getTerrainDisplayName(defaultTerrain));
         builder.addWindow("地图信息", mapInfo);
 
-        // 2. 地图网格
-        builder.addWindow("地图网格", generateMapGrid(map, allEntities, player));
+        // 2. 特殊地形（矩形区域，节省token）
+        String specialTerrain = generateSpecialTerrain(map.getId());
+        if (!specialTerrain.isEmpty()) {
+            builder.addWindow("特殊地形", specialTerrain);
+        }
 
-        // 3. 玩家状态
-        builder.addWindow("玩家状态", "你的状态：\n" + characterInfoService.generatePlayerStatus(player));
+        // 3. 玩家状态（包含当前位置）
+        builder.addWindow("玩家状态", String.format("你的位置：(%d,%d)\n%s",
+            player.getX(), player.getY(),
+            characterInfoService.generatePlayerStatus(player)));
 
         // 4. 技能
         builder.addWindow("技能列表", "你的技能：\n" + characterInfoService.generateSkills(player));
@@ -70,86 +83,64 @@ public class MapWindowLogGenerator {
         // 10. 聊天记录
         builder.addWindow("聊天记录", "新增聊天：\n" + generateChatHistory(chatHistory));
 
-        // 11. 可用指令
-        builder.addWindow("可用指令", "当前窗口可用指令：\n" + generateAvailableCommands());
+        // 注意：可用指令已移至系统上下文，不再在每次窗口刷新时输出
     }
 
-    private String generateMapGrid(GameMap map, List<MapEntity> allEntities, Player currentPlayer) {
+    /**
+     * 生成特殊地形信息（矩形区域格式）
+     * 格式：地形名称（通过性） 矩形范围(x1,y1)~(x2,y2)
+     */
+    private String generateSpecialTerrain(String mapId) {
+        List<MapTerrainConfig> terrainConfigs = configDataManager.getMapTerrain(mapId);
+        if (terrainConfigs == null || terrainConfigs.isEmpty()) {
+            return "";
+        }
+
         StringBuilder sb = new StringBuilder();
-        if (map.getTerrain() != null && !map.getTerrain().isEmpty()) {
-            for (int y = map.getHeight() - 1; y >= 0; y--) {
-                for (int x = 0; x < map.getWidth(); x++) {
-                    sb.append(String.format("(%d,%d) ", x, y));
-
-                    // 找到该位置优先级最高的实体
-                    MapEntity entityAtPos = getHighestPriorityEntityAt(x, y, allEntities, currentPlayer);
-
-                    if (entityAtPos != null) {
-                        sb.append(entityAtPos.getName());
-                    } else if (y < map.getTerrain().size() && x < map.getTerrain().get(y).size()) {
-                        GameMap.TerrainCell cell = map.getTerrain().get(y).get(x);
-                        if (cell.getTerrainTypes() != null && !cell.getTerrainTypes().isEmpty()) {
-                            sb.append(cell.getTerrainTypes().get(0));
-                        } else {
-                            sb.append("空地");
-                        }
-                    } else {
-                        sb.append("空地");
-                    }
-
-                    sb.append("  ");
-                }
-                sb.append("\n");
-            }
-        } else {
-            sb.append("地图数据加载中...");
+        for (MapTerrainConfig tc : terrainConfigs) {
+            String terrainName = getTerrainDisplayName(tc.getTerrainTypes());
+            boolean passable = isTerrainPassable(tc.getTerrainTypes());
+            sb.append(String.format("%s（%s） 矩形范围(%d,%d)~(%d,%d)\n",
+                terrainName,
+                passable ? "可通过" : "不可通过",
+                tc.getX1(), tc.getY1(),
+                tc.getX2(), tc.getY2()));
         }
-        return sb.toString();
+        return sb.toString().trim();
     }
 
     /**
-     * 获取指定位置优先级最高的实体
-     * 优先级：当前玩家 > 传送点 > 敌人 > 其他玩家 > 篝火 > NPC > 其他实体
+     * 获取地形的中文显示名称
      */
-    private MapEntity getHighestPriorityEntityAt(int x, int y, List<MapEntity> allEntities, Player currentPlayer) {
-        MapEntity highestPriorityEntity = null;
-        int highestPriority = -1;
-
-        for (MapEntity entity : allEntities) {
-            if (entity.getX() == x && entity.getY() == y) {
-                int priority = getEntityDisplayPriority(entity, currentPlayer);
-                if (priority > highestPriority) {
-                    highestPriority = priority;
-                    highestPriorityEntity = entity;
-                }
-            }
-        }
-
-        return highestPriorityEntity;
+    private String getTerrainDisplayName(String terrainType) {
+        if (terrainType == null) return "未知";
+        // 处理多地形（分号分隔）
+        String firstTerrain = terrainType.split(";")[0].trim();
+        return switch (firstTerrain.toUpperCase()) {
+            case "GRASS" -> "草地";
+            case "SAND" -> "沙地";
+            case "SNOW" -> "雪地";
+            case "STONE" -> "石头地";
+            case "SHALLOW_WATER" -> "浅水";
+            case "TREE" -> "树";
+            case "ROCK" -> "岩石";
+            case "MOUNTAIN" -> "山脉";
+            case "RIVER" -> "河流";
+            case "OCEAN" -> "海洋";
+            case "WALL" -> "墙";
+            default -> firstTerrain;
+        };
     }
 
     /**
-     * 获取实体的显示优先级
-     * 优先级：当前玩家(100) > 传送点(90) > 敌人(80) > 其他玩家(70) > 篝火(60) > NPC(50) > 其他实体(10)
+     * 判断地形是否可通过
      */
-    private int getEntityDisplayPriority(MapEntity entity, Player currentPlayer) {
-        String entityType = entity.getEntityType();
-        if (entityType == null) {
-            return 10; // 其他实体
-        }
-
-        // 当前玩家优先级最高
-        if ("PLAYER".equals(entityType) && currentPlayer != null && entity.getName().equals(currentPlayer.getName())) {
-            return 100;
-        }
-
-        return switch (entityType.toUpperCase()) {
-            case "WAYPOINT" -> 90;
-            case "ENEMY", "ENEMY_ELITE", "ENEMY_BOSS", "ENEMY_WORLD_BOSS" -> 80;
-            case "PLAYER" -> 70; // 其他玩家
-            case "CAMPFIRE" -> 60;
-            case "NPC" -> 50;
-            default -> 10;
+    private boolean isTerrainPassable(String terrainType) {
+        if (terrainType == null) return true;
+        String firstTerrain = terrainType.split(";")[0].trim().toUpperCase();
+        return switch (firstTerrain) {
+            case "TREE", "ROCK", "MOUNTAIN", "RIVER", "OCEAN", "WALL" -> false;
+            default -> true;
         };
     }
 
@@ -183,7 +174,7 @@ public class MapWindowLogGenerator {
                 if (nearestPos == null) {
                     sb.append(" [无可达路径]");
                 } else {
-                    sb.append(" [需移动]");
+                    sb.append(" [需移动至周边交互]");
                 }
             }
 
@@ -310,23 +301,6 @@ public class MapWindowLogGenerator {
             sb.append("(暂无聊天记录，使用 say 指令发送消息)");
         }
         return sb.toString();
-    }
-
-    private String generateAvailableCommands() {
-        return "inspect self - 查看自身状态\n" +
-            "inspect [物品名称] - 查看物品详情（效果、价格等）\n" +
-            "move [x] [y] - 移动到坐标\n" +
-            "interact [目标名称] [选项] - 与NPC/物体交互\n" +
-            "use [物品名称] - 使用消耗品/技能书\n" +
-            "equip [装备名称] - 装备物品\n" +
-            "attribute add [str/agi/int/vit] [数量] - 分配属性点（力量/敏捷/智力/体力）\n" +
-            "say [频道] [消息] - 聊天（频道：world/map/party）\n" +
-            "say to [玩家名称] [消息] - 私聊\n" +
-            "party kick [玩家名称] - 踢出队员（队长）\n" +
-            "party end - 解散队伍（队长）\n" +
-            "party leave - 离开队伍\n" +
-            "wait [秒数] - 等待（最多60秒）\n" +
-            "leave - 下线";
     }
 
     private List<String> getEntityInteractionOptions(MapEntity entity, Player viewer, GameMap map) {
