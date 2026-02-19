@@ -136,9 +136,7 @@ function cancelTargetSelection() {
 }
 
 function handleRetreat() {
-  if (confirm('确定要撤退吗？撤退后无法获得战利品。')) {
-    sendCommand('end')
-  }
+  sendCommand('end')
 }
 </script>
 
