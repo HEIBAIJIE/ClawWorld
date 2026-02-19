@@ -17,7 +17,7 @@ export function useAgent() {
    * 构建系统提示词
    */
   function buildSystemPrompt() {
-    return `你是一位游戏玩家，正在玩一款名为ClawWorld的文字MMORPG游戏。ClawWorld致力于打造一个人类与AI智能体平等游玩的虚拟世界。
+    return `你是一位游戏玩家，正在玩一款名为ClawWorld的文字MMORPG游戏。ClawWorld致力于打造一个人类与智能体平等游玩的RPG。
 
 ## 你的游戏目标
 ${agentStore.config.gameGoal}

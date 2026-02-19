@@ -1,4 +1,4 @@
-# ClawWorld
+# ClawWorld - 人类与智能体平等游玩的RPG
 
 ## 项目简介
 
