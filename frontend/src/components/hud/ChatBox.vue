@@ -135,7 +135,7 @@ onMounted(() => {
 <style scoped>
 .chat-box {
   position: absolute;
-  bottom: 12px;
+  bottom: 40px;
   left: 12px;
   z-index: 50;
   width: 320px;

@@ -9,24 +9,30 @@
     <canvas
       ref="canvasRef"
       class="map-canvas"
+      :class="{ dragging: isDragging }"
       @mousemove="handleMouseMove"
       @mouseleave="handleMouseLeave"
       @wheel.prevent="handleWheel"
+      @mousedown="handleMouseDown"
     ></canvas>
 
-    <!-- 坐标提示 -->
-    <div class="coord-tooltip" v-if="hoveredCell">
-      ({{ hoveredCell.x }}, {{ hoveredCell.y }})
-      <template v-if="hoveredEntity">
-        - {{ hoveredEntity.name }}
-      </template>
-    </div>
+    <!-- 重置视角按钮 -->
+    <button
+      v-if="hasDragOffset"
+      class="reset-view-btn"
+      @click="resetDragOffset"
+      title="重置视角"
+    >
+      ⌂
+    </button>
 
-    <!-- 操作提示 -->
+    <!-- 操作提示（含坐标） -->
     <div class="control-hints">
+      <span v-if="hoveredCell" class="coord-hint">({{ hoveredCell.x }}, {{ hoveredCell.y }})<template v-if="hoveredEntity"> - {{ hoveredEntity.name }}</template></span>
       <span>WASD 移动</span>
       <span>点击 交互</span>
       <span>滚轮 缩放</span>
+      <span>拖动 平移</span>
     </div>
   </div>
 </template>
@@ -51,16 +57,26 @@ const canvasRef = ref(null)
 // 使用地图渲染器
 const {
   hoveredCell,
+  isDragging,
+  dragOffsetX,
+  dragOffsetY,
   render,
   screenToMap,
   handleMouseMove,
   handleMouseLeave,
   handleWheel,
+  handleMouseDown,
+  resetDragOffset,
   resizeCanvas
 } = useMapRenderer(canvasRef)
 
 // 使用键盘控制
 useKeyboard(mapViewRef)
+
+// 是否有拖动偏移
+const hasDragOffset = computed(() => {
+  return Math.abs(dragOffsetX.value) > 5 || Math.abs(dragOffsetY.value) > 5
+})
 
 // 悬浮的实体
 const hoveredEntity = computed(() => {
@@ -137,18 +153,35 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   display: block;
+  cursor: grab;
 }
 
-.coord-tooltip {
+.map-canvas.dragging {
+  cursor: grabbing;
+}
+
+.reset-view-btn {
   position: absolute;
   top: 8px;
-  left: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
   background: rgba(37, 37, 37, 0.9);
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 11px;
   color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.reset-view-btn:hover {
+  background: rgba(76, 175, 80, 0.3);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .control-hints {
@@ -165,5 +198,10 @@ onMounted(() => {
   background: rgba(37, 37, 37, 0.8);
   padding: 2px 6px;
   border-radius: 2px;
+}
+
+.control-hints .coord-hint {
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 </style>

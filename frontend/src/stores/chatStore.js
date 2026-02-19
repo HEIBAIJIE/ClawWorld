@@ -26,10 +26,10 @@ export const useChatStore = defineStore('chat', () => {
 
   // 添加聊天消息（自动去重）
   function addMessage(channel, sender, content, timestamp) {
-    // 生成唯一ID用于去重
-    const msgId = `${channel}-${sender}-${content}-${timestamp}`
+    // 生成唯一ID用于去重（不包含时间戳，因为窗口消息每次都是新时间戳）
+    const msgId = `${channel}-${sender}-${content}`
 
-    // 检查是否已存在
+    // 检查是否已存在相同内容的消息
     const exists = messages.value.some(msg => msg.id === msgId)
     if (exists) {
       return false

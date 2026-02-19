@@ -25,6 +25,13 @@ export function useMapRenderer(canvasRef) {
   // 鼠标悬浮的格子
   const hoveredCell = ref(null)
 
+  // 拖动状态
+  const isDragging = ref(false)
+  const dragStartX = ref(0)
+  const dragStartY = ref(0)
+  const dragOffsetX = ref(0)  // 像素级别的拖动偏移
+  const dragOffsetY = ref(0)
+
   // 颜色配置
   const TERRAIN_COLORS = {
     GRASS: '#2d5a27',
@@ -104,6 +111,10 @@ export function useMapRenderer(canvasRef) {
       ? Math.floor((viewportHeight - mapStore.height) / 2)
       : 0
 
+    // 应用拖动偏移（保存当前状态）
+    ctx.save()
+    ctx.translate(dragOffsetX.value, dragOffsetY.value)
+
     // 渲染地形
     renderTerrain(ctx, viewportWidth, viewportHeight)
 
@@ -120,6 +131,9 @@ export function useMapRenderer(canvasRef) {
     if (hoveredCell.value) {
       renderHoveredCell(ctx)
     }
+
+    // 恢复状态
+    ctx.restore()
   }
 
   /**
@@ -359,9 +373,13 @@ export function useMapRenderer(canvasRef) {
     const canvas = canvasRef.value
     if (!canvas) return null
 
+    // 考虑拖动偏移后的屏幕坐标
+    const adjustedScreenX = screenX - dragOffsetX.value
+    const adjustedScreenY = screenY - dragOffsetY.value
+
     // 屏幕格子坐标
-    const vx = Math.floor(screenX / CELL_SIZE.value)
-    const vy = Math.floor(screenY / CELL_SIZE.value)
+    const vx = Math.floor(adjustedScreenX / CELL_SIZE.value)
+    const vy = Math.floor(adjustedScreenY / CELL_SIZE.value)
 
     // 反向计算地图坐标
     // vx = mapX - offsetX + screenOffsetX => mapX = vx + offsetX - screenOffsetX
@@ -403,6 +421,65 @@ export function useMapRenderer(canvasRef) {
     event.preventDefault()
     const delta = event.deltaY > 0 ? -4 : 4
     CELL_SIZE.value = Math.max(MIN_CELL_SIZE, Math.min(MAX_CELL_SIZE, CELL_SIZE.value + delta))
+    render()
+  }
+
+  /**
+   * 处理鼠标按下（开始拖动）
+   */
+  function handleMouseDown(event) {
+    // 只响应左键
+    if (event.button !== 0) return
+
+    isDragging.value = true
+    dragStartX.value = event.clientX
+    dragStartY.value = event.clientY
+
+    // 添加全局事件监听
+    document.addEventListener('mousemove', handleDragMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }
+
+  /**
+   * 处理拖动移动
+   */
+  function handleDragMove(event) {
+    if (!isDragging.value) return
+
+    const deltaX = event.clientX - dragStartX.value
+    const deltaY = event.clientY - dragStartY.value
+
+    // 直接使用像素偏移
+    const tempDragOffsetX = dragOffsetX.value + deltaX
+    const tempDragOffsetY = dragOffsetY.value + deltaY
+
+    // 限制拖动范围（像素级别，约10格）
+    const maxDrag = 10 * CELL_SIZE.value
+    dragOffsetX.value = Math.max(-maxDrag, Math.min(maxDrag, tempDragOffsetX))
+    dragOffsetY.value = Math.max(-maxDrag, Math.min(maxDrag, tempDragOffsetY))
+
+    // 更新起始点
+    dragStartX.value = event.clientX
+    dragStartY.value = event.clientY
+
+    render()
+  }
+
+  /**
+   * 处理鼠标松开（结束拖动）
+   */
+  function handleMouseUp() {
+    isDragging.value = false
+    document.removeEventListener('mousemove', handleDragMove)
+    document.removeEventListener('mouseup', handleMouseUp)
+  }
+
+  /**
+   * 重置拖动偏移（回到玩家中心）
+   */
+  function resetDragOffset() {
+    dragOffsetX.value = 0
+    dragOffsetY.value = 0
     render()
   }
 
@@ -450,11 +527,17 @@ export function useMapRenderer(canvasRef) {
     offsetX,
     offsetY,
     hoveredCell,
+    isDragging,
+    dragOffsetX,
+    dragOffsetY,
     render,
     screenToMap,
     handleMouseMove,
     handleMouseLeave,
     handleWheel,
+    handleMouseDown,
+    handleMouseUp,
+    resetDragOffset,
     resizeCanvas
   }
 }
