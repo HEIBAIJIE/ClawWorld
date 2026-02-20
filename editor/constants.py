@@ -1,0 +1,77 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+游戏常量定义
+"""
+
+# 地形类型
+TERRAIN_TYPES = [
+    'GRASS', 'SAND', 'SNOW', 'STONE', 'SHALLOW_WATER',
+    'TREE', 'ROCK', 'MOUNTAIN', 'RIVER', 'OCEAN', 'WALL'
+]
+
+# 可通过的地形
+PASSABLE_TERRAINS = ['GRASS', 'SAND', 'SNOW', 'STONE', 'SHALLOW_WATER']
+
+# 地形颜色映射
+TERRAIN_COLORS = {
+    'GRASS': '#90EE90',
+    'SAND': '#F4A460',
+    'SNOW': '#FFFAFA',
+    'STONE': '#808080',
+    'SHALLOW_WATER': '#87CEEB',
+    'TREE': '#228B22',
+    'ROCK': '#696969',
+    'MOUNTAIN': '#8B4513',
+    'RIVER': '#4169E1',
+    'OCEAN': '#000080',
+    'WALL': '#2F4F4F'
+}
+
+# 实体类型
+ENTITY_TYPES = ['WAYPOINT', 'NPC', 'ENEMY', 'CAMPFIRE']
+
+# 实体颜色
+ENTITY_COLORS = {
+    'WAYPOINT': '#FFD700',
+    'NPC': '#00FF00',
+    'ENEMY': '#FF0000',
+    'CAMPFIRE': '#FF4500'
+}
+
+# 敌人品阶
+ENEMY_TIERS = ['NORMAL', 'ELITE', 'MAP_BOSS', 'SERVER_BOSS']
+
+# 物品类型
+ITEM_TYPES = ['CONSUMABLE', 'MATERIAL', 'SKILL_BOOK']
+
+# 物品效果
+ITEM_EFFECTS = ['HEAL_HP', 'HEAL_MP', 'LEARN_SKILL', 'RESET_ATTRIBUTES', 'NONE']
+
+# 装备槽位
+EQUIPMENT_SLOTS = [
+    'HEAD', 'CHEST', 'LEGS', 'FEET',
+    'LEFT_HAND', 'RIGHT_HAND', 'ACCESSORY1', 'ACCESSORY2'
+]
+
+# 稀有度
+RARITIES = ['COMMON', 'EXCELLENT', 'RARE', 'EPIC', 'LEGENDARY', 'MYTHIC']
+
+# 稀有度颜色
+RARITY_COLORS = {
+    'COMMON': '#FFFFFF',
+    'EXCELLENT': '#00FF00',
+    'RARE': '#0000FF',
+    'EPIC': '#800080',
+    'LEGENDARY': '#FFA500',
+    'MYTHIC': '#FF0000'
+}
+
+# 职业
+ROLES = ['WARRIOR', 'RANGER', 'MAGE', 'PRIEST']
+
+# 技能目标类型
+TARGET_TYPES = ['ENEMY_SINGLE', 'ENEMY_ALL', 'ALLY_SINGLE', 'ALLY_ALL', 'SELF']
+
+# 伤害类型
+DAMAGE_TYPES = ['PHYSICAL', 'MAGICAL', 'NONE']
