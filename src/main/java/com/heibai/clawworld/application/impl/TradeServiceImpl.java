@@ -3,6 +3,9 @@ package com.heibai.clawworld.application.impl;
 import com.heibai.clawworld.application.service.WindowStateService;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.trade.Trade;
+import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
+import com.heibai.clawworld.infrastructure.config.data.item.EquipmentConfig;
+import com.heibai.clawworld.infrastructure.config.data.item.ItemConfig;
 import com.heibai.clawworld.infrastructure.persistence.entity.TradeEntity;
 import com.heibai.clawworld.infrastructure.persistence.mapper.TradeMapper;
 import com.heibai.clawworld.infrastructure.persistence.repository.AccountRepository;
@@ -34,6 +37,7 @@ public class TradeServiceImpl implements TradeService {
     private final PlayerRepository playerRepository;
     private final AccountRepository accountRepository;
     private final WindowStateService windowStateService;
+    private final ConfigDataManager configDataManager;
 
     @Override
     @Transactional
@@ -312,8 +316,56 @@ public class TradeServiceImpl implements TradeService {
             return OperationResult.error("你不是此交易的参与者");
         }
 
-        // 移除物品（根据itemName查找，这里简化处理，实际可能需要更精确的匹配）
-        boolean removed = offer.getItems().removeIf(item -> item.getItemId().contains(itemName));
+        // 根据物品名称查找对应的物品ID
+        // 首先尝试作为普通物品查找
+        ItemConfig itemConfig = configDataManager.getItemByName(itemName);
+        String targetItemId = null;
+        Integer targetInstanceNumber = null;
+
+        if (itemConfig != null) {
+            // 普通物品，直接使用物品ID
+            targetItemId = itemConfig.getId();
+        } else {
+            // 可能是装备（带有实例号的名称，如 "铁剑#1"）
+            // 尝试解析装备名称
+            if (itemName.contains("#")) {
+                int hashIndex = itemName.lastIndexOf('#');
+                String baseName = itemName.substring(0, hashIndex);
+                String instanceStr = itemName.substring(hashIndex + 1);
+                try {
+                    targetInstanceNumber = Integer.parseInt(instanceStr);
+                    // 根据基础名称查找装备配置
+                    EquipmentConfig equipConfig = configDataManager.getAllEquipment().stream()
+                        .filter(e -> e.getName().equals(baseName))
+                        .findFirst()
+                        .orElse(null);
+                    if (equipConfig != null) {
+                        targetItemId = equipConfig.getId();
+                    }
+                } catch (NumberFormatException e) {
+                    // 解析失败，忽略
+                }
+            }
+        }
+
+        if (targetItemId == null) {
+            return OperationResult.error("物品不存在: " + itemName);
+        }
+
+        // 移除物品
+        final String finalTargetItemId = targetItemId;
+        final Integer finalTargetInstanceNumber = targetInstanceNumber;
+        boolean removed = offer.getItems().removeIf(item -> {
+            if (!item.getItemId().equals(finalTargetItemId)) {
+                return false;
+            }
+            // 如果是装备，还需要匹配实例号
+            if (finalTargetInstanceNumber != null) {
+                return finalTargetInstanceNumber.equals(item.getEquipmentInstanceNumber());
+            }
+            return true;
+        });
+
         if (!removed) {
             return OperationResult.error("物品不在交易列表中");
         }

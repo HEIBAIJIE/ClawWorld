@@ -436,6 +436,20 @@ public class CommandParser {
                         .rawCommand(rawCommand)
                         .build();
 
+            case "wait":
+                int waitSeconds = 1; // 默认等待1秒
+                if (parts.length >= 3) {
+                    try {
+                        waitSeconds = Integer.parseInt(parts[2]);
+                    } catch (NumberFormatException e) {
+                        throw new CommandParseException("trade wait 指令的秒数必须是整数");
+                    }
+                }
+                return TradeWaitCommand.builder()
+                        .seconds(waitSeconds)
+                        .rawCommand(rawCommand)
+                        .build();
+
             default:
                 throw new CommandParseException("未知的 trade 子命令: " + subCommand);
         }

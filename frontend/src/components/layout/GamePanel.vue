@@ -23,6 +23,9 @@
 
       <!-- 战斗窗口（覆盖在地图上） -->
       <CombatWindow v-if="mapStore.windowType === 'combat' || combatStore.showResult" />
+
+      <!-- 交易窗口（覆盖在地图上） -->
+      <TradeWindow v-if="tradeStore.isInTrade" />
     </div>
 
     <!-- 功能按钮栏 -->
@@ -40,6 +43,7 @@
 import { useUIStore } from '../../stores/uiStore'
 import { useMapStore } from '../../stores/mapStore'
 import { useCombatStore } from '../../stores/combatStore'
+import { useTradeStore } from '../../stores/tradeStore'
 import MapView from '../map/MapView.vue'
 import ActionBar from '../panels/ActionBar.vue'
 import CharacterPanel from '../panels/CharacterPanel.vue'
@@ -47,12 +51,14 @@ import InventoryPanel from '../panels/InventoryPanel.vue'
 import PartyPanel from '../panels/PartyPanel.vue'
 import EntityListPanel from '../panels/EntityListPanel.vue'
 import CombatWindow from '../combat/CombatWindow.vue'
+import TradeWindow from '../trade/TradeWindow.vue'
 import PlayerStatusHUD from '../hud/PlayerStatusHUD.vue'
 import ChatBox from '../hud/ChatBox.vue'
 
 const uiStore = useUIStore()
 const mapStore = useMapStore()
 const combatStore = useCombatStore()
+const tradeStore = useTradeStore()
 </script>
 
 <style scoped>

@@ -63,6 +63,7 @@ ${agentStore.config.behaviorStyle}
 - trade lock/unlock - 锁定/解锁
 - trade confirm - 确认交易（双方锁定后有效）
 - trade end - 取消交易
+- trade wait [秒数] - 等待并刷新交易状态（锁定后使用，用于获取对方最新状态）
 
 4、商店窗口：
 - shop buy/sell [物品名称] [数量] - 买卖商品

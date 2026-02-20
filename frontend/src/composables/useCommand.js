@@ -4,6 +4,7 @@ import { usePlayerStore } from '../stores/playerStore'
 import { useMapStore } from '../stores/mapStore'
 import { usePartyStore } from '../stores/partyStore'
 import { useCombatStore } from '../stores/combatStore'
+import { useTradeStore } from '../stores/tradeStore'
 import { useUIStore } from '../stores/uiStore'
 import { useAgentStore } from '../stores/agentStore'
 import { gameApi } from '../api/game'
@@ -25,6 +26,7 @@ export function useCommand() {
   const mapStore = useMapStore()
   const partyStore = usePartyStore()
   const combatStore = useCombatStore()
+  const tradeStore = useTradeStore()
   const uiStore = useUIStore()
   const agentStore = useAgentStore()
 
@@ -256,6 +258,12 @@ export function useCommand() {
         processMapWindowContent(content)
         break
 
+      // ===== 交易窗口相关 =====
+      case '交易窗口':
+        mapStore.setWindowType('trade')
+        processTradeWindowContent(content)
+        break
+
       default:
         // 未知的 subType，尝试用旧的内容匹配方式处理
         processMapWindowContent(content)
@@ -409,6 +417,162 @@ export function useCommand() {
   }
 
   /**
+   * 处理交易窗口内容
+   * 解析交易窗口的初始信息：交易对象、我方资产
+   */
+  function processTradeWindowContent(content) {
+    console.log('[Command] 处理交易窗口内容:', content)
+
+    // 解析交易对象: "与 巧巧 的交易"
+    const partnerMatch = content.match(/与\s+(.+?)\s+的交易/)
+    if (partnerMatch) {
+      const partnerName = partnerMatch[1]
+      // 如果还没开始交易，先初始化（后续资产日志会更新）
+      if (!tradeStore.isInTrade) {
+        tradeStore.startTrade(partnerName, playerStore.gold, playerStore.inventory)
+      }
+      return
+    }
+
+    // 解析我方资产: "你的资产：..."
+    if (content.includes('你的资产') || content.includes('金币:') || content.includes('金币：')) {
+      const goldMatch = content.match(/金币[：:]\s*(\d+)/)
+      const gold = goldMatch ? parseInt(goldMatch[1]) : playerStore.gold
+
+      // 解析背包物品
+      const inventory = parseTradeInventory(content)
+
+      // 更新交易资产
+      if (tradeStore.isInTrade) {
+        tradeStore.updateMyAssets(gold, inventory.length > 0 ? inventory : playerStore.inventory)
+      }
+    }
+  }
+
+  /**
+   * 解析交易窗口中的背包物品
+   */
+  function parseTradeInventory(content) {
+    const inventory = []
+    const lines = content.split('\n')
+
+    let inInventorySection = false
+    for (const line of lines) {
+      if (line.includes('背包物品')) {
+        inInventorySection = true
+        continue
+      }
+
+      if (inInventorySection && line.trim().startsWith('-')) {
+        // 格式: "- 小型生命药水 x1" 或 "- 铁剑#1"
+        const itemMatch = line.match(/-\s+(.+?)(?:\s+x(\d+))?$/)
+        if (itemMatch) {
+          const name = itemMatch[1].trim()
+          const quantity = itemMatch[2] ? parseInt(itemMatch[2]) : 1
+          const isEquipment = name.includes('#')
+          inventory.push({ name, quantity, isEquipment })
+        }
+      }
+    }
+
+    return inventory
+  }
+
+  /**
+   * 解析交易状态
+   * 格式：
+   * 交易状态：
+   * 你的提供：
+   *   金币: 20
+   *   物品:
+   *     - 小型生命药水
+   *   状态: 已锁定
+   * 对方的提供：
+   *   金币: 10
+   *   物品:
+   *     - 小型法力药水
+   *   状态: 未锁定
+   */
+  function parseTradeState(content) {
+    const result = {
+      myOfferGold: 0,
+      myOfferItems: [],
+      myLocked: false,
+      partnerOfferGold: 0,
+      partnerOfferItems: [],
+      partnerLocked: false
+    }
+
+    const lines = content.split('\n')
+    let currentSection = null // 'my' | 'partner'
+    let inItemsSection = false
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+
+      if (trimmed.includes('你的提供')) {
+        currentSection = 'my'
+        inItemsSection = false
+        continue
+      }
+
+      if (trimmed.includes('对方的提供')) {
+        currentSection = 'partner'
+        inItemsSection = false
+        continue
+      }
+
+      if (!currentSection) continue
+
+      // 解析金币
+      const goldMatch = trimmed.match(/金币[：:]\s*(\d+)/)
+      if (goldMatch) {
+        const gold = parseInt(goldMatch[1])
+        if (currentSection === 'my') {
+          result.myOfferGold = gold
+        } else {
+          result.partnerOfferGold = gold
+        }
+        continue
+      }
+
+      // 进入物品列表
+      if (trimmed.includes('物品:') || trimmed.includes('物品：')) {
+        inItemsSection = true
+        continue
+      }
+
+      // 解析物品
+      if (inItemsSection && trimmed.startsWith('-')) {
+        const itemName = trimmed.substring(1).trim()
+        if (itemName && itemName !== '(无)') {
+          const isEquipment = itemName.includes('#')
+          if (currentSection === 'my') {
+            result.myOfferItems.push({ name: itemName, quantity: 1, isEquipment })
+          } else {
+            result.partnerOfferItems.push({ name: itemName, quantity: 1, isEquipment })
+          }
+        }
+        continue
+      }
+
+      // 解析锁定状态
+      if (trimmed.includes('状态:') || trimmed.includes('状态：')) {
+        const isLocked = trimmed.includes('已锁定')
+        if (currentSection === 'my') {
+          result.myLocked = isLocked
+        } else {
+          result.partnerLocked = isLocked
+        }
+        inItemsSection = false
+        continue
+      }
+    }
+
+    return result
+  }
+
+  /**
    * 处理状态类型的日志条目
    */
   function processStateEntry(entry) {
@@ -423,11 +587,18 @@ export function useCommand() {
         if (content.includes('切换到战斗窗口')) {
           mapStore.setWindowType('combat')
           combatStore.updateCombatState({ isInCombat: true })
+        } else if (content.includes('切换到交易窗口')) {
+          mapStore.setWindowType('trade')
+          // 交易窗口的详细信息会在后续的交易窗口日志中处理
         } else if (content.includes('切换到地图窗口')) {
           // 如果正在显示战斗结果，不要切换窗口类型，让战斗窗口继续显示
           if (!combatStore.showResult) {
             mapStore.setWindowType('map')
             combatStore.reset()
+          }
+          // 如果从交易窗口切换回来，结束交易
+          if (tradeStore.isInTrade) {
+            tradeStore.endTrade()
           }
         }
         break
@@ -568,6 +739,26 @@ export function useCommand() {
         // 注意：即使 isInCombat 已经被重置，也要检查是否包含战斗结果
         if (combatStore.isInCombat || content.includes('获得胜利')) {
           processCombatCommandResponse(content)
+        }
+
+        // 处理交易相关的指令响应
+        if (tradeStore.isInTrade) {
+          // 交易完成
+          if (content.includes('交易完成')) {
+            tradeStore.endTrade()
+          }
+          // 交易取消/终止
+          else if (content.includes('交易已取消') || content.includes('交易终止') || content.includes('交易已终止')) {
+            tradeStore.endTrade()
+          }
+        }
+        break
+
+      case '交易状态':
+        // 处理交易状态更新
+        if (tradeStore.isInTrade) {
+          const tradeState = parseTradeState(content)
+          tradeStore.updateTradeState(tradeState)
         }
         break
 
