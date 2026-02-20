@@ -21,7 +21,8 @@
           <div class="skill-cost">
             <span v-if="skill.manaCost > 0">{{ skill.manaCost }} MP</span>
             <span v-else>无消耗</span>
-            <span v-if="skill.cooldown > 0" class="skill-cd">CD: {{ skill.cooldown }}回合</span>
+            <span v-if="skill.currentCooldown > 0" class="skill-cd cooling">冷却中: {{ skill.currentCooldown }}回合</span>
+            <span v-else-if="skill.cooldown > 0" class="skill-cd">CD: {{ skill.cooldown }}回合</span>
           </div>
         </div>
 
@@ -48,7 +49,10 @@ function canUseSkill(skill) {
   if (selfChar && selfChar.currentMana < skill.manaCost) {
     return false
   }
-  // TODO: 检查冷却
+  // 检查冷却
+  if (skill.currentCooldown > 0) {
+    return false
+  }
   return true
 }
 
@@ -160,6 +164,10 @@ function handleSelectSkill(skill) {
 
 .skill-cd {
   color: var(--text-muted);
+}
+
+.skill-cd.cooling {
+  color: #f44336;
 }
 
 .no-skills {

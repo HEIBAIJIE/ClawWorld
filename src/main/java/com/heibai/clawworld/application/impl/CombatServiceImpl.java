@@ -628,14 +628,4 @@ public class CombatServiceImpl implements CombatService {
     public long getTurnStartTime(String combatId) {
         return combatEngine.getTurnStartTime(combatId);
     }
-
-    /**
-     * 根据技能名称查找技能ID
-     * 如果名称本身就是ID，直接返回；否则从配置中查找
-     * @deprecated 使用 SkillResolver.findSkillIdByName 代替
-     */
-    @Deprecated
-    private String findSkillIdByName(String skillName) {
-        return skillResolver.findSkillIdByName(skillName);
-    }
 }

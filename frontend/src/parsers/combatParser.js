@@ -196,13 +196,14 @@ export function parseCombatResult(content) {
  * 输入格式:
  * "- 普通攻击 [敌方单体] (消耗:0MP, 无CD)"
  * "- 火球术 [敌方单体] (消耗:10MP, CD:2回合)"
+ * "- 火球术 [敌方单体] (消耗:10MP, CD:2回合) [冷却中:1回合]"
  * @param {string} content - 技能列表文本
  * @returns {array} 技能数组
  */
 export function parseSkillList(content) {
   const skills = []
   const lines = content.split('\n')
-  const skillPattern = /^-\s*(.+?)\s*\[([^\]]+)\]\s*\(消耗[：:](\d+)MP(?:,\s*(?:无CD|CD[：:](\d+)回合))?\)/
+  const skillPattern = /^-\s*(.+?)\s*\[([^\]]+)\]\s*\(消耗[：:](\d+)MP(?:,\s*(?:无CD|CD[：:](\d+)回合))?\)(?:\s*\[冷却中[：:](\d+)回合\])?/
 
   for (const line of lines) {
     const match = line.trim().match(skillPattern)
@@ -212,7 +213,8 @@ export function parseSkillList(content) {
         targetType: parseTargetType(match[2]),
         targetTypeText: match[2],
         manaCost: parseInt(match[3]),
-        cooldown: match[4] ? parseInt(match[4]) : 0
+        cooldown: match[4] ? parseInt(match[4]) : 0,
+        currentCooldown: match[5] ? parseInt(match[5]) : 0
       })
     }
   }

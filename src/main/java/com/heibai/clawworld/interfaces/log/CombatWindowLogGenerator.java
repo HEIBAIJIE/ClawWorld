@@ -105,6 +105,8 @@ public class CombatWindowLogGenerator {
         skills.append("【你的技能】\n");
         // 从玩家状态获取技能列表
         Player player = playerSessionService.getPlayerState(playerId);
+        // 获取玩家角色的冷却信息
+        Combat.CombatCharacter playerCharacter = findPlayerCharacter(combat, playerId);
         java.util.Set<String> addedSkills = new java.util.HashSet<>();
         if (player != null && player.getSkills() != null && !player.getSkills().isEmpty()) {
             for (String skillId : player.getSkills()) {
@@ -120,8 +122,19 @@ public class CombatWindowLogGenerator {
                     skills.append(" (消耗:").append(skillConfig.getManaCost()).append("MP");
                     if (skillConfig.getCooldown() > 0) {
                         skills.append(", CD:").append(skillConfig.getCooldown()).append("回合");
+                    } else {
+                        skills.append(", 无CD");
                     }
-                    skills.append(")\n");
+                    skills.append(")");
+                    // 检查当前冷却状态
+                    if (playerCharacter != null && playerCharacter.getSkillCooldowns() != null) {
+                        for (var cooldown : playerCharacter.getSkillCooldowns()) {
+                            if (cooldown.getSkillId().equals(skillId) && cooldown.getRemainingTurns() > 0) {
+                                skills.append(" [冷却中:").append(cooldown.getRemainingTurns()).append("回合]");
+                            }
+                        }
+                    }
+                    skills.append("\n");
                 }
             }
         }
