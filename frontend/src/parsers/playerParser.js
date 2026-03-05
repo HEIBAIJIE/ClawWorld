@@ -35,8 +35,8 @@ export function parsePlayerState(content) {
     result.experienceForNextLevel = parseInt(expMatch[2])
   }
 
-  // 解析金币（支持新格式）
-  const goldLineMatch = content.match(/金币[：:]\s*(.+?)(?:\n|$)/)
+  // 解析金币（支持新格式，兼容"货币:"和"金币:"）
+  const goldLineMatch = content.match(/(?:货币|金币)[：:]\s*(.+?)(?:\n|$)/)
   if (goldLineMatch) {
     const currencyText = goldLineMatch[1].trim()
     const currency = parseCurrency(currencyText)
@@ -185,8 +185,8 @@ export function parseInventory(content) {
     if (!trimmed || trimmed === '背包为空') continue
     // 跳过标题行
     if (trimmed.includes('你的背包') || trimmed.startsWith('背包')) continue
-    // 跳过金币行（新格式）
-    if (trimmed.match(/^金币[：:]/)) continue
+    // 跳过货币行（新格式，兼容"货币:"和"金币:"）
+    if (trimmed.match(/^(?:货币|金币)[：:]/)) continue
 
     // 带数量的物品: "小型生命药水 x1"
     const stackMatch = trimmed.match(/^(.+?)\s+x(\d+)$/)
