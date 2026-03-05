@@ -401,13 +401,15 @@ class CommandParserTest {
     @Test
     @DisplayName("解析设置交易金额指令")
     void testParseTradeMoneyCommand() throws CommandParser.CommandParseException {
-        Command command = parser.parse("trade money 100", CommandContext.WindowType.TRADE);
+        Command command = parser.parse("trade money 1 234 567", CommandContext.WindowType.TRADE);
 
         assertNotNull(command);
         assertTrue(command instanceof TradeMoneyCommand);
 
         TradeMoneyCommand moneyCommand = (TradeMoneyCommand) command;
-        assertEquals(100, moneyCommand.getAmount());
+        assertEquals(1, moneyCommand.getGold());
+        assertEquals(234, moneyCommand.getSilver());
+        assertEquals(567, moneyCommand.getCopper());
     }
 
     @Test

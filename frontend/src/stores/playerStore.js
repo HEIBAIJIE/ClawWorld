@@ -10,6 +10,7 @@ export const usePlayerStore = defineStore('player', () => {
   const experience = ref(0)
   const experienceForNextLevel = ref(100)
   const gold = ref(0)
+  const goldDisplay = ref('') // 金币显示文本（金/银/铜格式）
 
   // 位置
   const x = ref(0)
@@ -91,6 +92,7 @@ export const usePlayerStore = defineStore('player', () => {
     if (data.experience !== undefined) experience.value = data.experience
     if (data.experienceForNextLevel !== undefined) experienceForNextLevel.value = data.experienceForNextLevel
     if (data.gold !== undefined) gold.value = data.gold
+    if (data.goldDisplay !== undefined) goldDisplay.value = data.goldDisplay
     if (data.x !== undefined) x.value = data.x
     if (data.y !== undefined) y.value = data.y
     if (data.mapId !== undefined) mapId.value = data.mapId
@@ -130,6 +132,7 @@ export const usePlayerStore = defineStore('player', () => {
     level.value = 1
     experience.value = 0
     gold.value = 0
+    goldDisplay.value = ''
     x.value = 0
     y.value = 0
     skills.value = []
@@ -138,7 +141,7 @@ export const usePlayerStore = defineStore('player', () => {
 
   return {
     // 基础信息
-    name, roleName, roleId, level, experience, experienceForNextLevel, gold,
+    name, roleName, roleId, level, experience, experienceForNextLevel, gold, goldDisplay,
     // 位置
     x, y, mapId, mapName, facing,
     // 四维属性

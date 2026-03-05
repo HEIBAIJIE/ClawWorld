@@ -2,6 +2,7 @@ package com.heibai.clawworld.interfaces.log;
 
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.trade.Trade;
+import com.heibai.clawworld.domain.util.CurrencyFormatter;
 import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,7 +26,7 @@ public class TradeWindowLogGenerator {
         // 2. 你的背包和金钱
         StringBuilder myInventory = new StringBuilder();
         myInventory.append("你的资产：\n");
-        myInventory.append(String.format("金币: %d\n", player.getGold()));
+        myInventory.append(String.format("金币: %s\n", CurrencyFormatter.format(player.getGold())));
         myInventory.append("背包物品：\n");
         if (player.getInventory() != null && !player.getInventory().isEmpty()) {
             for (Player.InventorySlot slot : player.getInventory()) {
@@ -74,7 +75,7 @@ public class TradeWindowLogGenerator {
         status.append("你的提供：\n");
         if (myOffer != null && (myOffer.getGold() > 0 || (myOffer.getItems() != null && !myOffer.getItems().isEmpty()))) {
             if (myOffer.getGold() > 0) {
-                status.append(String.format("  金币: %d\n", myOffer.getGold()));
+                status.append(String.format("  金币: %s\n", CurrencyFormatter.format(myOffer.getGold())));
             }
             if (myOffer.getItems() != null && !myOffer.getItems().isEmpty()) {
                 status.append("  物品:\n");
@@ -96,7 +97,7 @@ public class TradeWindowLogGenerator {
         status.append("对方的提供：\n");
         if (otherOffer != null && (otherOffer.getGold() > 0 || (otherOffer.getItems() != null && !otherOffer.getItems().isEmpty()))) {
             if (otherOffer.getGold() > 0) {
-                status.append(String.format("  金币: %d\n", otherOffer.getGold()));
+                status.append(String.format("  金币: %s\n", CurrencyFormatter.format(otherOffer.getGold())));
             }
             if (otherOffer.getItems() != null && !otherOffer.getItems().isEmpty()) {
                 status.append("  物品:\n");

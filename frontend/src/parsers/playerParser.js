@@ -3,6 +3,8 @@
  * 解析玩家属性、技能、装备、背包等信息
  */
 
+import { parseCurrency } from '../utils/currency'
+
 /**
  * 解析玩家状态块
  * @param {string} content - 玩家状态文本
@@ -26,16 +28,20 @@ export function parsePlayerState(content) {
     result.y = parseInt(posMatch[2])
   }
 
-  // 解析经验和金币: "经验: 100/300 (33%)  金币: 134"
+  // 解析经验和金币: "经验: 100/300 (33%)  金币: 1金234银567铜"
   const expMatch = content.match(/经验[：:]\s*(\d+)\/(\d+)/)
   if (expMatch) {
     result.experience = parseInt(expMatch[1])
     result.experienceForNextLevel = parseInt(expMatch[2])
   }
 
-  const goldMatch = content.match(/金币[：:]\s*(\d+)/)
-  if (goldMatch) {
-    result.gold = parseInt(goldMatch[1])
+  // 解析金币（支持新格式）
+  const goldLineMatch = content.match(/金币[：:]\s*(.+?)(?:\n|$)/)
+  if (goldLineMatch) {
+    const currencyText = goldLineMatch[1].trim()
+    const currency = parseCurrency(currencyText)
+    result.gold = currency.total
+    result.goldDisplay = currencyText
   }
 
   // 解析四维属性: "力量3 敏捷2 智力0 体力0"
@@ -179,8 +185,8 @@ export function parseInventory(content) {
     if (!trimmed || trimmed === '背包为空') continue
     // 跳过标题行
     if (trimmed.includes('你的背包') || trimmed.startsWith('背包')) continue
-    // 跳过金币行
-    if (trimmed.match(/^金币[：:]\s*\d+$/)) continue
+    // 跳过金币行（新格式）
+    if (trimmed.match(/^金币[：:]/)) continue
 
     // 带数量的物品: "小型生命药水 x1"
     const stackMatch = trimmed.match(/^(.+?)\s+x(\d+)$/)

@@ -192,7 +192,9 @@ public class UnifiedResponseGenerator {
             // 生成新窗口的内容
             // 只有当 playerId 不为 null 时才调用，避免 findById(null) 异常
             if (playerId != null) {
-                generateNewWindowContent(builder, playerId, newWindowType);
+                // 检查是否需要完整刷新地图窗口
+                boolean needFullMapRefresh = shouldRefreshMapWindow(playerId, newWindowType, account);
+                generateNewWindowContent(builder, playerId, newWindowType, needFullMapRefresh);
             }
         }
 
@@ -276,7 +278,7 @@ public class UnifiedResponseGenerator {
 
             // 生成新窗口的内容
             if (playerId != null) {
-                generateNewWindowContent(builder, playerId, newWindowType);
+                generateNewWindowContent(builder, playerId, newWindowType, true);
             }
         }
 
@@ -297,10 +299,43 @@ public class UnifiedResponseGenerator {
     }
 
     /**
+     * 判断是否需要完整刷新地图窗口
+     * 如果是在同一地图内从其他窗口（战斗、交易、商店）切换回地图窗口，则不需要完整刷新
+     */
+    private boolean shouldRefreshMapWindow(String playerId, CommandContext.WindowType newWindowType, AccountEntity account) {
+        // 只有切换到地图窗口时才需要判断
+        if (newWindowType != CommandContext.WindowType.MAP) {
+            return true;
+        }
+
+        // 如果没有账号信息，需要完整刷新
+        if (account == null) {
+            return true;
+        }
+
+        // 获取玩家当前地图ID
+        Player player = playerSessionService.getPlayerState(playerId);
+        if (player == null || player.getMapId() == null) {
+            return true;
+        }
+
+        String currentMapId = player.getMapId();
+        String lastMapId = account.getLastMapId();
+
+        // 如果地图ID发生变化，需要完整刷新
+        if (lastMapId == null || !lastMapId.equals(currentMapId)) {
+            return true;
+        }
+
+        // 如果在同一地图内，不需要完整刷新
+        return false;
+    }
+
+    /**
      * 生成新窗口内容
      */
     private void generateNewWindowContent(GameLogBuilder builder, String playerId,
-                                          CommandContext.WindowType windowType) {
+                                          CommandContext.WindowType windowType, boolean fullRefresh) {
         Player player = playerSessionService.getPlayerState(playerId);
         if (player == null) {
             return;
@@ -310,11 +345,15 @@ public class UnifiedResponseGenerator {
             // 生成地图窗口内容
             GameMap map = mapInitializationService.getMap(player.getMapId());
             if (map != null) {
-                // 使用 MapEntityService 获取所有实体（已包含玩家、敌人、NPC、传送点、篝火等）
-                List<MapEntity> allEntities = mapEntityService.getMapEntities(player.getMapId(), playerId);
-
-                List<ChatMessage> chatHistory = chatService.getChatHistory(playerId);
-                mapWindowLogGenerator.generateMapWindowLogs(builder, player, map, allEntities, chatHistory);
+                if (fullRefresh) {
+                    // 完整刷新：生成完整的地图窗口内容
+                    List<MapEntity> allEntities = mapEntityService.getMapEntities(player.getMapId(), playerId);
+                    List<ChatMessage> chatHistory = chatService.getChatHistory(playerId);
+                    mapWindowLogGenerator.generateMapWindowLogs(builder, player, map, allEntities, chatHistory);
+                } else {
+                    // 增量刷新：只显示切换回地图的提示
+                    builder.addWindow("地图窗口", "你已返回地图窗口");
+                }
             }
         } else if (windowType == CommandContext.WindowType.TRADE) {
             // 生成交易窗口内容

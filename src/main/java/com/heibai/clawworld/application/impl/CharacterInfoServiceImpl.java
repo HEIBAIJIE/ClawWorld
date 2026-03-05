@@ -6,6 +6,7 @@ import com.heibai.clawworld.application.service.PlayerSessionService;
 import com.heibai.clawworld.domain.character.Party;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.item.Equipment;
+import com.heibai.clawworld.domain.util.CurrencyFormatter;
 import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
 import com.heibai.clawworld.infrastructure.config.data.character.RoleConfig;
 import com.heibai.clawworld.infrastructure.config.data.item.EquipmentConfig;
@@ -43,7 +44,7 @@ public class CharacterInfoServiceImpl implements CharacterInfoService {
         int currentExp = player.getExperience();
         int requiredExp = player.getExperienceForNextLevel();
         int progressPercent = player.getExperienceProgressPercent();
-        sb.append(String.format("经验: %d/%d (%d%%)  金币: %d\n", currentExp, requiredExp, progressPercent, player.getGold()));
+        sb.append(String.format("经验: %d/%d (%d%%)  金币: %s\n", currentExp, requiredExp, progressPercent, CurrencyFormatter.format(player.getGold())));
 
         // 计算总四维（玩家自身 + 装备加成）
         int totalStrength = player.getStrength();
@@ -148,7 +149,7 @@ public class CharacterInfoServiceImpl implements CharacterInfoService {
     public String generateInventory(Player player) {
         StringBuilder sb = new StringBuilder();
         // 先显示金币
-        sb.append(String.format("金币: %d\n", player.getGold()));
+        sb.append(String.format("金币: %s\n", CurrencyFormatter.format(player.getGold())));
         // 再显示背包物品
         if (player.getInventory() != null && !player.getInventory().isEmpty()) {
             for (Player.InventorySlot slot : player.getInventory()) {
@@ -288,7 +289,7 @@ public class CharacterInfoServiceImpl implements CharacterInfoService {
         sb.append("名称: ").append(item.getName()).append("\n");
         sb.append("类型: ").append(getItemTypeName(item.getType())).append("\n");
         sb.append("描述: ").append(item.getDescription()).append("\n");
-        sb.append("价格: ").append(item.getBasePrice()).append(" 金币\n");
+        sb.append("价格: ").append(CurrencyFormatter.format(item.getBasePrice())).append("\n");
         sb.append("最大堆叠: ").append(item.getMaxStack()).append("\n");
 
         // 显示物品效果
@@ -311,7 +312,7 @@ public class CharacterInfoServiceImpl implements CharacterInfoService {
         sb.append("稀有度: ").append(getRarityName(eq.getRarity())).append("\n");
         sb.append("装备位置: ").append(getSlotNameFromString(eq.getSlot())).append("\n");
         sb.append("描述: ").append(eq.getDescription()).append("\n");
-        sb.append("价格: ").append(eq.getBasePrice()).append(" 金币\n");
+        sb.append("价格: ").append(CurrencyFormatter.format(eq.getBasePrice())).append("\n");
 
         // 属性加成
         sb.append("\n--- 属性加成 ---\n");

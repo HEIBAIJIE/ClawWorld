@@ -17,6 +17,7 @@ import {
   parseFactions, parseCharacterStatus, parseActionBar, parseCombatStatus,
   parseSkillList, parseCombatAction, parseCommandResponse, needsAutoWait
 } from '../parsers/combatParser'
+import { parseCurrency } from '../utils/currency'
 
 /**
  * 指令发送和响应处理的composable
@@ -536,8 +537,15 @@ export function useCommand() {
 
     // 解析我方资产: "你的资产：..."
     if (content.includes('你的资产') || content.includes('金币:') || content.includes('金币：')) {
-      const goldMatch = content.match(/金币[：:]\s*(\d+)/)
-      const gold = goldMatch ? parseInt(goldMatch[1]) : playerStore.gold
+      const goldLineMatch = content.match(/金币[：:]\s*(.+?)(?:\n|$)/)
+      let gold = playerStore.gold
+      let goldDisplay = playerStore.goldDisplay
+      if (goldLineMatch) {
+        const goldText = goldLineMatch[1].trim()
+        const currency = parseCurrency(goldText)
+        gold = currency.total
+        goldDisplay = goldText
+      }
 
       // 解析背包物品
       const inventory = parseTradeInventory(content)
@@ -610,22 +618,30 @@ export function useCommand() {
       }
     }
 
-    // 解析商店资金: "商店资金: 1000 金币"
-    const shopGoldMatch = content.match(/商店资金[：:]\s*(\d+)\s*金币/)
+    // 解析商店资金: "商店资金: 1金234银567铜"
+    const shopGoldMatch = content.match(/商店资金[：:]\s*(.+?)(?:\n|$)/)
     if (shopGoldMatch) {
-      shopStore.updateShopGold(parseInt(shopGoldMatch[1]))
+      const goldText = shopGoldMatch[1].trim()
+      const currency = parseCurrency(goldText)
+      shopStore.updateShopGold(currency.total, goldText)
     }
 
     // 初始化玩家资产（从 playerStore 获取）
     if (shopStore.isInShop && shopStore.playerGold === 0) {
-      shopStore.updatePlayerAssets(playerStore.gold, playerStore.inventory, playerStore.inventory.length, 50)
+      shopStore.updatePlayerAssets(
+        playerStore.gold,
+        playerStore.goldDisplay,
+        playerStore.inventory,
+        playerStore.inventory.length,
+        50
+      )
     }
   }
 
   /**
    * 解析商店商品列表
-   * 格式: "- 小型生命药水 (恢复50点生命值)  价格:10  库存:50"
-   * 或: "商店库存：\n- 小型生命药水 (恢复50点生命值)  价格:10  库存:49"
+   * 格式: "- 小型生命药水 (恢复50点生命值)  价格:1金234银567铜  库存:50"
+   * 或: "商店库存：\n- 小型生命药水 (恢复50点生命值)  价格:10铜  库存:49"
    */
   function parseShopItems(content) {
     const items = []
@@ -633,12 +649,15 @@ export function useCommand() {
 
     for (const line of lines) {
       // 匹配格式: "- 物品名 (描述)  价格:XX  库存:XX"
-      const itemMatch = line.match(/^-\s+(.+?)\s+\((.+?)\)\s+价格[：:]\s*(\d+)\s+库存[：:]\s*(\d+)/)
+      const itemMatch = line.match(/^-\s+(.+?)\s+\((.+?)\)\s+价格[：:]\s*(.+?)\s+库存[：:]\s*(\d+)/)
       if (itemMatch) {
+        const priceText = itemMatch[3].trim()
+        const currency = parseCurrency(priceText)
         items.push({
           name: itemMatch[1].trim(),
           description: itemMatch[2].trim(),
-          price: parseInt(itemMatch[3]),
+          price: currency.total,
+          priceDisplay: priceText,
           stock: parseInt(itemMatch[4])
         })
       }
@@ -1208,17 +1227,26 @@ export function useCommand() {
       case '你的资产':
         // 商店中的玩家资产更新（包含金币和完整背包）
         if (shopStore.isInShop) {
-          const goldMatch = content.match(/金币[：:]\s*(\d+)/)
-          const gold = goldMatch ? parseInt(goldMatch[1]) : shopStore.playerGold
+          const goldLineMatch = content.match(/金币[：:]\s*(.+?)(?:\n|$)/)
+          let gold = shopStore.playerGold
+          let goldDisplay = shopStore.playerGoldDisplay
+          if (goldLineMatch) {
+            const goldText = goldLineMatch[1].trim()
+            const currency = parseCurrency(goldText)
+            gold = currency.total
+            goldDisplay = goldText
+          }
 
           // 解析背包物品
           const inventory = parseShopPlayerInventory(content)
 
-          shopStore.updatePlayerAssets(gold, inventory.length > 0 ? inventory : null, inventory.length, 50)
+          shopStore.updatePlayerAssets(gold, goldDisplay, inventory.length > 0 ? inventory : null, inventory.length, 50)
 
           // 同时更新 playerStore
-          if (goldMatch) {
-            playerStore.updateFromParsed({ gold: parseInt(goldMatch[1]) })
+          if (goldLineMatch) {
+            const goldText = goldLineMatch[1].trim()
+            const currency = parseCurrency(goldText)
+            playerStore.updateFromParsed({ gold: currency.total, goldDisplay: goldText })
           }
           if (inventory.length > 0) {
             playerStore.updateFromParsed({ inventory })

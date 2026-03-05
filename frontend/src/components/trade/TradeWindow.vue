@@ -20,9 +20,7 @@
 
           <!-- 对方金额 -->
           <div class="trade-gold">
-            <span class="gold-icon">💰</span>
-            <span class="gold-value">{{ tradeStore.partnerOfferGold }}</span>
-            <span class="gold-label">金币</span>
+            <CurrencyDisplay :copper-amount="tradeStore.partnerOfferGold" />
           </div>
 
           <!-- 对方物品 -->
@@ -55,18 +53,53 @@
 
           <!-- 我方金额（可编辑） -->
           <div class="trade-gold editable">
-            <span class="gold-icon">💰</span>
-            <input
-              type="number"
-              class="gold-input sci-input"
-              v-model.number="goldInputValue"
-              :disabled="tradeStore.myLocked"
-              @change="handleGoldChange"
-              @blur="handleGoldChange"
-              min="0"
-              :max="tradeStore.myGold"
-            />
-            <span class="gold-label">/ {{ tradeStore.myGold }} 金币</span>
+            <div class="currency-inputs">
+              <div class="currency-input-group">
+                <input
+                  type="number"
+                  class="currency-input sci-input"
+                  v-model.number="goldInput"
+                  :disabled="tradeStore.myLocked"
+                  @change="handleGoldChange"
+                  @blur="handleGoldChange"
+                  min="0"
+                  placeholder="0"
+                />
+                <span class="currency-label gold">金</span>
+              </div>
+              <div class="currency-input-group">
+                <input
+                  type="number"
+                  class="currency-input sci-input"
+                  v-model.number="silverInput"
+                  :disabled="tradeStore.myLocked"
+                  @change="handleGoldChange"
+                  @blur="handleGoldChange"
+                  min="0"
+                  max="999"
+                  placeholder="0"
+                />
+                <span class="currency-label silver">银</span>
+              </div>
+              <div class="currency-input-group">
+                <input
+                  type="number"
+                  class="currency-input sci-input"
+                  v-model.number="copperInput"
+                  :disabled="tradeStore.myLocked"
+                  @change="handleGoldChange"
+                  @blur="handleGoldChange"
+                  min="0"
+                  max="999"
+                  placeholder="0"
+                />
+                <span class="currency-label copper">铜</span>
+              </div>
+            </div>
+            <div class="currency-total">
+              <span class="total-label">总计:</span>
+              <CurrencyDisplay :copper-amount="tradeStore.myGold" compact />
+            </div>
           </div>
 
           <!-- 我方物品（可点击移除） -->
@@ -141,14 +174,18 @@ import { useTradeStore } from '../../stores/tradeStore'
 import { useAgentStore } from '../../stores/agentStore'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useCommand } from '../../composables/useCommand'
+import CurrencyDisplay from '../common/CurrencyDisplay.vue'
+import { breakdownCurrency, toCopper } from '../../utils/currency'
 
 const tradeStore = useTradeStore()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
 const { sendCommand } = useCommand()
 
-// 金额输入值
-const goldInputValue = ref(0)
+// 金额输入值（分为金/银/铜）
+const goldInput = ref(0)
+const silverInput = ref(0)
+const copperInput = ref(0)
 
 // 锁定勾选框
 const lockChecked = ref(false)
@@ -158,7 +195,10 @@ let autoRefreshTimer = null
 
 // 监听 store 中的金额变化，同步到输入框
 watch(() => tradeStore.myOfferGold, (newVal) => {
-  goldInputValue.value = newVal
+  const breakdown = breakdownCurrency(newVal)
+  goldInput.value = breakdown.gold
+  silverInput.value = breakdown.silver
+  copperInput.value = breakdown.copper
 }, { immediate: true })
 
 // 监听 store 中的锁定状态，启动/停止自动刷新
@@ -256,9 +296,29 @@ function getItemIcon(item) {
 // 处理金额变化
 function handleGoldChange() {
   if (tradeStore.myLocked) return
-  const amount = Math.max(0, Math.min(goldInputValue.value || 0, tradeStore.myGold))
-  goldInputValue.value = amount
-  sendCommand(`trade money ${amount}`)
+
+  // 限制银币和铜币不超过999
+  if (silverInput.value > 999) silverInput.value = 999
+  if (copperInput.value > 999) copperInput.value = 999
+  if (goldInput.value < 0) goldInput.value = 0
+  if (silverInput.value < 0) silverInput.value = 0
+  if (copperInput.value < 0) copperInput.value = 0
+
+  // 计算总铜币数
+  const totalCopper = toCopper(goldInput.value || 0, silverInput.value || 0, copperInput.value || 0)
+
+  // 检查是否超过玩家拥有的金币
+  if (totalCopper > tradeStore.myGold) {
+    // 重置为玩家拥有的最大金额
+    const breakdown = breakdownCurrency(tradeStore.myGold)
+    goldInput.value = breakdown.gold
+    silverInput.value = breakdown.silver
+    copperInput.value = breakdown.copper
+    return
+  }
+
+  // 发送指令
+  sendCommand(`trade money ${goldInput.value || 0} ${silverInput.value || 0} ${copperInput.value || 0}`)
 }
 
 // 处理添加物品
@@ -419,7 +479,7 @@ function handleEndTrade() {
 
 .trade-gold {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
   padding: 10px 12px;
   background: var(--bg-dark);
@@ -430,33 +490,63 @@ function handleEndTrade() {
   background: var(--bg-dark);
 }
 
-.gold-icon {
-  font-size: 16px;
+.currency-inputs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
-.gold-value {
-  color: #ffd700;
-  font-weight: 600;
-  font-size: 16px;
-  min-width: 60px;
+.currency-input-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
 }
 
-.gold-input {
-  width: 80px;
-  padding: 4px 8px;
+.currency-input {
+  width: 100%;
+  padding: 6px 8px;
   font-size: 14px;
-  color: #ffd700;
-  text-align: right;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.gold-input:disabled {
+.currency-input:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.gold-label {
-  color: var(--text-muted);
+.currency-label {
   font-size: 12px;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+}
+
+.currency-label.gold {
+  color: #ffd700;
+}
+
+.currency-label.silver {
+  color: #c0c0c0;
+}
+
+.currency-label.copper {
+  color: #cd7f32;
+}
+
+.currency-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.total-label {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .trade-items-grid {

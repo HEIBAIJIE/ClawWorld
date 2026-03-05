@@ -6,6 +6,7 @@ import com.heibai.clawworld.domain.combat.CombatInstance;
 import com.heibai.clawworld.domain.combat.CombatParty;
 import com.heibai.clawworld.domain.combat.CombatTurnWaiter;
 import com.heibai.clawworld.domain.combat.TurnTimeoutManager;
+import com.heibai.clawworld.domain.util.CurrencyFormatter;
 import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -143,8 +144,8 @@ public class CombatSettlementService {
         }
 
         // 缓存战斗结束信息，供后续玩家查询
-        List<String> finalBattleLog = convertLogsToStrings(combat.getAllLogs());
-        CombatEndInfo endInfo = new CombatEndInfo(combatId, finalBattleLog, combat.getRewardDistribution());
+        // 只缓存战斗结束的增量日志（战利品等），不缓存完整战斗日志
+        CombatEndInfo endInfo = new CombatEndInfo(combatId, newLogs, combat.getRewardDistribution());
         endedCombatCache.put(combatId, endInfo);
 
         // 通知所有等待的玩家
@@ -224,8 +225,9 @@ public class CombatSettlementService {
             rewardDistributionCache.put(combatId, distribution);
 
             // 缓存战斗结束信息
-            List<String> finalBattleLog = convertLogsToStrings(combat.getAllLogs());
-            CombatEndInfo endInfo = new CombatEndInfo(combatId, finalBattleLog, distribution);
+            // 只缓存战斗结束的增量日志，不缓存完整战斗日志
+            List<String> endLogs = List.of("战斗结束，所有玩家已撤退");
+            CombatEndInfo endInfo = new CombatEndInfo(combatId, endLogs, distribution);
             endedCombatCache.put(combatId, endInfo);
 
             // 通知所有等待的玩家
@@ -257,6 +259,10 @@ public class CombatSettlementService {
                                      Runnable activeCombatsRemover) {
         String combatId = combat.getCombatId();
         combat.setStatus(Combat.CombatStatus.TIMEOUT);
+
+        // 记录当前日志数量，用于获取新增的日志
+        int logCountBefore = combat.getAllLogs().size();
+
         combat.addLog("战斗超时！");
 
         // 取消回合超时计时
@@ -278,9 +284,16 @@ public class CombatSettlementService {
             combat.addLog("PVP战斗超时，不分胜负");
         }
 
-        // 缓存战斗结束信息
-        List<String> finalBattleLog = convertLogsToStrings(combat.getAllLogs());
-        CombatEndInfo endInfo = new CombatEndInfo(combatId, finalBattleLog, combat.getRewardDistribution());
+        // 获取新增的日志
+        List<CombatInstance.CombatLogEntry> allLogs = combat.getAllLogs();
+        List<String> newLogs = new ArrayList<>();
+        for (int i = logCountBefore; i < allLogs.size(); i++) {
+            CombatInstance.CombatLogEntry entry = allLogs.get(i);
+            newLogs.add(String.format("[#%d] %s", entry.getSequence(), entry.getMessage()));
+        }
+
+        // 缓存战斗结束信息，只缓存新增的日志
+        CombatEndInfo endInfo = new CombatEndInfo(combatId, newLogs, combat.getRewardDistribution());
         endedCombatCache.put(combatId, endInfo);
 
         // 通知所有等待的玩家
@@ -428,9 +441,9 @@ public class CombatSettlementService {
 
         if (totalGold > 0) {
             if (playerCount == 1) {
-                combat.addLog(leader.getName() + " 获得金钱: " + totalGold);
+                combat.addLog(leader.getName() + " 获得金钱: " + CurrencyFormatter.format(totalGold));
             } else {
-                combat.addLog("金钱平分: 每人 " + goldPerPlayer + " (总计" + totalGold + ")");
+                combat.addLog("金钱平分: 每人 " + CurrencyFormatter.format(goldPerPlayer) + " (总计" + CurrencyFormatter.format(totalGold) + ")");
             }
         }
 

@@ -6,13 +6,15 @@ export const useShopStore = defineStore('shop', () => {
   const isInShop = ref(false)
   const shopName = ref('')
   const purchaseInfo = ref('') // 收购信息
-  const shopGold = ref(0) // 商店资金
+  const shopGold = ref(0) // 商店资金（铜币）
+  const shopGoldDisplay = ref('') // 商店资金显示文本
 
   // 商店商品列表
   const shopItems = ref([])
 
   // 玩家资产（在商店中显示）
-  const playerGold = ref(0)
+  const playerGold = ref(0) // 玩家金币（铜币）
+  const playerGoldDisplay = ref('') // 玩家金币显示文本
   const playerInventory = ref([])
   const inventoryCapacity = ref(50)
   const inventoryUsed = ref(0)
@@ -42,13 +44,15 @@ export const useShopStore = defineStore('shop', () => {
   }
 
   // 更新商店资金
-  function updateShopGold(gold) {
+  function updateShopGold(gold, goldDisplay) {
     shopGold.value = gold
+    shopGoldDisplay.value = goldDisplay || ''
   }
 
   // 更新玩家资产
-  function updatePlayerAssets(gold, inventory, used, capacity) {
+  function updatePlayerAssets(gold, goldDisplay, inventory, used, capacity) {
     playerGold.value = gold
+    playerGoldDisplay.value = goldDisplay || ''
     if (inventory) {
       playerInventory.value = inventory
     }
@@ -83,7 +87,9 @@ export const useShopStore = defineStore('shop', () => {
     shopItems,
     purchaseInfo,
     shopGold,
+    shopGoldDisplay,
     playerGold,
+    playerGoldDisplay,
     playerInventory,
     inventoryCapacity,
     inventoryUsed,

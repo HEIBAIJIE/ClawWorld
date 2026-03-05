@@ -414,13 +414,17 @@ public class CommandParser {
                         .build();
 
             case "money":
-                if (parts.length < 3) {
-                    throw new CommandParseException("trade money 指令需要1个参数: trade money [amount]");
+                if (parts.length < 5) {
+                    throw new CommandParseException("trade money 指令需要3个参数: trade money [金币] [银币] [铜币]");
                 }
                 try {
-                    int amount = Integer.parseInt(parts[2]);
+                    int gold = Integer.parseInt(parts[2]);
+                    int silver = Integer.parseInt(parts[3]);
+                    int copper = Integer.parseInt(parts[4]);
                     return TradeMoneyCommand.builder()
-                            .amount(amount)
+                            .gold(gold)
+                            .silver(silver)
+                            .copper(copper)
                             .rawCommand(rawCommand)
                             .build();
                 } catch (NumberFormatException e) {

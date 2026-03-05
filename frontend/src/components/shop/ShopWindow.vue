@@ -29,8 +29,7 @@
               </div>
               <div class="item-meta">
                 <div class="item-price">
-                  <span class="gold-icon">💰</span>
-                  <span class="price-value">{{ item.price }}</span>
+                  <CurrencyDisplay :text="item.priceDisplay || item.price.toString() + '铜'" compact />
                 </div>
                 <div class="item-stock" :class="{ low: item.stock <= 5 }">
                   库存: {{ item.stock }}
@@ -80,14 +79,12 @@
       <!-- 底部资产显示（对称布局） -->
       <div class="shop-footer">
         <div class="footer-left">
-          <span class="gold-icon">💰</span>
           <span class="gold-label">商店资金:</span>
-          <span class="gold-value">{{ shopStore.shopGold }}</span>
+          <CurrencyDisplay :text="shopStore.shopGoldDisplay" />
         </div>
         <div class="footer-right">
-          <span class="gold-icon">💰</span>
           <span class="gold-label">我的金币:</span>
-          <span class="gold-value">{{ displayGold }}</span>
+          <CurrencyDisplay :text="playerGoldDisplay" />
         </div>
       </div>
     </div>
@@ -100,7 +97,10 @@
         </div>
         <div class="quantity-body">
           <div class="quantity-info" v-if="quantityModalType === 'buy'">
-            <span>单价: {{ selectedItem?.price }} 金币</span>
+            <div class="quantity-price-row">
+              <span>单价:</span>
+              <CurrencyDisplay :text="selectedItem?.priceDisplay || (selectedItem?.price + '铜')" compact />
+            </div>
             <span>库存: {{ selectedItem?.stock }}</span>
           </div>
           <div class="quantity-info" v-else>
@@ -118,7 +118,11 @@
             />
           </div>
           <div class="quantity-total" v-if="quantityModalType === 'buy'">
-            总价: {{ (selectedItem?.price || 0) * inputQuantity }} 金币
+            <span>总价:</span>
+            <CurrencyDisplay
+              :copper-amount="getTotalPrice()"
+              compact
+            />
           </div>
         </div>
         <div class="quantity-actions">
@@ -135,6 +139,8 @@ import { ref, computed } from 'vue'
 import { useShopStore } from '../../stores/shopStore'
 import { usePlayerStore } from '../../stores/playerStore'
 import { useCommand } from '../../composables/useCommand'
+import CurrencyDisplay from '../common/CurrencyDisplay.vue'
+import { parseCurrency } from '../../utils/currency'
 
 const shopStore = useShopStore()
 const playerStore = usePlayerStore()
@@ -167,8 +173,12 @@ const inventorySlots = computed(() => {
 })
 
 // 显示金币 - 优先使用 shopStore，备选 playerStore
-const displayGold = computed(() => {
-  return shopStore.playerGold > 0 ? shopStore.playerGold : playerStore.gold
+const playerGoldDisplay = computed(() => {
+  if (shopStore.playerGoldDisplay) {
+    return shopStore.playerGoldDisplay
+  }
+  // 备选：从 playerStore 获取
+  return playerStore.goldDisplay || `${playerStore.gold}铜`
 })
 
 // 获取物品图标
@@ -218,6 +228,16 @@ function confirmQuantity() {
 function cancelQuantity() {
   showQuantityModal.value = false
   selectedItem.value = null
+}
+
+// 计算总价
+function getTotalPrice() {
+  if (!selectedItem.value) return 0
+  // 如果有 priceDisplay，解析它；否则使用 price
+  const priceCopper = selectedItem.value.priceDisplay
+    ? parseCurrency(selectedItem.value.priceDisplay).total
+    : selectedItem.value.price
+  return priceCopper * inputQuantity.value
 }
 
 // 离开商店
@@ -485,25 +505,18 @@ function handleLeaveShop() {
 .footer-right {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.footer-left .gold-icon,
-.footer-right .gold-icon {
-  font-size: 16px;
+  gap: 12px;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .footer-left .gold-label,
 .footer-right .gold-label {
   color: var(--text-muted);
   font-size: 13px;
-}
-
-.footer-left .gold-value,
-.footer-right .gold-value {
-  color: #ffd700;
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: 500;
 }
 
 /* 数量输入弹窗 */
@@ -544,9 +557,17 @@ function handleLeaveShop() {
 
 .quantity-info {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 8px;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.quantity-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .quantity-input-row {
@@ -568,9 +589,19 @@ function handleLeaveShop() {
 }
 
 .quantity-total {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 215, 0, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.quantity-total span:first-child {
   font-size: 13px;
-  color: #ffd700;
+  color: var(--text-primary);
   font-weight: 500;
 }
 

@@ -24,9 +24,16 @@
 
       <!-- 金币显示放在最下面 -->
       <div class="gold-display">
-        <span class="gold-icon">💰</span>
-        <span class="gold-value">{{ playerStore.gold }}</span>
-        <span class="gold-label">金币</span>
+        <CurrencyDisplay
+          v-if="playerStore.goldDisplay"
+          :text="playerStore.goldDisplay"
+          large
+        />
+        <CurrencyDisplay
+          v-else
+          :copper-amount="playerStore.gold"
+          large
+        />
       </div>
     </div>
   </div>
@@ -37,6 +44,7 @@ import { computed } from 'vue'
 import { useUIStore } from '../../stores/uiStore'
 import { usePlayerStore } from '../../stores/playerStore'
 import { useCommand } from '../../composables/useCommand'
+import CurrencyDisplay from '../common/CurrencyDisplay.vue'
 
 const uiStore = useUIStore()
 const playerStore = usePlayerStore()

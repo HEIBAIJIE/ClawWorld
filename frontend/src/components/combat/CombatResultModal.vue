@@ -22,7 +22,7 @@
                 </div>
                 <div class="reward-item" v-if="combatStore.combatResult.gold > 0">
                   <span class="item-name">金币</span>
-                  <span class="item-quantity gold">+{{ combatStore.combatResult.gold }}</span>
+                  <CurrencyDisplay :copper-amount="combatStore.combatResult.gold" compact class="reward-currency" />
                 </div>
                 <div
                   v-for="(item, index) in combatStore.combatResult.items"
@@ -40,7 +40,8 @@
             <div class="defeat-section" v-else>
               <p class="defeat-text">你被击败了...</p>
               <p class="defeat-hint" v-if="combatStore.combatResult.goldLost > 0">
-                损失金币: {{ combatStore.combatResult.goldLost }}
+                <span>损失金币:</span>
+                <CurrencyDisplay :copper-amount="combatStore.combatResult.goldLost" compact />
               </p>
             </div>
           </div>
@@ -54,6 +55,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useCombatStore } from '../../stores/combatStore'
 import { useMapStore } from '../../stores/mapStore'
+import CurrencyDisplay from '../common/CurrencyDisplay.vue'
 
 const combatStore = useCombatStore()
 const mapStore = useMapStore()
@@ -301,8 +303,16 @@ function handleConfirm() {
 }
 
 .defeat-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   font-size: 12px;
   color: #f44336;
+}
+
+.reward-currency {
+  margin-left: auto;
 }
 
 /* 进入动画 */

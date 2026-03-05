@@ -448,8 +448,10 @@ class CommandValidationTest {
     @DisplayName("交易金额指令验证 - 成功")
     void testTradeMoneyCommand_Valid() {
         TradeMoneyCommand command = TradeMoneyCommand.builder()
-                .amount(100)
-                .rawCommand("trade money 100")
+                .gold(1)
+                .silver(234)
+                .copper(567)
+                .rawCommand("trade money 1 234 567")
                 .build();
 
         Command.ValidationResult result = command.validate();
@@ -460,8 +462,10 @@ class CommandValidationTest {
     @DisplayName("交易金额指令验证 - 零金额")
     void testTradeMoneyCommand_ZeroAmount() {
         TradeMoneyCommand command = TradeMoneyCommand.builder()
-                .amount(0)
-                .rawCommand("trade money 0")
+                .gold(0)
+                .silver(0)
+                .copper(0)
+                .rawCommand("trade money 0 0 0")
                 .build();
 
         Command.ValidationResult result = command.validate();
@@ -472,13 +476,45 @@ class CommandValidationTest {
     @DisplayName("交易金额指令验证 - 负金额")
     void testTradeMoneyCommand_NegativeAmount() {
         TradeMoneyCommand command = TradeMoneyCommand.builder()
-                .amount(-100)
-                .rawCommand("trade money -100")
+                .gold(-1)
+                .silver(0)
+                .copper(0)
+                .rawCommand("trade money -1 0 0")
                 .build();
 
         Command.ValidationResult result = command.validate();
         assertFalse(result.isValid());
         assertTrue(result.getErrorMessage().contains("负数"));
+    }
+
+    @Test
+    @DisplayName("交易金额指令验证 - 银币超过999")
+    void testTradeMoneyCommand_SilverOverflow() {
+        TradeMoneyCommand command = TradeMoneyCommand.builder()
+                .gold(0)
+                .silver(1000)
+                .copper(0)
+                .rawCommand("trade money 0 1000 0")
+                .build();
+
+        Command.ValidationResult result = command.validate();
+        assertFalse(result.isValid());
+        assertTrue(result.getErrorMessage().contains("银币"));
+    }
+
+    @Test
+    @DisplayName("交易金额指令验证 - 铜币超过999")
+    void testTradeMoneyCommand_CopperOverflow() {
+        TradeMoneyCommand command = TradeMoneyCommand.builder()
+                .gold(0)
+                .silver(0)
+                .copper(1000)
+                .rawCommand("trade money 0 0 1000")
+                .build();
+
+        Command.ValidationResult result = command.validate();
+        assertFalse(result.isValid());
+        assertTrue(result.getErrorMessage().contains("铜币"));
     }
 
     // ==================== 物品相关指令验证 ====================
