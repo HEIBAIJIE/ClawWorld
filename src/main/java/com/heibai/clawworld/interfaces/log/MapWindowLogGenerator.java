@@ -222,7 +222,7 @@ public class MapWindowLogGenerator {
             if (nearestPos == null) {
                 sb.append(" [无可达路径]");
             } else {
-                sb.append(" [需移动至周边交互]");
+                sb.append(" [可达]");
             }
         }
     }
