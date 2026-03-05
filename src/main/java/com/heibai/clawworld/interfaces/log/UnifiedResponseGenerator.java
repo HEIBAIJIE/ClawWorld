@@ -111,9 +111,20 @@ public class UnifiedResponseGenerator {
                 if (player != null && player.getCombatId() != null) {
                     com.heibai.clawworld.domain.combat.Combat combat = combatService.getCombatState(player.getCombatId());
                     if (combat != null) {
-                        // 获取上次的日志序列号
-                        int lastLogSequence = account != null && account.getLastCombatLogSequence() != null
-                            ? account.getLastCombatLogSequence() : 0;
+                        // 检查是否是新战斗（combatId变化）
+                        int lastLogSequence = 0;
+                        if (account != null) {
+                            String lastCombatId = account.getLastCombatId();
+                            if (lastCombatId == null || !lastCombatId.equals(player.getCombatId())) {
+                                // 新战斗，重置日志序列号为0
+                                lastLogSequence = 0;
+                                account.setLastCombatId(player.getCombatId());
+                            } else {
+                                // 同一场战斗，使用上次的序列号
+                                lastLogSequence = account.getLastCombatLogSequence() != null
+                                    ? account.getLastCombatLogSequence() : 0;
+                            }
+                        }
                         // 获取当前回合开始时间
                         long turnStartTime = combatService.getTurnStartTime(player.getCombatId());
                         // 生成增量日志并获取新的序列号
@@ -384,6 +395,13 @@ public class UnifiedResponseGenerator {
                     Optional<AccountEntity> accountOpt = accountRepository.findByPlayerId(playerId);
                     if (accountOpt.isPresent()) {
                         AccountEntity account = accountOpt.get();
+                        // 检查是否是新战斗（combatId变化）
+                        String lastCombatId = account.getLastCombatId();
+                        if (lastCombatId == null || !lastCombatId.equals(player.getCombatId())) {
+                            // 新战斗，重置日志序列号为0
+                            account.setLastCombatLogSequence(0);
+                            account.setLastCombatId(player.getCombatId());
+                        }
                         // 获取当前最大日志序列号
                         int maxSequence = 0;
                         if (combat.getCombatLog() != null) {

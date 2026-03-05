@@ -61,6 +61,9 @@ public class AccountEntity {
     // 上次获取的战斗日志序列号（用于增量获取战斗日志）
     private Integer lastCombatLogSequence;
 
+    // 上次的战斗ID（用于检测新战斗开始，重置日志序列号）
+    private String lastCombatId;
+
     // 上次的队伍状态快照（用于追踪队伍变化）
     private PartySnapshot lastPartySnapshot;
 
