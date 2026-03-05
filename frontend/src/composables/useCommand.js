@@ -536,8 +536,8 @@ export function useCommand() {
     }
 
     // 解析我方资产: "你的资产：..."
-    if (content.includes('你的资产') || content.includes('金币:') || content.includes('金币：')) {
-      const goldLineMatch = content.match(/金币[：:]\s*(.+?)(?:\n|$)/)
+    if (content.includes('你的资产') || content.includes('货币:') || content.includes('货币：') || content.includes('金币:') || content.includes('金币：')) {
+      const goldLineMatch = content.match(/(?:货币|金币)[：:]\s*(.+?)(?:\n|$)/)
       let gold = playerStore.gold
       let goldDisplay = playerStore.goldDisplay
       if (goldLineMatch) {

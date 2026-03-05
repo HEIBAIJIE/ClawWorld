@@ -7,6 +7,7 @@ import com.heibai.clawworld.application.service.StateService;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.chat.ChatMessage;
 import com.heibai.clawworld.domain.map.MapEntity;
+import com.heibai.clawworld.domain.util.CurrencyFormatter;
 import com.heibai.clawworld.infrastructure.persistence.entity.AccountEntity;
 import com.heibai.clawworld.infrastructure.persistence.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
@@ -559,7 +560,7 @@ public class StateServiceImpl implements StateService {
         state.append("你的提供：\n");
         if (myOffer != null) {
             if (myOffer.getGold() > 0) {
-                state.append("  金币: ").append(myOffer.getGold()).append("\n");
+                state.append("  货币: ").append(CurrencyFormatter.format(myOffer.getGold())).append("\n");
             }
             if (myOffer.getItems() != null && !myOffer.getItems().isEmpty()) {
                 state.append("  物品:\n");
@@ -583,7 +584,7 @@ public class StateServiceImpl implements StateService {
         state.append("对方的提供：\n");
         if (otherOffer != null) {
             if (otherOffer.getGold() > 0) {
-                state.append("  金币: ").append(otherOffer.getGold()).append("\n");
+                state.append("  货币: ").append(CurrencyFormatter.format(otherOffer.getGold())).append("\n");
             }
             if (otherOffer.getItems() != null && !otherOffer.getItems().isEmpty()) {
                 state.append("  物品:\n");
@@ -649,7 +650,7 @@ public class StateServiceImpl implements StateService {
         // 获取玩家最新状态
         Player player = playerSessionService.getPlayerState(playerId);
         if (player != null) {
-            state.append("你的金币: ").append(player.getGold()).append("\n");
+            state.append("你的货币: ").append(CurrencyFormatter.format(player.getGold())).append("\n");
             state.append("背包空间: ");
             if (player.getInventory() != null) {
                 state.append(player.getInventory().size()).append("/50\n");

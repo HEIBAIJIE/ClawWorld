@@ -362,25 +362,23 @@ public class CombatEngine {
                     List<String> endLogs = settlementService.finishCombat(combat, turnTimeoutManager, turnWaiters, createRemover(combatId));
                     CombatActionResult result = CombatActionResult.error("施法者不存在或已死亡");
                     result.setCombatEnded(true);
-                    // 只返回战斗结束的增量日志（战利品等），不返回完整战斗日志
-                    result.setBattleLog(endLogs != null ? endLogs : new ArrayList<>());
+                    result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                     log.info("[战斗 {}] 返回战斗结束结果，combatEnded={}", combatId, result.isCombatEnded());
                     return result;
                 }
                 // 战斗未结束但玩家已死亡（不应该发生，但作为兜底）
                 log.warn("[战斗 {}] 战斗未结束但玩家已死亡", combatId);
                 CombatActionResult result = CombatActionResult.error("施法者不存在或已死亡");
-                // 玩家已死亡但战斗未结束，不返回战斗日志（通过增量机制获取）
-                result.setBattleLog(new ArrayList<>());
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                 return result;
             }
 
             // 检查是否轮到该角色（不推进行动条，只查询当前状态）
             Optional<String> currentTurn = combat.getCurrentTurnCharacterId();
             if (currentTurn.isEmpty() || !currentTurn.get().equals(casterId)) {
-                // 不是该玩家的回合，返回错误但不返回战斗日志（通过增量机制获取）
+                // 不是该玩家的回合，返回当前战斗状态但拒绝执行
                 CombatActionResult result = CombatActionResult.error("还未轮到你的回合");
-                result.setBattleLog(new ArrayList<>());
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                 return result;
             }
 
@@ -439,8 +437,8 @@ public class CombatEngine {
                         result.addLog(log);
                     }
                 }
-                // 只返回战斗结束的增量日志（战利品等），不返回完整战斗日志
-                result.setBattleLog(endLogs != null ? endLogs : new ArrayList<>());
+                // 即使endLogs为null（战斗已经被处理过），也要设置战斗日志
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                 return result;
             }
 
@@ -448,8 +446,7 @@ public class CombatEngine {
             if (combat.isTimeout()) {
                 settlementService.handleCombatTimeout(combat, turnTimeoutManager, turnWaiters, createRemover(combat.getCombatId()));
                 result.setCombatEnded(true);
-                // 战斗超时结束，不返回完整战斗日志
-                result.setBattleLog(new ArrayList<>());
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                 return result;
             }
 
@@ -481,8 +478,7 @@ public class CombatEngine {
                 if (nextCharacterId.equals(playerId)) {
                     // 轮到当前玩家，返回等待输入
                     result.setMessage("轮到你的回合");
-                    // 不返回完整战斗日志，通过增量机制获取
-                    result.setBattleLog(new ArrayList<>());
+                    result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                     return result;
                 } else {
                     // 轮到其他玩家，记录日志并立即返回（不阻塞）
@@ -495,8 +491,7 @@ public class CombatEngine {
 
                     // 当前玩家立即返回，告知需要等待
                     result.setMessage("未轮到你的回合，请输入wait继续等待");
-                    // 不返回完整战斗日志，通过增量机制获取
-                    result.setBattleLog(new ArrayList<>());
+                    result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                     return result;
                 }
             }
@@ -514,8 +509,8 @@ public class CombatEngine {
                             result.addLog(log);
                         }
                     }
-                    // 即使endLogs为null（战斗已经被处理过），也要返回战斗结束标志
-                    result.setBattleLog(endLogs != null ? endLogs : new ArrayList<>());
+                    // 即使endLogs为null（战斗已经被处理过），也要设置战斗日志
+                    result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                     return result;
                 }
             }
@@ -600,16 +595,14 @@ public class CombatEngine {
         CombatCharacter caster = combat.findCharacter(casterId);
         if (caster == null || !caster.isAlive()) {
             CombatActionResult result = CombatActionResult.error("施法者不存在或已死亡");
-            // 不返回完整战斗日志，通过增量机制获取
-            result.setBattleLog(new ArrayList<>());
+            result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
             return result;
         }
 
         // 检查技能冷却
         if (caster.isSkillOnCooldown(skillId)) {
             CombatActionResult result = CombatActionResult.error("技能冷却中");
-            // 不返回完整战斗日志，通过增量机制获取
-            result.setBattleLog(new ArrayList<>());
+            result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
             return result;
         }
 
@@ -617,16 +610,14 @@ public class CombatEngine {
         Skill skill = skillResolver.getSkillById(skillId);
         if (skill == null) {
             CombatActionResult result = CombatActionResult.error("技能不存在");
-            // 不返回完整战斗日志，通过增量机制获取
-            result.setBattleLog(new ArrayList<>());
+            result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
             return result;
         }
 
         // 检查法力值
         if (!caster.consumeMana(skill.getManaCost())) {
             CombatActionResult result = CombatActionResult.error("法力值不足");
-            // 不返回完整战斗日志，通过增量机制获取
-            result.setBattleLog(new ArrayList<>());
+            result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
             return result;
         }
 
@@ -715,8 +706,7 @@ public class CombatEngine {
                 }
                 // 战斗未结束但角色已死亡
                 CombatActionResult result = CombatActionResult.error("角色不存在或已死亡");
-                // 不返回完整战斗日志，通过增量机制获取
-                result.setBattleLog(new ArrayList<>());
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                 return result;
             }
 
@@ -807,18 +797,15 @@ public class CombatEngine {
                 }
                 // 战斗未结束但角色已死亡
                 CombatActionResult result = CombatActionResult.error("角色不存在或已死亡");
-                // 不返回完整战斗日志，通过增量机制获取
-                result.setBattleLog(new ArrayList<>());
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                 return result;
             }
 
             // 检查战斗是否结束
             if (combat.isFinished()) {
-                List<String> endLogs = settlementService.finishCombat(combat, turnTimeoutManager, turnWaiters, createRemover(combatId));
                 CombatActionResult result = CombatActionResult.success("战斗已结束");
                 result.setCombatEnded(true);
-                // 只返回战斗结束的增量日志
-                result.setBattleLog(endLogs != null ? endLogs : new ArrayList<>());
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                 return result;
             }
 
@@ -826,8 +813,7 @@ public class CombatEngine {
             Optional<String> currentTurn = combat.getCurrentTurnCharacterId();
             if (currentTurn.isPresent() && currentTurn.get().equals(characterId)) {
                 CombatActionResult result = CombatActionResult.success("轮到你的回合");
-                // 不返回完整战斗日志，通过增量机制获取
-                result.setBattleLog(new ArrayList<>());
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                 return result;
             }
         } finally {
@@ -870,25 +856,21 @@ public class CombatEngine {
             }
 
             if (combat.isFinished()) {
-                List<String> endLogs = settlementService.finishCombat(combat, turnTimeoutManager, turnWaiters, createRemover(combatId));
                 CombatActionResult result = CombatActionResult.success("战斗已结束");
                 result.setCombatEnded(true);
-                // 只返回战斗结束的增量日志
-                result.setBattleLog(endLogs != null ? endLogs : new ArrayList<>());
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                 return result;
             }
 
             Optional<String> currentTurn = combat.getCurrentTurnCharacterId();
             if (currentTurn.isPresent() && currentTurn.get().equals(characterId)) {
                 CombatActionResult result = CombatActionResult.success("轮到你的回合");
-                // 不返回完整战斗日志，通过增量机制获取
-                result.setBattleLog(new ArrayList<>());
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                 return result;
             } else {
                 // 仍然不是自己的回合，返回状态让前端继续wait
                 CombatActionResult result = CombatActionResult.success("未轮到你的回合，请输入wait继续等待");
-                // 不返回完整战斗日志，通过增量机制获取
-                result.setBattleLog(new ArrayList<>());
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                 return result;
             }
         } finally {
@@ -966,8 +948,7 @@ public class CombatEngine {
                 }
                 // 战斗未结束但角色已死亡
                 CombatActionResult result = CombatActionResult.error("角色不存在或已死亡");
-                // 不返回完整战斗日志，通过增量机制获取
-                result.setBattleLog(new ArrayList<>());
+                result.setBattleLog(convertLogsToStrings(combat.getAllLogs()));
                 return result;
             }
 

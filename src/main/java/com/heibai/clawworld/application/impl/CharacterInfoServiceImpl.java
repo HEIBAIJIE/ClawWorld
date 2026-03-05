@@ -2,7 +2,6 @@ package com.heibai.clawworld.application.impl;
 
 import com.heibai.clawworld.application.service.CharacterInfoService;
 import com.heibai.clawworld.application.service.PartyService;
-import com.heibai.clawworld.application.service.PlayerSessionService;
 import com.heibai.clawworld.domain.character.Party;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.item.Equipment;
@@ -44,7 +43,7 @@ public class CharacterInfoServiceImpl implements CharacterInfoService {
         int currentExp = player.getExperience();
         int requiredExp = player.getExperienceForNextLevel();
         int progressPercent = player.getExperienceProgressPercent();
-        sb.append(String.format("经验: %d/%d (%d%%)  金币: %s\n", currentExp, requiredExp, progressPercent, CurrencyFormatter.format(player.getGold())));
+        sb.append(String.format("经验: %d/%d (%d%%)  货币: %s\n", currentExp, requiredExp, progressPercent, CurrencyFormatter.format(player.getGold())));
 
         // 计算总四维（玩家自身 + 装备加成）
         int totalStrength = player.getStrength();
@@ -148,8 +147,8 @@ public class CharacterInfoServiceImpl implements CharacterInfoService {
     @Override
     public String generateInventory(Player player) {
         StringBuilder sb = new StringBuilder();
-        // 先显示金币
-        sb.append(String.format("金币: %s\n", CurrencyFormatter.format(player.getGold())));
+        // 先显示货币
+        sb.append(String.format("货币: %s\n", CurrencyFormatter.format(player.getGold())));
         // 再显示背包物品
         if (player.getInventory() != null && !player.getInventory().isEmpty()) {
             for (Player.InventorySlot slot : player.getInventory()) {

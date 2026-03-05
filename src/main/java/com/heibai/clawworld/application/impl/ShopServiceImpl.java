@@ -4,6 +4,7 @@ import com.heibai.clawworld.application.service.PlayerSessionService;
 import com.heibai.clawworld.application.service.ShopService;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.item.Item;
+import com.heibai.clawworld.domain.util.CurrencyFormatter;
 import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
 import com.heibai.clawworld.infrastructure.config.data.character.NpcConfig;
 import com.heibai.clawworld.infrastructure.config.data.character.NpcShopItemConfig;
@@ -83,7 +84,7 @@ public class ShopServiceImpl implements ShopService {
 
         // 7. 验证玩家金钱
         if (player.getGold() < totalPrice) {
-            return OperationResult.error(String.format("金钱不足，需要 %d 金币", totalPrice));
+            return OperationResult.error(String.format("金钱不足，需要 %s", CurrencyFormatter.format(totalPrice)));
         }
 
         // 8. 检查背包空间
@@ -149,7 +150,7 @@ public class ShopServiceImpl implements ShopService {
         npcShopInstanceRepository.save(shop);
 
         log.info("玩家 {} 从商店 {} 购买 {} x{}, 花费 {} 金币", playerId, shopId, itemName, quantity, totalPrice);
-        return OperationResult.success(String.format("购买 %s x%d 成功，花费 %d 金币", itemName, quantity, totalPrice));
+        return OperationResult.success(String.format("购买 %s x%d 成功，花费 %s", itemName, quantity, CurrencyFormatter.format(totalPrice)));
     }
 
     @Override
@@ -238,7 +239,7 @@ public class ShopServiceImpl implements ShopService {
         npcShopInstanceRepository.save(shop);
 
         log.info("玩家 {} 向商店 {} 出售 {} x{}, 获得 {} 金币", playerId, shopId, itemName, quantity, sellPrice);
-        return OperationResult.success(String.format("出售 %s x%d 成功，获得 %d 金币", itemName, quantity, sellPrice));
+        return OperationResult.success(String.format("出售 %s x%d 成功，获得 %s", itemName, quantity, CurrencyFormatter.format(sellPrice)));
     }
 
     @Override

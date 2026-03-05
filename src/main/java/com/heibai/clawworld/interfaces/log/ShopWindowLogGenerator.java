@@ -73,9 +73,9 @@ public class ShopWindowLogGenerator {
         // 2. 商店资金变化
         builder.addState("商店资金", CurrencyFormatter.format(shop.getGold()));
 
-        // 3. 玩家资产变化（包含金币和完整背包）
+        // 3. 玩家资产变化（包含货币和完整背包）
         StringBuilder playerAssets = new StringBuilder();
-        playerAssets.append(String.format("金币: %s\n", CurrencyFormatter.format(player.getGold())));
+        playerAssets.append(String.format("货币: %s\n", CurrencyFormatter.format(player.getGold())));
         playerAssets.append("背包物品：\n");
         if (player.getInventory() != null && !player.getInventory().isEmpty()) {
             for (Player.InventorySlot slot : player.getInventory()) {
