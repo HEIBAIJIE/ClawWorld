@@ -3,6 +3,7 @@ package com.heibai.clawworld.integration;
 import com.heibai.clawworld.application.impl.AuthService;
 import com.heibai.clawworld.application.service.MapEntityService;
 import com.heibai.clawworld.application.service.PlayerSessionService;
+import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
 import com.heibai.clawworld.infrastructure.persistence.repository.AccountRepository;
 import com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository;
 import org.junit.jupiter.api.*;
@@ -10,11 +11,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
+import java.util.ArrayList;
+
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * 游戏流程集成测试
  * 测试从注册到游戏的完整流程
+ * 注意：此测试动态获取CSV配置中的职业数据，不依赖硬编码的职业名称
  */
 @SpringBootTest
 @TestPropertySource(properties = "spring.data.mongodb.uri=mongodb://localhost:27017/clawworld_test")
@@ -37,8 +42,31 @@ class GameFlowIntegrationTest {
     @Autowired
     private PlayerRepository playerRepository;
 
+    @Autowired
+    private ConfigDataManager configDataManager;
+
     private static String sessionId;
     private static String playerId;
+
+    // 动态获取的职业名称，避免硬编码依赖CSV内容
+    private static String role1Name;
+    private static String role2Name;
+    private static String role3Name;
+    private static String role4Name;
+
+    @BeforeAll
+    static void initRoles(@Autowired ConfigDataManager configDataManager) {
+        // 动态获取可用的职业名称
+        var roles = configDataManager.getAllRoles();
+        assumeTrue(!roles.isEmpty(), "至少需要1个职业配置才能运行测试");
+
+        // 将Collection转换为List以便使用get(index)方法
+        var rolesList = new ArrayList<>(roles);
+        role1Name = rolesList.size() > 0 ? rolesList.get(0).getName() : null;
+        role2Name = rolesList.size() > 1 ? rolesList.get(1).getName() : role1Name;
+        role3Name = rolesList.size() > 2 ? rolesList.get(2).getName() : role1Name;
+        role4Name = rolesList.size() > 3 ? rolesList.get(3).getName() : role1Name;
+    }
 
     @BeforeEach
     void setUp() {
@@ -67,7 +95,7 @@ class GameFlowIntegrationTest {
 
         // 2. 注册角色
         PlayerSessionService.SessionResult registerResult =
-            playerSessionService.registerPlayer(sessionId, "战士", "测试战士");
+            playerSessionService.registerPlayer(sessionId, role1Name, "测试战士");
 
         assertTrue(registerResult.isSuccess(), "注册应该成功");
         assertNotNull(registerResult.getPlayerId(), "应该返回playerId");
@@ -87,7 +115,7 @@ class GameFlowIntegrationTest {
 
         // 创建角色
         PlayerSessionService.SessionResult createResult =
-            playerSessionService.registerPlayer(registerResult.getSessionId(), "战士", "老玩家");
+            playerSessionService.registerPlayer(registerResult.getSessionId(), role1Name, "老玩家");
         assertTrue(createResult.isSuccess(), "创建角色应该成功");
 
         // 登出
@@ -127,7 +155,7 @@ class GameFlowIntegrationTest {
 
         // 2. 注册角色
         PlayerSessionService.SessionResult registerResult =
-            playerSessionService.registerPlayer(sid, "战士", "勇士一号");
+            playerSessionService.registerPlayer(sid, role1Name, "勇士一号");
         assertTrue(registerResult.isSuccess());
         String pid = registerResult.getPlayerId();
 
@@ -158,13 +186,13 @@ class GameFlowIntegrationTest {
         // 1. 第一个用户注册
         AuthService.LoginResult login1 = authService.loginOrRegister("user1", "pass1");
         PlayerSessionService.SessionResult register1 =
-            playerSessionService.registerPlayer(login1.getSessionId(), "战士", "独特昵称");
+            playerSessionService.registerPlayer(login1.getSessionId(), role1Name, "独特昵称");
         assertTrue(register1.isSuccess());
 
         // 2. 第二个用户尝试使用相同昵称
         AuthService.LoginResult login2 = authService.loginOrRegister("user2", "pass2");
         PlayerSessionService.SessionResult register2 =
-            playerSessionService.registerPlayer(login2.getSessionId(), "法师", "独特昵称");
+            playerSessionService.registerPlayer(login2.getSessionId(), role2Name, "独特昵称");
         assertFalse(register2.isSuccess(), "应该失败,昵称已被使用");
         assertEquals("昵称已被使用", register2.getMessage());
     }
@@ -176,7 +204,7 @@ class GameFlowIntegrationTest {
         // 1. 注册用户
         AuthService.LoginResult loginResult = authService.loginOrRegister("attrtest", "pass");
         PlayerSessionService.SessionResult registerResult =
-            playerSessionService.registerPlayer(loginResult.getSessionId(), "战士", "属性测试");
+            playerSessionService.registerPlayer(loginResult.getSessionId(), role1Name, "属性测试");
         String pid = registerResult.getPlayerId();
 
         // 2. 分配属性点 (初始5点)
@@ -214,7 +242,7 @@ class GameFlowIntegrationTest {
         // 1. 注册用户
         AuthService.LoginResult loginResult = authService.loginOrRegister("movetest", "pass");
         PlayerSessionService.SessionResult registerResult =
-            playerSessionService.registerPlayer(loginResult.getSessionId(), "游侠", "移动测试");
+            playerSessionService.registerPlayer(loginResult.getSessionId(), role3Name, "移动测试");
         String pid = registerResult.getPlayerId();
 
         // 2. 尝试移动到负坐标
@@ -233,7 +261,7 @@ class GameFlowIntegrationTest {
         // 1. 注册用户
         AuthService.LoginResult loginResult = authService.loginOrRegister("waittest", "pass");
         PlayerSessionService.SessionResult registerResult =
-            playerSessionService.registerPlayer(loginResult.getSessionId(), "牧师", "等待测试");
+            playerSessionService.registerPlayer(loginResult.getSessionId(), role4Name, "等待测试");
         String pid = registerResult.getPlayerId();
 
         // 2. 测试有效等待时间（只测试最小值，避免测试过慢）
