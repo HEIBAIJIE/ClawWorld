@@ -92,7 +92,7 @@ public class PlayerMapper {
             List<PlayerEntity.InventorySlotData> inventoryList = player.getInventory().stream()
                     .map(slot -> {
                         PlayerEntity.InventorySlotData data = new PlayerEntity.InventorySlotData();
-                        data.setType(slot.getType().name());
+                        data.setType(slot.isItem() ? "ITEM" : "EQUIPMENT");
                         data.setQuantity(slot.getQuantity());
 
                         if (slot.isItem()) {
