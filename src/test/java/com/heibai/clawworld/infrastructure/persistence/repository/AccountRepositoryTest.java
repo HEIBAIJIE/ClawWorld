@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * 使用内嵌MongoDB进行测试
  */
 @DataMongoTest
-@TestPropertySource(properties = "spring.data.mongodb.uri=mongodb://localhost:27017/clawworld_test")
 class AccountRepositoryTest {
 
     @Autowired

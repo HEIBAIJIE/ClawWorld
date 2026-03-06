@@ -16,7 +16,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * 聊天记录Repository单元测试
  */
 @DataMongoTest
-@TestPropertySource(properties = "spring.data.mongodb.uri=mongodb://localhost:27017/clawworld_test")
 class ChatMessageRepositoryTest {
 
     @Autowired
