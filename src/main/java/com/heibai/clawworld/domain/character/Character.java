@@ -1,8 +1,8 @@
 package com.heibai.clawworld.domain.character;
 
 import com.heibai.clawworld.domain.skill.Skill;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
 import com.heibai.clawworld.domain.map.MapEntity;
 import com.heibai.clawworld.domain.constants.GameConstants;
 
@@ -14,8 +14,8 @@ import java.util.List;
  * 角色领域对象 - 所有具有战斗属性的实体的基类
  * 根据设计文档：角色是一类特殊的地图实体，他们的特殊之处在于有战斗属性
  */
-@Data
-@EqualsAndHashCode(callSuper = true)
+@Getter
+@Setter
 public abstract class Character extends MapEntity {
     // 基础属性
     private int level;

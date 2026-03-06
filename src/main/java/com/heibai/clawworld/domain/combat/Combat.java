@@ -1,23 +1,26 @@
 package com.heibai.clawworld.domain.combat;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import com.heibai.clawworld.domain.constants.GameConstants;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 战斗领域对象
  * 与CombatEntity对应，但不包含持久化注解
  */
-@Data
+@Getter
+@Setter
 public class Combat {
     private String id;
     private String mapId;
     private Long startTime;
     private CombatStatus status;
-    private List<CombatParty> parties = new ArrayList<>();
-    private List<ActionBarEntry> actionBar = new ArrayList<>();
+    private List<CombatPartyData> parties = new ArrayList<>();
+    private List<ActionBarEntryData> actionBar = new ArrayList<>();
     private List<String> combatLog = new ArrayList<>();
 
     /**
@@ -47,110 +50,16 @@ public class Combat {
         combatLog.add(log);
     }
 
-    /**
-     * 参战方
-     */
-    @Data
-    public static class CombatParty {
-        private String faction;
-        private List<CombatCharacter> characters = new ArrayList<>();
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Combat combat = (Combat) o;
+        return Objects.equals(id, combat.id);
     }
 
-    /**
-     * 战斗中的角色
-     */
-    @Data
-    public static class CombatCharacter {
-        private String characterId;
-        private String characterType;
-        private String name;
-        private int currentHealth;
-        private int maxHealth;
-        private int currentMana;
-        private int maxMana;
-        private int speed;
-        private boolean isDead;
-        private List<SkillCooldown> skillCooldowns = new ArrayList<>();
-
-        /**
-         * 检查是否存活
-         */
-        public boolean isAlive() {
-            return !isDead && currentHealth > 0;
-        }
-
-        /**
-         * 受到伤害
-         */
-        public void takeDamage(int damage) {
-            currentHealth = Math.max(0, currentHealth - damage);
-            if (currentHealth == 0) {
-                isDead = true;
-            }
-        }
-
-        /**
-         * 恢复生命
-         */
-        public void heal(int amount) {
-            if (!isDead) {
-                currentHealth = Math.min(maxHealth, currentHealth + amount);
-            }
-        }
-    }
-
-    /**
-     * 技能冷却
-     */
-    @Data
-    public static class SkillCooldown {
-        private String skillId;
-        private int remainingTurns;
-
-        /**
-         * 减少冷却回合数
-         */
-        public void decreaseCooldown() {
-            if (remainingTurns > 0) {
-                remainingTurns--;
-            }
-        }
-
-        /**
-         * 检查技能是否可用
-         */
-        public boolean isReady() {
-            return remainingTurns <= 0;
-        }
-    }
-
-    /**
-     * 行动条条目
-     */
-    @Data
-    public static class ActionBarEntry {
-        private String characterId;
-        private int progress; // 当前进度值（0-ACTION_BAR_THRESHOLD）
-
-        /**
-         * 增加进度
-         */
-        public void increaseProgress(int speed) {
-            progress += speed;
-        }
-
-        /**
-         * 检查是否轮到行动
-         */
-        public boolean isReady() {
-            return progress >= GameConstants.ACTION_BAR_THRESHOLD;
-        }
-
-        /**
-         * 重置行动条
-         */
-        public void reset() {
-            progress -= GameConstants.ACTION_BAR_THRESHOLD;
-        }
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

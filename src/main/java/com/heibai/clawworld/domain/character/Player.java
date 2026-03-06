@@ -1,7 +1,7 @@
 package com.heibai.clawworld.domain.character;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
 import com.heibai.clawworld.domain.item.Equipment;
 import com.heibai.clawworld.domain.item.Item;
 import com.heibai.clawworld.domain.constants.GameConstants;
@@ -9,14 +9,15 @@ import com.heibai.clawworld.domain.constants.GameConstants;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 玩家领域对象（纯业务逻辑对象，不包含持久化注解）
  * 根据设计文档：玩家是一类特殊的角色，特殊之处在于他们的行为受控制
  * 玩家的最终数值 = 职业原始数值 + 四维影响 + 装备加成
  */
-@Data
-@EqualsAndHashCode(callSuper = true)
+@Getter
+@Setter
 public class Player extends Character {
     private String id;
     private String roleId; // 职业ID
@@ -255,44 +256,162 @@ public class Player extends Character {
         return "PLAYER";
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Player player = (Player) o;
+        return Objects.equals(id, player.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+
     /**
-     * 背包槽位
-     * 统一存储普通物品和装备
+     * 背包槽位抽象类
+     * 使用多态设计替代类型标记模式
      */
-    @Data
-    public static class InventorySlot {
-        private SlotType type;
-        private Item item; // 普通物品
-        private Equipment equipment; // 装备（包含实例编号）
-        private int quantity; // 数量（仅对普通物品有效）
+    public abstract static class InventorySlot {
+        /**
+         * 获取槽位中的物品ID
+         */
+        public abstract String getItemId();
 
-        public static InventorySlot forItem(Item item, int quantity) {
-            InventorySlot slot = new InventorySlot();
-            slot.setType(SlotType.ITEM);
-            slot.setItem(item);
-            slot.setQuantity(quantity);
-            return slot;
-        }
+        /**
+         * 获取槽位中的物品名称
+         */
+        public abstract String getItemName();
 
-        public static InventorySlot forEquipment(Equipment equipment) {
-            InventorySlot slot = new InventorySlot();
-            slot.setType(SlotType.EQUIPMENT);
-            slot.setEquipment(equipment);
-            slot.setQuantity(1);
-            return slot;
-        }
+        /**
+         * 获取数量
+         */
+        public abstract int getQuantity();
 
-        public boolean isEquipment() {
-            return type == SlotType.EQUIPMENT;
-        }
+        /**
+         * 设置数量
+         */
+        public abstract void setQuantity(int quantity);
 
+        /**
+         * 判断是否为普通物品槽
+         */
         public boolean isItem() {
-            return type == SlotType.ITEM;
+            return this instanceof ItemSlot;
         }
 
-        public enum SlotType {
-            ITEM,       // 普通物品（可堆叠）
-            EQUIPMENT   // 装备（不可堆叠，有实例编号）
+        /**
+         * 判断是否为装备槽
+         */
+        public boolean isEquipment() {
+            return this instanceof EquipmentSlot;
+        }
+
+        /**
+         * 获取普通物品（如果是ItemSlot）
+         */
+        public Item getItem() {
+            return isItem() ? ((ItemSlot) this).getItemObject() : null;
+        }
+
+        /**
+         * 获取装备（如果是EquipmentSlot）
+         */
+        public Equipment getEquipment() {
+            return isEquipment() ? ((EquipmentSlot) this).getEquipmentObject() : null;
+        }
+
+        /**
+         * 静态工厂方法：创建物品槽
+         */
+        public static InventorySlot forItem(Item item, int quantity) {
+            return new ItemSlot(item, quantity);
+        }
+
+        /**
+         * 静态工厂方法：创建装备槽
+         */
+        public static InventorySlot forEquipment(Equipment equipment) {
+            return new EquipmentSlot(equipment);
+        }
+    }
+
+    /**
+     * 普通物品槽（可堆叠）
+     */
+    @lombok.Getter
+    @lombok.Setter
+    public static class ItemSlot extends InventorySlot {
+        private Item item;
+        private int quantity;
+
+        public ItemSlot() {
+        }
+
+        public ItemSlot(Item item, int quantity) {
+            this.item = item;
+            this.quantity = quantity;
+        }
+
+        @Override
+        public String getItemId() {
+            return item != null ? item.getId() : null;
+        }
+
+        @Override
+        public String getItemName() {
+            return item != null ? item.getName() : null;
+        }
+
+        /**
+         * 获取物品对象（内部使用）
+         */
+        public Item getItemObject() {
+            return item;
+        }
+    }
+
+    /**
+     * 装备槽（不可堆叠，有实例编号）
+     */
+    @lombok.Getter
+    @lombok.Setter
+    public static class EquipmentSlot extends InventorySlot {
+        private Equipment equipment;
+
+        public EquipmentSlot() {
+        }
+
+        public EquipmentSlot(Equipment equipment) {
+            this.equipment = equipment;
+        }
+
+        @Override
+        public String getItemId() {
+            return equipment != null ? equipment.getId() : null;
+        }
+
+        @Override
+        public String getItemName() {
+            return equipment != null ? equipment.getName() : null;
+        }
+
+        @Override
+        public int getQuantity() {
+            return 1; // 装备固定为1
+        }
+
+        @Override
+        public void setQuantity(int quantity) {
+            // 装备不支持修改数量，忽略此操作
+        }
+
+        /**
+         * 获取装备对象（内部使用）
+         */
+        public Equipment getEquipmentObject() {
+            return equipment;
         }
     }
 }

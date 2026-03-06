@@ -1,17 +1,20 @@
 package com.heibai.clawworld.domain.combat;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 战斗角色 - 战斗中的角色数据
  * 包含战斗属性和状态
  */
-@Data
+@Getter
+@Setter
 public class CombatCharacter {
     // 基础信息
     private String characterId;
@@ -161,5 +164,18 @@ public class CombatCharacter {
      */
     public boolean isPartyLeader() {
         return partyLeader;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CombatCharacter that = (CombatCharacter) o;
+        return Objects.equals(characterId, that.characterId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(characterId);
     }
 }

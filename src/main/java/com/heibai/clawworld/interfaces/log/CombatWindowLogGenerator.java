@@ -3,11 +3,12 @@ package com.heibai.clawworld.interfaces.log;
 import com.heibai.clawworld.application.service.PlayerSessionService;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.combat.Combat;
+import com.heibai.clawworld.domain.combat.CombatPartyData;
+import com.heibai.clawworld.domain.combat.CombatCharacterData;
+import com.heibai.clawworld.domain.combat.ActionBarEntryData;
 import com.heibai.clawworld.infrastructure.config.ConfigDataManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 /**
  * 战斗窗口日志生成器
@@ -45,9 +46,9 @@ public class CombatWindowLogGenerator {
         StringBuilder partiesInfo = new StringBuilder();
         partiesInfo.append("【参战方】\n");
         int partyIndex = 1;
-        for (Combat.CombatParty party : combat.getParties()) {
+        for (CombatPartyData party : combat.getParties()) {
             partiesInfo.append(String.format("第%d方（%s）：", partyIndex++, party.getFaction()));
-            for (Combat.CombatCharacter character : party.getCharacters()) {
+            for (CombatCharacterData character : party.getCharacters()) {
                 partiesInfo.append(character.getName()).append(" ");
             }
             partiesInfo.append("\n");
@@ -57,8 +58,8 @@ public class CombatWindowLogGenerator {
         // 3. 所有参战角色状态
         StringBuilder participantsStatus = new StringBuilder();
         participantsStatus.append("【角色状态】\n");
-        for (Combat.CombatParty party : combat.getParties()) {
-            for (Combat.CombatCharacter character : party.getCharacters()) {
+        for (CombatPartyData party : combat.getParties()) {
+            for (CombatCharacterData character : party.getCharacters()) {
                 String statusIcon = character.getCurrentHealth() <= 0 ? "☠" : "♥";
                 participantsStatus.append(String.format("%s %s - HP:%d/%d MP:%d/%d 速度:%d 阵营:%s",
                     statusIcon,
@@ -83,7 +84,7 @@ public class CombatWindowLogGenerator {
         if (combat.getActionBar() != null && !combat.getActionBar().isEmpty()) {
             int displayCount = Math.min(5, combat.getActionBar().size());
             for (int i = 0; i < displayCount; i++) {
-                Combat.ActionBarEntry entry = combat.getActionBar().get(i);
+                ActionBarEntryData entry = combat.getActionBar().get(i);
                 String characterName = findCharacterName(combat, entry.getCharacterId());
                 String marker = "";
                 if (playerId != null && playerId.equals(entry.getCharacterId())) {
@@ -106,7 +107,7 @@ public class CombatWindowLogGenerator {
         // 从玩家状态获取技能列表
         Player player = playerSessionService.getPlayerState(playerId);
         // 获取玩家角色的冷却信息
-        Combat.CombatCharacter playerCharacter = findPlayerCharacter(combat, playerId);
+        CombatCharacterData playerCharacter = findPlayerCharacter(combat, playerId);
         java.util.Set<String> addedSkills = new java.util.HashSet<>();
         if (player != null && player.getSkills() != null && !player.getSkills().isEmpty()) {
             for (String skillId : player.getSkills()) {
@@ -209,9 +210,9 @@ public class CombatWindowLogGenerator {
         // 2.5 参战方信息（当有新阵营加入时，前端需要更新参战方列表）
         StringBuilder partiesInfo = new StringBuilder();
         int partyIndex = 1;
-        for (Combat.CombatParty party : combat.getParties()) {
+        for (CombatPartyData party : combat.getParties()) {
             partiesInfo.append(String.format("第%d方（%s）：", partyIndex++, party.getFaction()));
-            for (Combat.CombatCharacter character : party.getCharacters()) {
+            for (CombatCharacterData character : party.getCharacters()) {
                 partiesInfo.append(character.getName()).append(" ");
             }
             partiesInfo.append("\n");
@@ -220,8 +221,8 @@ public class CombatWindowLogGenerator {
 
         // 3. 角色状态
         StringBuilder statusChanges = new StringBuilder();
-        for (Combat.CombatParty party : combat.getParties()) {
-            for (Combat.CombatCharacter character : party.getCharacters()) {
+        for (CombatPartyData party : combat.getParties()) {
+            for (CombatCharacterData character : party.getCharacters()) {
                 String statusIcon = character.getCurrentHealth() <= 0 ? "☠" : "♥";
                 statusChanges.append(String.format("%s %s - HP:%d/%d MP:%d/%d 阵营:%s",
                     statusIcon,
@@ -244,7 +245,7 @@ public class CombatWindowLogGenerator {
             StringBuilder turnOrderUpdate = new StringBuilder();
             int displayCount = Math.min(5, combat.getActionBar().size());
             for (int i = 0; i < displayCount; i++) {
-                Combat.ActionBarEntry entry = combat.getActionBar().get(i);
+                ActionBarEntryData entry = combat.getActionBar().get(i);
                 String characterName = findCharacterName(combat, entry.getCharacterId());
                 String marker = "";
                 if (playerId != null && playerId.equals(entry.getCharacterId())) {
@@ -299,9 +300,9 @@ public class CombatWindowLogGenerator {
     /**
      * 查找玩家角色
      */
-    private Combat.CombatCharacter findPlayerCharacter(Combat combat, String playerId) {
-        for (Combat.CombatParty party : combat.getParties()) {
-            for (Combat.CombatCharacter character : party.getCharacters()) {
+    private CombatCharacterData findPlayerCharacter(Combat combat, String playerId) {
+        for (CombatPartyData party : combat.getParties()) {
+            for (CombatCharacterData character : party.getCharacters()) {
                 if (playerId.equals(character.getCharacterId())) {
                     return character;
                 }
@@ -314,8 +315,8 @@ public class CombatWindowLogGenerator {
      * 根据角色ID查找角色名称
      */
     private String findCharacterName(Combat combat, String characterId) {
-        for (Combat.CombatParty party : combat.getParties()) {
-            for (Combat.CombatCharacter character : party.getCharacters()) {
+        for (CombatPartyData party : combat.getParties()) {
+            for (CombatCharacterData character : party.getCharacters()) {
                 if (characterId.equals(character.getCharacterId())) {
                     return character.getName();
                 }

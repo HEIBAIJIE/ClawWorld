@@ -377,10 +377,10 @@ public class StateServiceImpl implements StateService {
         state.append("=== 参战方 ===\n");
         if (combat.getParties() != null) {
             int partyIndex = 1;
-            for (com.heibai.clawworld.domain.combat.Combat.CombatParty party : combat.getParties()) {
+            for (com.heibai.clawworld.domain.combat.CombatPartyData party : combat.getParties()) {
                 state.append("【第").append(partyIndex++).append("方】");
                 List<String> names = new java.util.ArrayList<>();
-                for (com.heibai.clawworld.domain.combat.Combat.CombatCharacter character : party.getCharacters()) {
+                for (com.heibai.clawworld.domain.combat.CombatCharacterData character : party.getCharacters()) {
                     names.add(character.getName());
                 }
                 state.append(String.join(", ", names)).append("\n");
@@ -391,8 +391,8 @@ public class StateServiceImpl implements StateService {
         // 4. 所有角色状态
         state.append("=== 角色状态 ===\n");
         if (combat.getParties() != null) {
-            for (com.heibai.clawworld.domain.combat.Combat.CombatParty party : combat.getParties()) {
-                for (com.heibai.clawworld.domain.combat.Combat.CombatCharacter character : party.getCharacters()) {
+            for (com.heibai.clawworld.domain.combat.CombatPartyData party : combat.getParties()) {
+                for (com.heibai.clawworld.domain.combat.CombatCharacterData character : party.getCharacters()) {
                     String statusIcon = character.getCurrentHealth() <= 0 ? "☠" : "♥";
                     state.append(String.format("%s %s - HP:%d/%d MP:%d/%d 速度:%d",
                         statusIcon,
@@ -418,7 +418,7 @@ public class StateServiceImpl implements StateService {
         if (combat.getActionBar() != null && !combat.getActionBar().isEmpty()) {
             int displayCount = Math.min(5, combat.getActionBar().size());
             for (int i = 0; i < displayCount; i++) {
-                com.heibai.clawworld.domain.combat.Combat.ActionBarEntry entry = combat.getActionBar().get(i);
+                com.heibai.clawworld.domain.combat.ActionBarEntryData entry = combat.getActionBar().get(i);
                 String characterName = findCharacterNameInCombat(combat, entry.getCharacterId());
                 String marker = "";
                 if (entry.getCharacterId() != null && entry.getCharacterId().equals(playerId)) {
@@ -436,7 +436,7 @@ public class StateServiceImpl implements StateService {
         state.append("\n");
 
         // 6. 当前玩家的技能
-        com.heibai.clawworld.domain.combat.Combat.CombatCharacter playerCharacter = findPlayerCharacterInCombat(combat, playerId);
+        com.heibai.clawworld.domain.combat.CombatCharacterData playerCharacter = findPlayerCharacterInCombat(combat, playerId);
         if (playerCharacter != null) {
             state.append("=== 你的技能 ===\n");
             // 获取玩家的技能列表
@@ -502,8 +502,8 @@ public class StateServiceImpl implements StateService {
         if (combat.getParties() == null) {
             return characterId;
         }
-        for (com.heibai.clawworld.domain.combat.Combat.CombatParty party : combat.getParties()) {
-            for (com.heibai.clawworld.domain.combat.Combat.CombatCharacter character : party.getCharacters()) {
+        for (com.heibai.clawworld.domain.combat.CombatPartyData party : combat.getParties()) {
+            for (com.heibai.clawworld.domain.combat.CombatCharacterData character : party.getCharacters()) {
                 if (characterId != null && characterId.equals(character.getCharacterId())) {
                     return character.getName();
                 }
@@ -515,13 +515,13 @@ public class StateServiceImpl implements StateService {
     /**
      * 在战斗中查找玩家角色
      */
-    private com.heibai.clawworld.domain.combat.Combat.CombatCharacter findPlayerCharacterInCombat(
+    private com.heibai.clawworld.domain.combat.CombatCharacterData findPlayerCharacterInCombat(
             com.heibai.clawworld.domain.combat.Combat combat, String playerId) {
         if (combat.getParties() == null) {
             return null;
         }
-        for (com.heibai.clawworld.domain.combat.Combat.CombatParty party : combat.getParties()) {
-            for (com.heibai.clawworld.domain.combat.Combat.CombatCharacter character : party.getCharacters()) {
+        for (com.heibai.clawworld.domain.combat.CombatPartyData party : combat.getParties()) {
+            for (com.heibai.clawworld.domain.combat.CombatCharacterData character : party.getCharacters()) {
                 if (playerId != null && playerId.equals(character.getCharacterId())) {
                     return character;
                 }

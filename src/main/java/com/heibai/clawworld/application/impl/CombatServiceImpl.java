@@ -12,6 +12,10 @@ import com.heibai.clawworld.domain.combat.CombatInstance;
 import com.heibai.clawworld.infrastructure.config.data.map.MapConfig;
 import com.heibai.clawworld.domain.character.Player;
 import com.heibai.clawworld.domain.combat.Combat;
+import com.heibai.clawworld.domain.combat.CombatPartyData;
+import com.heibai.clawworld.domain.combat.CombatCharacterData;
+import com.heibai.clawworld.domain.combat.SkillCooldownData;
+import com.heibai.clawworld.domain.combat.ActionBarEntryData;
 import com.heibai.clawworld.infrastructure.persistence.entity.PlayerEntity;
 import com.heibai.clawworld.infrastructure.persistence.repository.EnemyInstanceRepository;
 import com.heibai.clawworld.infrastructure.persistence.repository.PlayerRepository;
@@ -588,14 +592,14 @@ public class CombatServiceImpl implements CombatService {
         combat.setCombatLog(logs);
 
         // 转换参战方信息
-        List<Combat.CombatParty> parties = new ArrayList<>();
+        List<CombatPartyData> parties = new ArrayList<>();
         for (Map.Entry<String, CombatParty> entry : instance.getParties().entrySet()) {
-            Combat.CombatParty party = new Combat.CombatParty();
+            CombatPartyData party = new CombatPartyData();
             party.setFaction(entry.getKey());
 
-            List<Combat.CombatCharacter> characters = new ArrayList<>();
+            List<CombatCharacterData> characters = new ArrayList<>();
             for (CombatCharacter cc : entry.getValue().getCharacters()) {
-                Combat.CombatCharacter character = new Combat.CombatCharacter();
+                CombatCharacterData character = new CombatCharacterData();
                 character.setCharacterId(cc.getCharacterId());
                 character.setCharacterType(cc.getCharacterType());
                 character.setName(cc.getName());
@@ -607,10 +611,10 @@ public class CombatServiceImpl implements CombatService {
                 character.setDead(!cc.isAlive());
 
                 // 转换技能冷却
-                List<Combat.SkillCooldown> cooldowns = new ArrayList<>();
+                List<SkillCooldownData> cooldowns = new ArrayList<>();
                 if (cc.getSkillCooldowns() != null) {
                     for (Map.Entry<String, Integer> cdEntry : cc.getSkillCooldowns().entrySet()) {
-                        Combat.SkillCooldown cooldown = new Combat.SkillCooldown();
+                        SkillCooldownData cooldown = new SkillCooldownData();
                         cooldown.setSkillId(cdEntry.getKey());
                         cooldown.setRemainingTurns(cdEntry.getValue());
                         cooldowns.add(cooldown);
@@ -626,13 +630,13 @@ public class CombatServiceImpl implements CombatService {
         combat.setParties(parties);
 
         // 转换行动条信息（按进度排序）
-        List<Combat.ActionBarEntry> actionBarEntries = new ArrayList<>();
+        List<ActionBarEntryData> actionBarEntries = new ArrayList<>();
         List<CombatInstance.ActionBarEntry> sortedEntries = instance.getActionBar().values().stream()
             .sorted((a, b) -> Integer.compare(b.getProgress(), a.getProgress()))
             .collect(Collectors.toList());
 
         for (CombatInstance.ActionBarEntry abEntry : sortedEntries) {
-            Combat.ActionBarEntry entry = new Combat.ActionBarEntry();
+            ActionBarEntryData entry = new ActionBarEntryData();
             entry.setCharacterId(abEntry.getCharacterId());
             entry.setProgress(abEntry.getProgress());
             actionBarEntries.add(entry);
