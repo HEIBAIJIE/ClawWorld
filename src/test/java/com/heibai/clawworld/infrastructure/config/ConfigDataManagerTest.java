@@ -42,11 +42,27 @@ class ConfigDataManagerTest {
         assertFalse(configDataManager.getAllWaypoints().isEmpty(), "应该加载了传送点数据");
 
         log.info("\n=== 关联配置数据 ===");
-        log.info("敌人掉落配置: {} 条", configDataManager.getEnemyLoot("slime").size());
-        log.info("地图地形配置: {} 条", configDataManager.getMapTerrain("dark_forest").size());
-        log.info("地图实体配置: {} 条", configDataManager.getMapEntities("starter_village").size());
-        log.info("NPC商店物品: {} 条", configDataManager.getNpcShopItems("merchant_john").size());
-        log.info("职业技能映射: {} 条", configDataManager.getRoleSkills("WARRIOR").size());
+        // 动态获取第一个可用的ID进行测试，避免硬编码依赖CSV具体内容
+        if (!configDataManager.getAllEnemies().isEmpty()) {
+            String firstEnemyId = configDataManager.getAllEnemies().stream().findFirst().get().getId();
+            log.info("敌人掉落配置 ({}): {} 条", firstEnemyId, configDataManager.getEnemyLoot(firstEnemyId).size());
+        }
+
+        if (!configDataManager.getAllMaps().isEmpty()) {
+            String firstMapId = configDataManager.getAllMaps().stream().findFirst().get().getId();
+            log.info("地图地形配置 ({}): {} 条", firstMapId, configDataManager.getMapTerrain(firstMapId).size());
+            log.info("地图实体配置 ({}): {} 条", firstMapId, configDataManager.getMapEntities(firstMapId).size());
+        }
+
+        if (!configDataManager.getAllNpcs().isEmpty()) {
+            String firstNpcId = configDataManager.getAllNpcs().stream().findFirst().get().getId();
+            log.info("NPC商店物品 ({}): {} 条", firstNpcId, configDataManager.getNpcShopItems(firstNpcId).size());
+        }
+
+        if (!configDataManager.getAllRoles().isEmpty()) {
+            String firstRoleId = configDataManager.getAllRoles().stream().findFirst().get().getId();
+            log.info("职业技能映射 ({}): {} 条", firstRoleId, configDataManager.getRoleSkills(firstRoleId).size());
+        }
 
         log.info("=== 配置加载完成 ===");
     }
