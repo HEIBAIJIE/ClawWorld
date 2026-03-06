@@ -4,9 +4,9 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import com.heibai.clawworld.domain.item.Equipment;
 import com.heibai.clawworld.domain.item.Item;
+import com.heibai.clawworld.domain.constants.GameConstants;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,6 +37,21 @@ public class Player extends Character {
     // 背包（最多50类物品）
     // 统一存储普通物品和装备，通过类型区分
     private List<InventorySlot> inventory;
+
+    /**
+     * 添加物品到背包
+     * @return true如果添加成功，false如果背包已满
+     */
+    public boolean addToInventory(InventorySlot slot) {
+        if (inventory == null) {
+            inventory = new ArrayList<>();
+        }
+        if (inventory.size() >= GameConstants.INVENTORY_MAX_SLOTS) {
+            return false;
+        }
+        inventory.add(slot);
+        return true;
+    }
 
     // 队伍ID
     private String partyId;
@@ -74,11 +89,11 @@ public class Player extends Character {
 
     /**
      * 玩家升级
-     * 根据设计文档：升级后获得5个可以自由分配的属性点
+     * 根据设计文档：升级后获得可以自由分配的属性点
      */
     public void levelUp(Role role) {
         setLevel(getLevel() + 1);
-        setFreeAttributePoints(getFreeAttributePoints() + 5);
+        setFreeAttributePoints(getFreeAttributePoints() + GameConstants.ATTRIBUTE_POINTS_PER_LEVEL);
 
         // 重新应用职业属性（包含新等级的加成）
         applyRoleStats(role);
@@ -95,7 +110,23 @@ public class Player extends Character {
      * - 体力：影响生命值上限、物理防御力、（小幅）法术防御力
      */
     public void recalculateFinalStats() {
-        // 第一步：从职业基础属性开始
+        // 从职业基础属性开始
+        resetStatsToBase();
+
+        // 计算总四维（玩家自身 + 装备提供）
+        TotalAttributes totalAttrs = calculateTotalAttributes();
+
+        // 应用四维对战斗属性的影响
+        applyAttributeEffects(totalAttrs);
+
+        // 应用装备提供的直接战斗属性
+        applyEquipmentDirectStats();
+    }
+
+    /**
+     * 重置属性为基础值
+     */
+    private void resetStatsToBase() {
         setMaxHealth(getBaseMaxHealth());
         setMaxMana(getBaseMaxMana());
         setPhysicalAttack(getBasePhysicalAttack());
@@ -107,8 +138,12 @@ public class Player extends Character {
         setCritDamage(getBaseCritDamage());
         setHitRate(getBaseHitRate());
         setDodgeRate(getBaseDodgeRate());
+    }
 
-        // 第二步：计算总四维（玩家自身 + 装备提供）
+    /**
+     * 计算总四维（玩家自身 + 装备提供）
+     */
+    private TotalAttributes calculateTotalAttributes() {
         int totalStrength = strength;
         int totalAgility = agility;
         int totalIntelligence = intelligence;
@@ -125,45 +160,74 @@ public class Player extends Character {
             }
         }
 
-        // 第三步：应用四维对战斗属性的影响
-        // 力量：+2物理攻击，+1物理防御，+0.1%命中
-        setPhysicalAttack(getPhysicalAttack() + totalStrength * 2);
-        setPhysicalDefense(getPhysicalDefense() + totalStrength);
-        setHitRate(getHitRate() + totalStrength * 0.001);
+        return new TotalAttributes(totalStrength, totalAgility, totalIntelligence, totalVitality);
+    }
 
-        // 敏捷：+2速度，+0.5%暴击率，+1%暴击伤害，+0.2%命中，+0.2%闪避
-        setSpeed(getSpeed() + totalAgility * 2);
-        setCritRate(getCritRate() + totalAgility * 0.005);
-        setCritDamage(getCritDamage() + totalAgility * 0.01);
-        setHitRate(getHitRate() + totalAgility * 0.002);
-        setDodgeRate(getDodgeRate() + totalAgility * 0.002);
+    /**
+     * 应用四维对战斗属性的影响
+     */
+    private void applyAttributeEffects(TotalAttributes attrs) {
+        // 力量影响
+        setPhysicalAttack(getPhysicalAttack() + attrs.strength * GameConstants.STRENGTH_TO_PHYSICAL_ATTACK);
+        setPhysicalDefense(getPhysicalDefense() + attrs.strength * GameConstants.STRENGTH_TO_PHYSICAL_DEFENSE);
+        setHitRate(getHitRate() + attrs.strength * GameConstants.STRENGTH_TO_HIT_RATE);
 
-        // 法力：+10法力上限，+3法术攻击，+1法术防御，+0.1%命中
-        setMaxMana(getMaxMana() + totalIntelligence * 10);
-        setMagicAttack(getMagicAttack() + totalIntelligence * 3);
-        setMagicDefense(getMagicDefense() + totalIntelligence);
-        setHitRate(getHitRate() + totalIntelligence * 0.001);
+        // 敏捷影响
+        setSpeed(getSpeed() + attrs.agility * GameConstants.AGILITY_TO_SPEED);
+        setCritRate(getCritRate() + attrs.agility * GameConstants.AGILITY_TO_CRIT_RATE);
+        setCritDamage(getCritDamage() + attrs.agility * GameConstants.AGILITY_TO_CRIT_DAMAGE);
+        setHitRate(getHitRate() + attrs.agility * GameConstants.AGILITY_TO_HIT_RATE);
+        setDodgeRate(getDodgeRate() + attrs.agility * GameConstants.AGILITY_TO_DODGE_RATE);
 
-        // 体力：+15生命上限，+2物理防御，+0.5法术防御
-        setMaxHealth(getMaxHealth() + totalVitality * 15);
-        setPhysicalDefense(getPhysicalDefense() + totalVitality * 2);
-        setMagicDefense(getMagicDefense() + (int)(totalVitality * 0.5));
+        // 智力影响
+        setMaxMana(getMaxMana() + attrs.intelligence * GameConstants.INTELLIGENCE_TO_MAX_MANA);
+        setMagicAttack(getMagicAttack() + attrs.intelligence * GameConstants.INTELLIGENCE_TO_MAGIC_ATTACK);
+        setMagicDefense(getMagicDefense() + attrs.intelligence * GameConstants.INTELLIGENCE_TO_MAGIC_DEFENSE);
+        setHitRate(getHitRate() + attrs.intelligence * GameConstants.INTELLIGENCE_TO_HIT_RATE);
 
-        // 第四步：累加装备提供的直接战斗属性
-        if (equipment != null) {
-            for (Equipment eq : equipment.values()) {
-                if (eq != null) {
-                    setPhysicalAttack(getPhysicalAttack() + eq.getPhysicalAttack());
-                    setPhysicalDefense(getPhysicalDefense() + eq.getPhysicalDefense());
-                    setMagicAttack(getMagicAttack() + eq.getMagicAttack());
-                    setMagicDefense(getMagicDefense() + eq.getMagicDefense());
-                    setSpeed(getSpeed() + eq.getSpeed());
-                    setCritRate(getCritRate() + eq.getCritRate());
-                    setCritDamage(getCritDamage() + eq.getCritDamage());
-                    setHitRate(getHitRate() + eq.getHitRate());
-                    setDodgeRate(getDodgeRate() + eq.getDodgeRate());
-                }
+        // 体力影响
+        setMaxHealth(getMaxHealth() + attrs.vitality * GameConstants.VITALITY_TO_MAX_HEALTH);
+        setPhysicalDefense(getPhysicalDefense() + attrs.vitality * GameConstants.VITALITY_TO_PHYSICAL_DEFENSE);
+        setMagicDefense(getMagicDefense() + (int)(attrs.vitality * GameConstants.VITALITY_TO_MAGIC_DEFENSE));
+    }
+
+    /**
+     * 应用装备提供的直接战斗属性
+     */
+    private void applyEquipmentDirectStats() {
+        if (equipment == null) {
+            return;
+        }
+
+        for (Equipment eq : equipment.values()) {
+            if (eq != null) {
+                setPhysicalAttack(getPhysicalAttack() + eq.getPhysicalAttack());
+                setPhysicalDefense(getPhysicalDefense() + eq.getPhysicalDefense());
+                setMagicAttack(getMagicAttack() + eq.getMagicAttack());
+                setMagicDefense(getMagicDefense() + eq.getMagicDefense());
+                setSpeed(getSpeed() + eq.getSpeed());
+                setCritRate(getCritRate() + eq.getCritRate());
+                setCritDamage(getCritDamage() + eq.getCritDamage());
+                setHitRate(getHitRate() + eq.getHitRate());
+                setDodgeRate(getDodgeRate() + eq.getDodgeRate());
             }
+        }
+    }
+
+    /**
+     * 总四维属性的辅助类
+     */
+    private static class TotalAttributes {
+        final int strength;
+        final int agility;
+        final int intelligence;
+        final int vitality;
+
+        TotalAttributes(int strength, int agility, int intelligence, int vitality) {
+            this.strength = strength;
+            this.agility = agility;
+            this.intelligence = intelligence;
+            this.vitality = vitality;
         }
     }
 

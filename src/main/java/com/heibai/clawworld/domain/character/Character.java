@@ -4,6 +4,7 @@ import com.heibai.clawworld.domain.skill.Skill;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import com.heibai.clawworld.domain.map.MapEntity;
+import com.heibai.clawworld.domain.constants.GameConstants;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,11 +61,6 @@ public abstract class Character extends MapEntity {
     private Long combatStartTime;
 
     // ==================== 升级经验计算 ====================
-    // 升级所需经验公式: exp = A * level^2 + B * level + C
-    // 1级升2级需要100经验，之后逐级递增
-    private static final int EXP_COEFFICIENT_A = 50;   // 二次项系数
-    private static final int EXP_COEFFICIENT_B = 50;   // 一次项系数
-    private static final int EXP_COEFFICIENT_C = 0;    // 常数项
 
     /**
      * 计算升到下一级所需的总经验值
@@ -74,7 +70,9 @@ public abstract class Character extends MapEntity {
      *       3级升4级需要 50*9 + 50*3 + 0 = 600 经验
      */
     public int getExperienceForNextLevel() {
-        return EXP_COEFFICIENT_A * level * level + EXP_COEFFICIENT_B * level + EXP_COEFFICIENT_C;
+        return GameConstants.EXP_COEFFICIENT_A * level * level
+             + GameConstants.EXP_COEFFICIENT_B * level
+             + GameConstants.EXP_COEFFICIENT_C;
     }
 
     /**
@@ -99,7 +97,9 @@ public abstract class Character extends MapEntity {
      * 用于在没有Character实例时计算（如PlayerEntity）
      */
     public static int calculateExperienceForLevel(int level) {
-        return EXP_COEFFICIENT_A * level * level + EXP_COEFFICIENT_B * level + EXP_COEFFICIENT_C;
+        return GameConstants.EXP_COEFFICIENT_A * level * level
+             + GameConstants.EXP_COEFFICIENT_B * level
+             + GameConstants.EXP_COEFFICIENT_C;
     }
 
     @Override

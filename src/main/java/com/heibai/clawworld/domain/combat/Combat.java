@@ -1,6 +1,7 @@
 package com.heibai.clawworld.domain.combat;
 
 import lombok.Data;
+import com.heibai.clawworld.domain.constants.GameConstants;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,14 +30,14 @@ public class Combat {
     }
 
     /**
-     * 检查战斗是否超时（10分钟）
+     * 检查战斗是否超时
      */
     public boolean isTimeout() {
         if (startTime == null) {
             return false;
         }
         long elapsedMillis = System.currentTimeMillis() - startTime;
-        return elapsedMillis > 10 * 60 * 1000;
+        return elapsedMillis > GameConstants.COMBAT_TIMEOUT_MILLIS;
     }
 
     /**
@@ -129,7 +130,7 @@ public class Combat {
     @Data
     public static class ActionBarEntry {
         private String characterId;
-        private int progress; // 当前进度值（0-10000）
+        private int progress; // 当前进度值（0-ACTION_BAR_THRESHOLD）
 
         /**
          * 增加进度
@@ -142,14 +143,14 @@ public class Combat {
          * 检查是否轮到行动
          */
         public boolean isReady() {
-            return progress >= 10000;
+            return progress >= GameConstants.ACTION_BAR_THRESHOLD;
         }
 
         /**
          * 重置行动条
          */
         public void reset() {
-            progress -= 10000;
+            progress -= GameConstants.ACTION_BAR_THRESHOLD;
         }
     }
 }
