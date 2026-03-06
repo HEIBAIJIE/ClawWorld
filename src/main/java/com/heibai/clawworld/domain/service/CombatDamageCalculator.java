@@ -1,6 +1,7 @@
 package com.heibai.clawworld.domain.service;
 
 import com.heibai.clawworld.domain.combat.CombatCharacter;
+import com.heibai.clawworld.domain.constants.GameConstants;
 import lombok.Data;
 import org.springframework.stereotype.Component;
 
@@ -63,7 +64,7 @@ public class CombatDamageCalculator {
         // 5. 应用暴击
         int finalDamage;
         if (crit) {
-            finalDamage = (int) (baseDamage * (1.5 + attacker.getCritDamage()));
+            finalDamage = (int) (baseDamage * (GameConstants.CRIT_BASE_MULTIPLIER + attacker.getCritDamage()));
         } else {
             finalDamage = baseDamage;
         }
