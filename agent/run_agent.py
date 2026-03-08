@@ -13,6 +13,15 @@ import os
 from pathlib import Path
 from datetime import datetime
 
+# Windows 下启用 ANSI 颜色码支持
+if sys.platform == 'win32':
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
+    except:
+        pass
+
 # 导入游戏API
 from api import login, execute_command
 
@@ -52,6 +61,8 @@ class Colors:
 class Logger:
     """日志工具类"""
 
+    debug_mode = False  # 调试模式开关
+
     @staticmethod
     def _get_timestamp():
         """获取时间戳"""
@@ -62,8 +73,14 @@ class Logger:
         """格式化日志"""
         timestamp = Logger._get_timestamp()
         if show_separator:
-            print(f"\n{Colors.GRAY}{'─' * 80}{Colors.RESET}")
-        print(f"{Colors.GRAY}[{timestamp}]{Colors.RESET} {color}{Colors.BOLD}[{log_type}]{Colors.RESET} {message}")
+            print(f"\n{Colors.GRAY}{'─' * 80}{Colors.RESET}", flush=True)
+        print(f"{Colors.GRAY}[{timestamp}]{Colors.RESET} {color}{Colors.BOLD}[{log_type}]{Colors.RESET} {message}", flush=True)
+
+    @staticmethod
+    def debug(message):
+        """调试日志（仅在调试模式下显示）"""
+        if Logger.debug_mode:
+            Logger._format_log("调试", Colors.GRAY, message)
 
     @staticmethod
     def thinking(message):
@@ -98,9 +115,9 @@ class Logger:
     @staticmethod
     def turn_separator(turn_count):
         """回合分隔符"""
-        print(f"\n{Colors.BOLD}{Colors.MAGENTA}{'═' * 80}{Colors.RESET}")
-        print(f"{Colors.BOLD}{Colors.MAGENTA}第 {turn_count} 轮{Colors.RESET}")
-        print(f"{Colors.BOLD}{Colors.MAGENTA}{'═' * 80}{Colors.RESET}\n")
+        print(f"\n{Colors.BOLD}{Colors.MAGENTA}{'═' * 80}{Colors.RESET}", flush=True)
+        print(f"{Colors.BOLD}{Colors.MAGENTA}第 {turn_count} 轮{Colors.RESET}", flush=True)
+        print(f"{Colors.BOLD}{Colors.MAGENTA}{'═' * 80}{Colors.RESET}\n", flush=True)
 
 
 class GameAgent:
@@ -114,6 +131,7 @@ class GameAgent:
 
     def load_config(self, config_path):
         """加载配置文件"""
+        Logger.debug(f"正在加载配置文件: {config_path}")
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
@@ -129,16 +147,21 @@ class GameAgent:
             config.setdefault('max_history_turns', 50)
             config.setdefault('compress_interval', 50)
             config.setdefault('game_server_url', 'http://localhost:8080')
+            config.setdefault('llm_timeout', 180)  # 默认180秒超时
 
+            Logger.debug("配置加载成功")
             return config
         except Exception as e:
-            print(f"加载配置文件失败: {e}")
+            Logger.error(f"加载配置文件失败: {e}")
+            import traceback
+            traceback.print_exc()
             sys.exit(1)
 
     def build_system_prompt(self):
         """构建[REDACTED]"""
         # 读取 AGENT_PROMPT.md
         prompt_path = Path(__file__).parent / 'AGENT_PROMPT.md'
+        Logger.debug(f"正在读取提示词文件: {prompt_path}")
         try:
             with open(prompt_path, 'r', encoding='utf-8') as f:
                 prompt = f.read()
@@ -147,9 +170,12 @@ class GameAgent:
             prompt = prompt.replace('{{GAME_GOAL}}', self.config['game_goal'])
             prompt = prompt.replace('{{BEHAVIOR_STYLE}}', self.config['behavior_style'])
 
+            Logger.debug("[REDACTED]构建成功")
             return prompt
         except Exception as e:
-            print(f"读取[REDACTED]失败: {e}")
+            Logger.error(f"读取[REDACTED]失败: {e}")
+            import traceback
+            traceback.print_exc()
             sys.exit(1)
 
     def login_game(self):
@@ -174,6 +200,65 @@ class GameAgent:
 
     def call_llm(self):
         """调用大模型获取下一步指令"""
+        api_type = self.config.get('api_type', 'ollama')
+
+        if api_type == 'ollama':
+            return self.call_llm_ollama()
+        else:
+            return self.call_llm_openai()
+
+    def call_llm_ollama(self):
+        """调用 Ollama 原生 API"""
+        url = f"{self.config['llm_base_url']}/chat"
+        enable_think = self.config.get('enable_think', False)
+
+        payload = {
+            "model": self.config['llm_model'],
+            "messages": self.conversation_history,
+            "stream": True,
+            "think": enable_think
+        }
+
+        try:
+            timeout = self.config.get('llm_timeout', 180)
+            response = requests.post(url, json=payload, stream=True, timeout=timeout)
+            response.raise_for_status()
+
+            full_content = ""
+
+            # 逐行读取流式响应
+            for line in response.iter_lines():
+                if line:
+                    data = json.loads(line.decode('utf-8'))
+
+                    # 处理思考过程（如果启用）
+                    if 'think' in data and data['think']:
+                        Logger.debug(f"[模型思考] {data['think']}")
+
+                    # 处理正式回复
+                    if 'message' in data and 'content' in data['message']:
+                        content = data['message']['content']
+                        full_content += content
+
+                    # 检查是否完成
+                    if data.get('done', False):
+                        break
+
+            return full_content if full_content else None
+
+        except KeyboardInterrupt:
+            Logger.system("用户中断操作")
+            raise
+        except requests.exceptions.Timeout:
+            Logger.error(f"大模型响应超时（{self.config.get('llm_timeout', 180)}秒）")
+            Logger.system("提示：如果使用本地大模型，可能需要增加 llm_timeout 配置")
+            return None
+        except Exception as e:
+            Logger.error(f"调用 Ollama API 失败: {e}")
+            return None
+
+    def call_llm_openai(self):
+        """调用 OpenAI 兼容 API"""
         url = f"{self.config['llm_base_url']}/chat/completions"
         headers = {
             "Content-Type": "application/json",
@@ -186,14 +271,22 @@ class GameAgent:
         }
 
         try:
-            response = requests.post(url, json=data, headers=headers, timeout=60)
+            timeout = self.config.get('llm_timeout', 180)
+            response = requests.post(url, json=data, headers=headers, timeout=timeout)
             response.raise_for_status()
             result = response.json()
 
             assistant_message = result['choices'][0]['message']['content']
             return assistant_message
+        except KeyboardInterrupt:
+            Logger.system("用户中断操作")
+            raise
+        except requests.exceptions.Timeout:
+            Logger.error(f"大模型响应超时（{self.config.get('llm_timeout', 180)}秒）")
+            Logger.system("提示：如果使用本地大模型，可能需要增加 llm_timeout 配置")
+            return None
         except Exception as e:
-            Logger.error(f"调用大模型失败: {e}")
+            Logger.error(f"调用 OpenAI API 失败: {e}")
             return None
 
     def parse_agent_response(self, response):
@@ -280,7 +373,6 @@ class GameAgent:
         if not self.login_game():
             return
 
-        Logger.system("=" * 60)
         Logger.system("智能体开始运行，按 Ctrl+C 停止")
         Logger.system("=" * 60)
 
@@ -291,7 +383,11 @@ class GameAgent:
 
                 # 调用大模型
                 Logger.system("正在调用大模型...")
-                llm_response = self.call_llm()
+                try:
+                    llm_response = self.call_llm()
+                except KeyboardInterrupt:
+                    raise
+
                 if not llm_response:
                     Logger.error("大模型调用失败，等待5秒后重试...")
                     time.sleep(5)
@@ -332,11 +428,12 @@ class GameAgent:
                 time.sleep(2)
 
         except KeyboardInterrupt:
-            print(f"\n\n{Colors.BOLD}{Colors.CYAN}智能体已停止{Colors.RESET}")
-            Logger.system(f"总共运行了 {self.turn_count} 轮")
+            Logger.system(f"\n智能体已停止，总共运行了 {self.turn_count} 轮")
 
 
 def main():
+    Logger.debug("脚本启动")
+
     parser = argparse.ArgumentParser(
         description="ClawWorld 智能体运行脚本",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -345,6 +442,7 @@ def main():
   python run_agent.py                          # 使用默认配置
   python run_agent.py -c config/aggressive.json  # 使用激进型配置
   python run_agent.py -c config/social.json      # 使用社交型配置
+  python run_agent.py --debug                  # 启用调试模式
         """
     )
 
@@ -354,22 +452,48 @@ def main():
         help='配置文件路径（默认: config/default.json）'
     )
 
+    parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='启用调试模式'
+    )
+
     args = parser.parse_args()
+
+    # 设置调试模式
+    if args.debug:
+        Logger.debug_mode = True
+
+    Logger.debug(f"命令行参数解析完成，配置文件: {args.config}")
 
     # 检查配置文件是否存在
     config_path = Path(__file__).parent / args.config
+    Logger.debug(f"完整配置路径: {config_path}")
+
     if not config_path.exists():
         Logger.error(f"配置文件不存在: {config_path}")
-        print("\n可用的配置文件:")
+        print("\n可用的配置文件:", flush=True)
         config_dir = Path(__file__).parent / 'config'
         if config_dir.exists():
             for f in config_dir.glob('*.json'):
-                print(f"  - config/{f.name}")
+                print(f"  - config/{f.name}", flush=True)
         sys.exit(1)
 
+    Logger.debug("配置文件存在，开始创建智能体")
+
     # 创建并运行智能体
-    agent = GameAgent(config_path)
-    agent.run()
+    try:
+        agent = GameAgent(config_path)
+        Logger.debug("智能体创建成功，开始运行")
+        agent.run()
+    except KeyboardInterrupt:
+        Logger.system("\n用户中断，智能体已停止")
+        sys.exit(0)
+    except Exception as e:
+        Logger.error(f"运行失败: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -220,14 +220,32 @@ agent/
   "password": "password123",              // 密码
   "game_goal": "你的游戏目标...",         // 游戏目标描述
   "behavior_style": "你的行事风格...",    // 行为风格描述
-  "llm_base_url": "https://api.openai.com/v1",  // 大模型API地址
-  "llm_api_key": "your-api-key-here",     // API密钥
-  "llm_model": "gpt-4o",                  // 模型名称
+  "api_type": "ollama",                   // API类型: "ollama" 或 "openai"
+  "llm_base_url": "http://localhost:11434/api",  // 大模型API地址
+  "llm_api_key": "ollama",                // API密钥（Ollama可填任意值）
+  "llm_model": "qwen2.5:7b",              // 模型名称
+  "llm_timeout": 180,                     // 请求超时时间（秒）
+  "enable_think": false,                  // 是否启用思考模式（仅Ollama原生API）
   "max_history_turns": 50,                // 最大历史轮数
   "compress_interval": 50,                // 压缩间隔
   "game_server_url": "http://localhost:8080"  // 游戏服务器地址
 }
 ```
+
+#### API 类型说明
+
+脚本支持两种 API 模式：
+
+1. **Ollama 原生 API**（推荐用于本地 Ollama）
+   - `api_type`: "ollama"
+   - `llm_base_url`: "http://localhost:11434/api"
+   - 支持 `enable_think` 参数控制思考模式
+   - 关闭思考模式后速度可提升一个数量级
+
+2. **OpenAI 兼容 API**
+   - `api_type`: "openai"
+   - `llm_base_url`: "https://api.openai.com/v1" 或 "http://localhost:11434/v1"
+   - 适用于 OpenAI、Claude 或 Ollama 的兼容模式
 
 ### 运行智能体
 
