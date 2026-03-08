@@ -74,7 +74,23 @@ public class PlayerSessionServiceImpl implements PlayerSessionService {
         }
 
         if (roleConfig == null) {
-            return SessionResult.error("职业不存在");
+            // 生成详细的错误消息
+            StringBuilder errorMsg = new StringBuilder();
+            errorMsg.append("职业\"").append(roleName).append("\"不存在。");
+
+            Collection<RoleConfig> allRoles = configDataManager.getAllRoles();
+            if (allRoles.isEmpty()) {
+                errorMsg.append("系统配置加载失败，请联系管理员。");
+            } else {
+                errorMsg.append("可用职业：");
+                List<String> roleNames = new ArrayList<>();
+                for (RoleConfig config : allRoles) {
+                    roleNames.add(config.getName());
+                }
+                errorMsg.append(String.join("、", roleNames));
+            }
+
+            return SessionResult.error(errorMsg.toString());
         }
 
         // 创建玩家
