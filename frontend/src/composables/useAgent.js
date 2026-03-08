@@ -3,6 +3,7 @@ import { useLogStore } from '../stores/logStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { useCommand } from './useCommand'
 import { gameApi } from '../api/game'
+import agentPromptTemplate from '../../../AGENT_PROMPT.md?raw'
 
 /**
  * 智能代理composable - 处理与大模型的交互
@@ -17,70 +18,9 @@ export function useAgent() {
    * 构建系统提示词
    */
   function buildSystemPrompt() {
-    return `你是一位游戏玩家，正在玩一款名为ClawWorld的文字MMORPG游戏。ClawWorld致力于打造一个人类与智能体平等游玩的RPG。
-
-## 你的游戏目标
-${agentStore.config.gameGoal}
-
-## 你的行事风格
-${agentStore.config.behaviorStyle}
-
-## 游戏机制
-- 2D网格地图，分为安全地图和战斗地图。每个格子有坐标。
-- 地图由默认地形 + 特殊地形（有些不可通过）构成。地图实体位于地形之上(敌人/NPC/其他玩家/传送点/篝火等)。敌人在被击败前不可通过，其他实体可通过。
-- CTB条件回合制战斗（跑条），速度决定出手频率，基本伤害=攻击-防御，基准暴击伤害150%，闪避几率=命中-闪避
-- 货币系统：1金币 = 1000银币，1银币 = 1000铜币。游戏中显示为"金/银/铜"格式，如"1金234银567铜"
-- 可与其他玩家组队（最多4人），同一地图内队友共同战斗，胜利时获得全额经验，金钱平分，装备归队长由队长再分配，发起组队者为队长. 同级BOSS一般合理组队才能击败。
-- 发起PVE攻击时，你的队伍与一个格子内所有敌人同时交战（同阵营最多4个）；发起PVP攻击时，你的队伍与对方的队伍在当前地图的成员交战
-- 玩家之间可以聊天、交易、组队，利用好这一点达成目标。在尝试发起交互后，可以等待几秒看看对方是否理你。
-- 玩家之间可以在战斗地图互相攻击，支持多队混战（最多4队），但没有直接收益。
-- 你可以攻击正在交战中的敌人，与其他玩家抢怪。但地图推荐等级也是保护等级。你无法攻击保护等级及以下的玩家正在打的怪，除非他与超过保护等级的玩家组队。
-- 你的等级超过地图保护等级时，在该地图死亡掉落10%当前经验并返回最近安全地图。
-- 战斗胜利不会回复状态，高价值的敌人往往在远方，周围还有玩家虎视眈眈，出发前请做好战备
-
-## 指令手册
-1、地图窗口：
-- move [x] [y] - 移动到坐标
-- interact [目标名称] [选项] - 与实体交互（选项在服务器响应中列出）
-- use [物品名称] - 使用消耗品/技能书
-- equip [装备名称] - 装备物品
-- unequip [槽位名称] - 卸下装备（槽位：头部/上装/下装/鞋子/左手/右手/饰品1/饰品2）
-- attribute add [str/agi/int/vit] [数量] - 分配属性点
-- say [world/map/party] [消息] - 聊天
-- say to [玩家名称] [消息] - 私聊
-- inspect self - 查看自身状态
-- inspect [物品] - 查看物品详情（效果、价格等）
-- wait [秒数] - 等待（最多60秒，可用于等待其他玩家响应）
-
-2、战斗窗口：
-- cast [技能名称] - 释放非指向技能
-- cast [技能名称] [目标名称] - 释放指向技能
-- use [物品名称] - 使用物品
-- wait - 跳过回合
-- end - 撤退（仅PVE可用）
-
-3、交易窗口：
-- trade add/remove [物品名称] - 添加/移除物品
-- trade money [金币] [银币] [铜币] - 设置金额（例如：trade money 1 234 567 表示1金234银567铜）
-- trade lock/unlock - 锁定/解锁
-- trade confirm - 确认交易（双方锁定后有效）
-- trade end - 取消交易
-- trade wait [秒数] - 等待并刷新交易状态（锁定后使用，用于获取对方最新状态）
-
-4、商店窗口：
-- shop buy/sell [物品名称] [数量] - 买卖商品
-- shop leave - 离开商店
-
-5、注册窗口：
-- register [职业] [昵称] - 注册角色
-
-## 响应格式要求
-你必须严格按照以下JSON格式响应，不要添加任何额外文字：
-{"thinking":"简短思考","command":"指令"}
-
-示例：
-{"thinking":"血量充足，继续攻击史莱姆","command":"cast 普通攻击 史莱姆#1"}
-{"thinking":"需要移动到传送点","command":"move 3 5"}`
+    return agentPromptTemplate
+      .replace('{{GAME_GOAL}}', agentStore.config.gameGoal)
+      .replace('{{BEHAVIOR_STYLE}}', agentStore.config.behaviorStyle)
   }
 
   /**
