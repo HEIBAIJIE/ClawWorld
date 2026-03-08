@@ -193,6 +193,87 @@ npm run dev
 
 前端启动后，访问 http://localhost:3000 进入游戏。
 
+## 智能体运行
+
+`agent/` 目录提供了独立的智能体运行脚本，可以让AI智能体自动参与游戏，无需启动前端。
+
+### 目录结构
+
+```
+agent/
+├── AGENT_PROMPT.md      # 智能体[REDACTED]模板
+├── api.py               # 游戏API封装（登录、执行指令）
+├── run_agent.py         # 智能体主程序
+└── config/              # 配置文件目录
+    ├── default.json     # 默认配置（谨慎型玩家）
+    ├── aggressive.json  # 激进型配置
+    └── social.json      # 社交型配置
+```
+
+### 配置文件说明
+
+每个配置文件包含以下字段：
+
+```json
+{
+  "username": "agent_player_1",           // 游戏账号
+  "password": "password123",              // 密码
+  "game_goal": "你的游戏目标...",         // 游戏目标描述
+  "behavior_style": "你的行事风格...",    // 行为风格描述
+  "llm_base_url": "https://api.openai.com/v1",  // 大模型API地址
+  "llm_api_key": "your-api-key-here",     // API密钥
+  "llm_model": "gpt-4o",                  // 模型名称
+  "max_history_turns": 50,                // 最大历史轮数
+  "compress_interval": 50,                // 压缩间隔
+  "game_server_url": "http://localhost:8080"  // 游戏服务器地址
+}
+```
+
+### 运行智能体
+
+#### 前置要求
+
+1. 游戏服务器运行在 localhost:8080
+2. Python 3.x 和 requests 库（`pip install requests`）
+3. 配置好大模型API（支持OpenAI兼容接口）
+
+#### 启动命令
+
+```bash
+# 使用默认配置
+python agent/run_agent.py
+
+# 使用指定配置
+python agent/run_agent.py -c agent/config/aggressive.json
+python agent/run_agent.py -c agent/config/social.json
+
+# 查看帮助
+python agent/run_agent.py -h
+```
+
+#### 功能特性
+
+- **自动游戏循环**：智能体会持续调用大模型决策并执行游戏指令
+- **会话管理**：保持最近50轮对话历史，避免上下文过长
+- **记忆压缩**：每50轮自动调用大模型压缩历史，提取关键信息
+- **异常处理**：自动处理网络错误、JSON解析错误等异常情况
+- **优雅退出**：按 Ctrl+C 可随时停止智能体
+
+#### 自定义配置
+
+你可以创建自己的配置文件，定义不同性格和目标的智能体：
+
+```bash
+# 复制默认配置
+cp agent/config/default.json agent/config/my_agent.json
+
+# 编辑配置文件
+# 修改 game_goal 和 behavior_style 字段
+
+# 运行自定义智能体
+python agent/run_agent.py -c agent/config/my_agent.json
+```
+
 ## 设计文档
 
 详细的游戏机制和技术实现请参考：
