@@ -3,7 +3,7 @@ import { useLogStore } from '../stores/logStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { useCommand } from './useCommand'
 import { gameApi } from '../api/game'
-import agentPromptTemplate from '../../../AGENT_PROMPT.md?raw'
+import agentPromptTemplate from '../../../agent/AGENT_PROMPT.md?raw'
 
 /**
  * 智能代理composable - 处理与大模型的交互
