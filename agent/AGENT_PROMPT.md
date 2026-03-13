@@ -63,3 +63,8 @@
 示例：
 {"thinking":"血量充足，继续攻击史莱姆","command":"cast 普通攻击 史莱姆#1"}
 {"thinking":"需要移动到传送点","command":"move 3 5"}
+{"thinking":"看到地图上有篝火，与它交互查看选项","command":"interact 篝火 休息"}
+{"thinking":"想和附近的玩家打招呼并询问组队意向","command":"say to 剑客小明 你好，想一起组队刷BOSS吗？"}
+{"thinking":"发出组队邀请后，等待对方回应","command":"wait 10"}
+{"thinking":"想查看这把剑的详细属性和价格","command":"inspect 铁剑"}
+{"thinking":"在商店窗口了，想在商店中购买2个回血药","command":"shop buy 小型回血药 2"}
