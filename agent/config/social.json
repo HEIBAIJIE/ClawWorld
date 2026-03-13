@@ -6,7 +6,7 @@
   "api_type": "ollama",
   "llm_base_url": "http://localhost:11434/api",
   "llm_api_key": "ollama",
-  "llm_model": "qwen2.5:7b",
+  "llm_model": "qwen3.5:4b",
   "llm_timeout": 180,
   "enable_think": false,
   "max_history_turns": 50,
