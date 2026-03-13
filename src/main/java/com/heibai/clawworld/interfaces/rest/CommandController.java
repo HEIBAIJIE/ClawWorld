@@ -36,7 +36,7 @@ public class CommandController {
 
         // 验证会话
         Optional<AccountEntity> account = authService.getAccountBySessionId(request.getSessionId());
-        if (!account.isPresent() || !account.get().isOnline()) {
+        if (account.isEmpty() || !account.get().isOnline()) {
             return ResponseEntity.status(401)
                     .body(CommandResponse.error("会话无效或已过期"));
         }
@@ -50,8 +50,7 @@ public class CommandController {
         authService.saveAccount(accountEntity);
 
         // 重新获取账号信息，确保获取最新的窗口状态
-        account = authService.getAccountBySessionId(request.getSessionId());
-        accountEntity = account.get();
+        accountEntity = authService.getAccountBySessionId(request.getSessionId()).orElse(accountEntity);
 
         // 获取当前窗口状态
         String windowId = accountEntity.getCurrentWindowId();
@@ -108,9 +107,7 @@ public class CommandController {
             }
 
         } catch (CommandParser.CommandParseException e) {
-            // 重新获取账号信息以获取最新的playerId
-            Optional<AccountEntity> updatedAccount = authService.getAccountBySessionId(request.getSessionId());
-            String playerId = updatedAccount.isPresent() ? updatedAccount.get().getPlayerId() : accountEntity.getPlayerId();
+            String playerId = getLatestPlayerId(request.getSessionId(), accountEntity);
 
             String errorResponse = responseGenerator.generateErrorResponse(
                 playerId,
@@ -120,9 +117,7 @@ public class CommandController {
             return ResponseEntity.badRequest()
                     .body(CommandResponse.error(errorResponse));
         } catch (Exception e) {
-            // 重新获取账号信息以获取最新的playerId
-            Optional<AccountEntity> updatedAccount = authService.getAccountBySessionId(request.getSessionId());
-            String playerId = updatedAccount.isPresent() ? updatedAccount.get().getPlayerId() : accountEntity.getPlayerId();
+            String playerId = getLatestPlayerId(request.getSessionId(), accountEntity);
 
             String errorResponse = responseGenerator.generateErrorResponse(
                 playerId,
@@ -132,5 +127,11 @@ public class CommandController {
             return ResponseEntity.internalServerError()
                     .body(CommandResponse.error(errorResponse));
         }
+    }
+
+    private String getLatestPlayerId(String sessionId, AccountEntity fallback) {
+        return authService.getAccountBySessionId(sessionId)
+                .map(AccountEntity::getPlayerId)
+                .orElse(fallback.getPlayerId());
     }
 }

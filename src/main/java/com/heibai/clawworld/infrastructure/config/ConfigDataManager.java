@@ -17,6 +17,8 @@ import jakarta.annotation.PostConstruct;
 import java.io.InputStream;
 import java.security.MessageDigest;
 import java.util.*;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 /**
@@ -35,6 +37,27 @@ public class ConfigDataManager {
     private final ResourceLoader resourceLoader;
 
     private final Map<String, String> fileChecksums = new HashMap<>();
+    private final ReadWriteLock configLock = new ReentrantReadWriteLock();
+
+    private static final List<String> CONFIG_FILES = List.of(
+        "classpath:data/items.csv",
+        "classpath:data/equipment.csv",
+        "classpath:data/skills.csv",
+        "classpath:data/enemies.csv",
+        "classpath:data/npcs.csv",
+        "classpath:data/maps.csv",
+        "classpath:data/roles.csv",
+        "classpath:data/waypoints.csv",
+        "classpath:data/enemy_loot.csv",
+        "classpath:data/map_terrain.csv",
+        "classpath:data/map_entities.csv",
+        "classpath:data/npc_shop_items.csv",
+        "classpath:data/role_skills.csv",
+        "classpath:data/chests.csv",
+        "classpath:data/chest_loot.csv",
+        "classpath:data/gift_loot.csv",
+        "classpath:data/terrain_types.csv"
+    );
 
     @PostConstruct
     public void init() {
@@ -56,23 +79,10 @@ public class ConfigDataManager {
     }
 
     private boolean hasAnyFileChanged() throws Exception {
-        return hasFileChanged("classpath:data/items.csv") ||
-               hasFileChanged("classpath:data/equipment.csv") ||
-               hasFileChanged("classpath:data/skills.csv") ||
-               hasFileChanged("classpath:data/enemies.csv") ||
-               hasFileChanged("classpath:data/npcs.csv") ||
-               hasFileChanged("classpath:data/maps.csv") ||
-               hasFileChanged("classpath:data/roles.csv") ||
-               hasFileChanged("classpath:data/waypoints.csv") ||
-               hasFileChanged("classpath:data/enemy_loot.csv") ||
-               hasFileChanged("classpath:data/map_terrain.csv") ||
-               hasFileChanged("classpath:data/map_entities.csv") ||
-               hasFileChanged("classpath:data/npc_shop_items.csv") ||
-               hasFileChanged("classpath:data/role_skills.csv") ||
-               hasFileChanged("classpath:data/chests.csv") ||
-               hasFileChanged("classpath:data/chest_loot.csv") ||
-               hasFileChanged("classpath:data/gift_loot.csv") ||
-               hasFileChanged("classpath:data/terrain_types.csv");
+        for (String path : CONFIG_FILES) {
+            if (hasFileChanged(path)) return true;
+        }
+        return false;
     }
 
     private boolean hasFileChanged(String path) throws Exception {
@@ -92,7 +102,7 @@ public class ConfigDataManager {
     }
 
     private String calculateChecksum(InputStream inputStream) throws Exception {
-        MessageDigest md = MessageDigest.getInstance("MD5");
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
         byte[] buffer = new byte[8192];
         int read;
         while ((read = inputStream.read(buffer)) > 0) {
@@ -107,6 +117,8 @@ public class ConfigDataManager {
     }
 
     private void loadAllConfigs() {
+        configLock.writeLock().lock();
+        try {
         // 物品和装备
         itemConfigLoader.loadItems();
         itemConfigLoader.loadEquipment();
@@ -133,6 +145,9 @@ public class ConfigDataManager {
         mapConfigLoader.loadTerrainTypes();
 
         log.info("All configs loaded successfully");
+        } finally {
+            configLock.writeLock().unlock();
+        }
     }
 
     // ========== 物品相关 ==========
@@ -146,10 +161,7 @@ public class ConfigDataManager {
      * @return 物品配置，如果未找到返回null
      */
     public ItemConfig getItemByName(String name) {
-        return itemConfigLoader.getAllItems().values().stream()
-            .filter(item -> item.getName().equals(name))
-            .findFirst()
-            .orElse(null);
+        return itemConfigLoader.getItemByName(name);
     }
 
     /**
@@ -158,12 +170,8 @@ public class ConfigDataManager {
      * @return 装备配置，如果未找到返回null
      */
     public EquipmentConfig getEquipmentByName(String name) {
-        // 去除实例编号（如果有的话）
         String baseName = name.contains("#") ? name.substring(0, name.indexOf("#")) : name;
-        return itemConfigLoader.getAllEquipment().values().stream()
-            .filter(eq -> eq.getName().equals(baseName))
-            .findFirst()
-            .orElse(null);
+        return itemConfigLoader.getEquipmentByName(baseName);
     }
 
     public EquipmentConfig getEquipment(String id) {

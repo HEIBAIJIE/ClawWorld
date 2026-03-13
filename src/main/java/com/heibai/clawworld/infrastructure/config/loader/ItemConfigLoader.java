@@ -29,7 +29,9 @@ public class ItemConfigLoader {
     private final ResourceLoader resourceLoader;
 
     private final Map<String, ItemConfig> itemConfigs = new ConcurrentHashMap<>();
+    private final Map<String, ItemConfig> itemByName = new ConcurrentHashMap<>();
     private final Map<String, EquipmentConfig> equipmentConfigs = new ConcurrentHashMap<>();
+    private final Map<String, EquipmentConfig> equipmentByName = new ConcurrentHashMap<>();
     private final List<GiftLootConfig> giftLootConfigs = new ArrayList<>();
 
     public void loadItems() {
@@ -55,7 +57,11 @@ public class ItemConfigLoader {
             });
 
             itemConfigs.clear();
-            items.forEach(item -> itemConfigs.put(item.getId(), item));
+            itemByName.clear();
+            items.forEach(item -> {
+                itemConfigs.put(item.getId(), item);
+                itemByName.put(item.getName(), item);
+            });
             log.info("Loaded {} items", items.size());
         } catch (IOException e) {
             log.error("Error loading items.csv", e);
@@ -96,7 +102,11 @@ public class ItemConfigLoader {
             });
 
             equipmentConfigs.clear();
-            equipment.forEach(eq -> equipmentConfigs.put(eq.getId(), eq));
+            equipmentByName.clear();
+            equipment.forEach(eq -> {
+                equipmentConfigs.put(eq.getId(), eq);
+                equipmentByName.put(eq.getName(), eq);
+            });
             log.info("Loaded {} equipment", equipment.size());
         } catch (IOException e) {
             log.error("Error loading equipment.csv", e);
@@ -117,6 +127,14 @@ public class ItemConfigLoader {
 
     public Map<String, EquipmentConfig> getAllEquipment() {
         return equipmentConfigs;
+    }
+
+    public ItemConfig getItemByName(String name) {
+        return itemByName.get(name);
+    }
+
+    public EquipmentConfig getEquipmentByName(String name) {
+        return equipmentByName.get(name);
     }
 
     public void loadGiftLoot() {
