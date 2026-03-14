@@ -28,6 +28,8 @@ public class CommandController {
 
     /**
      * 执行指令
+     * 支持复合指令：用分号分隔多条指令，最多10条，按顺序依次执行，结果统一返回
+     * 示例：interact 篝火 休息;move 3 3
      * @param request 指令请求（包含sessionId和command）
      * @return 指令执行结果
      */
@@ -49,83 +51,119 @@ public class CommandController {
         // 保存指令记录
         authService.saveAccount(accountEntity);
 
-        // 重新获取账号信息，确保获取最新的窗口状态
-        accountEntity = authService.getAccountBySessionId(request.getSessionId()).orElse(accountEntity);
+        // 拆分复合指令（分号分隔，最多10条）
+        String[] subCommands = request.getCommand().split(";", -1);
+        if (subCommands.length > 10) {
+            subCommands = java.util.Arrays.copyOf(subCommands, 10);
+        }
 
-        // 获取当前窗口状态
-        String windowId = accountEntity.getCurrentWindowId();
-        CommandContext.WindowType windowType = accountEntity.getCurrentWindowType() != null ?
-                CommandContext.WindowType.valueOf(accountEntity.getCurrentWindowType()) : null;
+        StringBuilder combinedResponse = new StringBuilder();
+        boolean anySuccess = false;
+        boolean lastSuccess = true;
 
-        try {
-            // 解析指令
-            Command command = commandParser.parse(
-                    request.getCommand(),
-                    windowType
-            );
+        for (int i = 0; i < subCommands.length; i++) {
+            String subCommandStr = subCommands[i].trim();
+            if (subCommandStr.isEmpty()) {
+                continue;
+            }
 
-            // 构建执行上下文
-            CommandContext context = CommandContext.builder()
-                    .sessionId(request.getSessionId())
-                    .windowId(windowId)
-                    .playerId(accountEntity.getPlayerId())
-                    .windowType(windowType)
-                    .build();
+            // 每条子指令执行前重新获取最新账号状态（窗口可能因上一条指令改变）
+            accountEntity = authService.getAccountBySessionId(request.getSessionId()).orElse(accountEntity);
 
-            // 执行指令
-            CommandResult result = commandExecutor.execute(command, context);
+            String windowId = accountEntity.getCurrentWindowId();
+            CommandContext.WindowType windowType = accountEntity.getCurrentWindowType() != null ?
+                    CommandContext.WindowType.valueOf(accountEntity.getCurrentWindowType()) : null;
 
-            // 如果窗口改变,更新账号的窗口状态
-            if (result.isWindowChanged()) {
-                authService.updateWindowState(
-                        request.getSessionId(),
-                        result.getWindowContent(),
-                        result.getNewWindowType() != null ? result.getNewWindowType().name() : null
+            try {
+                // 解析指令
+                Command command = commandParser.parse(subCommandStr, windowType);
+
+                // 构建执行上下文
+                CommandContext context = CommandContext.builder()
+                        .sessionId(request.getSessionId())
+                        .windowId(windowId)
+                        .playerId(accountEntity.getPlayerId())
+                        .windowType(windowType)
+                        .build();
+
+                // 执行指令
+                CommandResult result = commandExecutor.execute(command, context);
+
+                // 如果窗口改变，更新账号的窗口状态
+                if (result.isWindowChanged()) {
+                    authService.updateWindowState(
+                            request.getSessionId(),
+                            result.getWindowContent(),
+                            result.getNewWindowType() != null ? result.getNewWindowType().name() : null
+                    );
+                }
+
+                // 重新获取账号信息，以确保获取最新的playerId（特别是注册场景）
+                Optional<AccountEntity> updatedAccount = authService.getAccountBySessionId(request.getSessionId());
+                String playerId = updatedAccount.isPresent() ? updatedAccount.get().getPlayerId() : accountEntity.getPlayerId();
+
+                // 生成统一的日志格式响应
+                String responseText = responseGenerator.generateResponse(
+                    playerId,
+                    subCommandStr,
+                    result.getMessage(),
+                    windowType,
+                    result.getNewWindowType(),
+                    result.isInventoryChanged()
                 );
+
+                if (combinedResponse.length() > 0) {
+                    combinedResponse.append("\n");
+                }
+                combinedResponse.append(responseText);
+                lastSuccess = result.isSuccess();
+                if (result.isSuccess()) {
+                    anySuccess = true;
+                }
+
+                // 遇到失败指令，终止后续执行
+                if (!result.isSuccess()) {
+                    break;
+                }
+
+            } catch (CommandParser.CommandParseException e) {
+                String playerId = getLatestPlayerId(request.getSessionId(), accountEntity);
+                CommandContext.WindowType windowType2 = accountEntity.getCurrentWindowType() != null ?
+                        CommandContext.WindowType.valueOf(accountEntity.getCurrentWindowType()) : null;
+                String errorResponse = responseGenerator.generateErrorResponse(
+                    playerId,
+                    "指令解析失败: " + e.getMessage(),
+                    windowType2
+                );
+                if (combinedResponse.length() > 0) {
+                    combinedResponse.append("\n");
+                }
+                combinedResponse.append(errorResponse);
+                lastSuccess = false;
+                break;
+            } catch (Exception e) {
+                String playerId = getLatestPlayerId(request.getSessionId(), accountEntity);
+                CommandContext.WindowType windowType2 = accountEntity.getCurrentWindowType() != null ?
+                        CommandContext.WindowType.valueOf(accountEntity.getCurrentWindowType()) : null;
+                String errorResponse = responseGenerator.generateErrorResponse(
+                    playerId,
+                    "服务器内部错误: " + e.getMessage(),
+                    windowType2
+                );
+                if (combinedResponse.length() > 0) {
+                    combinedResponse.append("\n");
+                }
+                combinedResponse.append(errorResponse);
+                lastSuccess = false;
+                break;
             }
+        }
 
-            // 重新获取账号信息，以确保获取最新的playerId（特别是注册场景）
-            Optional<AccountEntity> updatedAccount = authService.getAccountBySessionId(request.getSessionId());
-            String playerId = updatedAccount.isPresent() ? updatedAccount.get().getPlayerId() : accountEntity.getPlayerId();
-
-            // 生成统一的日志格式响应
-            String responseText = responseGenerator.generateResponse(
-                playerId,
-                request.getCommand(),
-                result.getMessage(),
-                windowType,
-                result.getNewWindowType(),
-                result.isInventoryChanged()
-            );
-
-            // 返回结果
-            if (result.isSuccess()) {
-                return ResponseEntity.ok(CommandResponse.success(responseText));
-            } else {
-                return ResponseEntity.badRequest()
-                        .body(CommandResponse.error(responseText));
-            }
-
-        } catch (CommandParser.CommandParseException e) {
-            String playerId = getLatestPlayerId(request.getSessionId(), accountEntity);
-
-            String errorResponse = responseGenerator.generateErrorResponse(
-                playerId,
-                "指令解析失败: " + e.getMessage(),
-                windowType
-            );
-            return ResponseEntity.badRequest()
-                    .body(CommandResponse.error(errorResponse));
-        } catch (Exception e) {
-            String playerId = getLatestPlayerId(request.getSessionId(), accountEntity);
-
-            String errorResponse = responseGenerator.generateErrorResponse(
-                playerId,
-                "服务器内部错误: " + e.getMessage(),
-                windowType
-            );
-            return ResponseEntity.internalServerError()
-                    .body(CommandResponse.error(errorResponse));
+        String finalResponse = combinedResponse.toString();
+        if (lastSuccess) {
+            return ResponseEntity.ok(CommandResponse.success(finalResponse));
+        } else {
+            return ResponseEntity.badRequest().body(CommandResponse.error(finalResponse));
         }
     }
 
